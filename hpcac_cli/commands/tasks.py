@@ -54,6 +54,7 @@ async def run_tasks():
     log.info("Starting Task loop...")
     for _, task in enumerate(task_objects):
         successfully_executed_task = False
+        failures_during_execution = 0
 
         # Create chronometers for task:
         setup_task_chronometer = Chronometer()
@@ -96,7 +97,6 @@ async def run_tasks():
         elif task_status == TaskStatus.NodeEvicted:
             # Start the retry loop:
             retries = task.retries_before_aborting
-            failures_during_execution = 0
             task_retry_status = TaskStatus.NotCompleted
             for retry in range(1, retries + 1):
                 detail = f"retry {retry}"
