@@ -14,6 +14,9 @@ impl AwsInterface {
     ) -> Result<String> {
         let instance_name = context.ec2_instance_name(node_index);
 
+        // Sleep for 20s to give time for the IAM Profile to be propagated
+        sleep(Duration::from_secs(20)).await;
+
         let describe_instances_response = match context
             .ec2_client
             .describe_instances()
@@ -118,6 +121,15 @@ impl AwsInterface {
                     .name(context.iam_profile_name.clone())
                     .build(),
             );
+
+        if node.allocation_mode.to_lowercase() == "spot" {
+            run_instances_request = run_instances_request
+                .instance_market_options(
+                    aws_sdk_ec2::types::InstanceMarketOptionsRequest::builder()
+                        .market_type(aws_sdk_ec2::types::MarketType::Spot)
+                        .build()
+                );
+        }
 
         if let Some(burstable_mode) = &node.burstable_mode {
             let credit_spec = aws_sdk_ec2::types::CreditSpecificationRequest::builder()

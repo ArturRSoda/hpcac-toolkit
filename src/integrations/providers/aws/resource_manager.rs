@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use tracing::info;
+use tracing::error;
 
 impl CloudResourceManager for AwsInterface {
     async fn spawn_cluster(
@@ -23,6 +24,9 @@ impl CloudResourceManager for AwsInterface {
         if cluster.use_elastic_file_system {
             steps += 4 + nodes.len();
         }
+        let total_init_commands: usize =
+            init_commands.values().map(|commands| commands.len()).sum();
+        steps += total_init_commands;
 
         let spawning_message = format!("Spawning Cluster '{}'...", cluster.display_name);
         info!(spawning_message);
@@ -177,7 +181,7 @@ impl CloudResourceManager for AwsInterface {
         }
 
         // 14. Request EC2 Instances
-        // TODO: Add Spot support
+        // Current approach: if any instance fails to launch, terminate the whole cluster, clean up all resources, and return the error
         for (node_index, node) in nodes.iter().enumerate() {
             // 14.1. Request EC2 instance creation...
             operation_spinner.update_message(&format!(
@@ -186,9 +190,27 @@ impl CloudResourceManager for AwsInterface {
                 nodes.len(),
                 node.instance_type
             ));
-            let instance_id = self
+            let instance_id = match self
                 .request_elastic_compute_instance_creation(&context, node, node_index)
-                .await?;
+                .await {
+                    Ok(id) => id,
+                    Err(e) => {
+                        // Stop the progress bars before printing errors
+                        operation_spinner.finish_with_message("Error occurred, cleaning up...");
+                        main_progress.finish_with_message("Cluster creation failed.");
+                        
+                        // Print the error
+                        eprintln!("Failed to create instance for node {}: {:#}", node_index, e);
+
+                        // Attempt to terminate/cleanup the cluster
+                        let cleanup_result = self.destroy_cluster(cluster.clone(), nodes.clone()).await;
+                        if let Err(cleanup_err) = cleanup_result {
+                            error!("Failed to cleanup cluster after instance creation failure: {:?}", cleanup_err);
+                        }
+
+                        return Err(e);
+                    }
+                };
             context.ec2_instance_ids.insert(node_index, instance_id);
             main_progress.inc(1);
         }
@@ -214,31 +236,25 @@ impl CloudResourceManager for AwsInterface {
                     nodes.len()
                 );
                 operation_spinner.update_message(&op_msg);
-
                 let node_instance_id = &context.ec2_instance_ids[&node_index];
                 let efs_dns_name = format!(
                     "{}.efs.{}.amazonaws.com",
                     context.efs_device_id.clone().unwrap(),
                     cluster.region,
                 );
-                let efs_attach_script_commands = vec![
+
+                // Script to attach instances to EFS
+                let efs_attach_script = [
                     "sudo dnf install -y nfs-utils".to_string(),
                     "sudo mkdir -p /shared".to_string(),
                     format!("sudo mount -t nfs4 {}:/ /shared", efs_dns_name),
                     "sudo chmod ugo+rwx /shared".to_string(),
-                    format!(
-                        "echo \"{}:/ /shared nfs4 defaults,_netdev 0 0\" | sudo tee -a /etc/fstab",
-                        efs_dns_name
-                    ),
                 ];
 
-                self.send_and_wait_for_ssm_command(
-                    &context,
-                    node_instance_id,
-                    efs_attach_script_commands,
-                )
-                .await?;
-
+                for command in efs_attach_script {
+                    self.send_and_wait_for_ssm_command(&context, node_instance_id, command)
+                        .await?;
+                }
                 main_progress.inc(1);
             }
         }
@@ -247,7 +263,6 @@ impl CloudResourceManager for AwsInterface {
         for (node_index, _) in nodes.iter().enumerate() {
             let node_instance_id = &context.ec2_instance_ids[&node_index];
             let node_init_commands = &init_commands[&node_index];
-
             let op_msg = format!(
                 "Dispatching {} initialization commands to Instance {} (Node {} of {})...",
                 node_init_commands.len(),
@@ -257,12 +272,35 @@ impl CloudResourceManager for AwsInterface {
             );
             operation_spinner.update_message(&op_msg);
 
-            self.send_and_wait_for_ssm_command(
-                &context,
+            for (cmd_index, command) in node_init_commands.iter().enumerate() {
+                let cmd_msg = format!(
+                    "Executing command {} of {} on Instance {} (Node {})...",
+                    cmd_index + 1,
+                    node_init_commands.len(),
+                    node_instance_id,
+                    node_index + 1
+                );
+                operation_spinner.update_message(&cmd_msg);
+
+                info!(
+                    "Executing command {}/{} on node {}: {}",
+                    cmd_index + 1,
+                    node_init_commands.len(),
+                    node_index + 1,
+                    command
+                );
+
+                self.send_and_wait_for_ssm_command(&context, node_instance_id, command.clone())
+                    .await?;
+                main_progress.inc(1);
+            }
+
+            info!(
+                "Successfully completed all {} initialization commands for Instance {} (Node {})",
+                node_init_commands.len(),
                 node_instance_id,
-                node_init_commands.to_vec(),
-            )
-            .await?;
+                node_index + 1
+            );
         }
 
         operation_spinner.finish_with_message("All Cloud operations completed");
