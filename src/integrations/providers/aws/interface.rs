@@ -10,6 +10,9 @@ use aws_sdk_pricing::Client as PricingClient;
 use aws_sdk_servicequotas::Client as ServiceQuotasClient;
 use aws_sdk_ssm::Client as SsmClient;
 use std::collections::HashMap;
+use tracing::error;
+use std::sync::Arc;
+use sqlx::SqlitePool;
 
 /// Context struct containing all cluster-related information and resource identifiers
 /// used throughout the cluster lifecycle operations
@@ -150,6 +153,7 @@ impl AwsClusterContext {
 
 pub struct AwsInterface {
     pub config_vars: Vec<ConfigVar>,
+    pub db_pool: Arc<SqlitePool>,
 }
 
 impl AwsInterface {
@@ -224,5 +228,32 @@ impl AwsInterface {
         Ok(AwsClusterContext::new(
             cluster, ec2_client, efs_client, ssm_client, iam_client,
         ))
+    }
+
+    /// Get all availability zones in the specified region
+    pub async fn get_all_availability_zones(&self, ec2_client: &Ec2Client, region: &str) -> Result<Vec<String>> {
+        match ec2_client.describe_availability_zones().send().await {
+            Ok(resp) => {
+                let zones: Vec<String> = resp
+                    .availability_zones
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|r| r.zone_name)
+                    .collect();
+
+                if zones.is_empty() {
+                    bail!("No availability zones found in region '{}'", region);
+                }
+
+                Ok(zones)
+            }
+            Err(e) => {
+                error!("{:?}", e);
+                bail!(
+                    "Failed to fetch AWS availability zones for region '{}'",
+                    region
+                )
+            }
+        }
     }
 }
