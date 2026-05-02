@@ -79,7 +79,10 @@ impl CloudInfoProvider for AwsInterface {
                 Ok(response) => response,
                 Err(e) => {
                     error!("{:?}", e);
-                    bail!("Failed to fetch AWS instance types for region '{}'", region)
+                    bail!(
+                        "Failed to fetch AWS instance types for region '{}'. Check AWS credentials (ACCESS_KEY_ID/SECRET_ACCESS_KEY and optional SESSION_TOKEN) and ensure they are valid for this account/region",
+                        region
+                    )
                 }
             };
 

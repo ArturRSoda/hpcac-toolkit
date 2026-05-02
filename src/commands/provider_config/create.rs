@@ -53,6 +53,23 @@ pub async fn create(pool: &SqlitePool, skip_confirmation: bool) -> Result<()> {
         });
     }
 
+    if provider.id == "aws" {
+        let session_token = Text::new(
+            "Enter value for SESSION_TOKEN (optional, needed for temporary credentials):",
+        )
+        .prompt()?;
+
+        let session_token = session_token.trim().to_string();
+        if !session_token.is_empty() {
+            config_vars.push(ConfigVar {
+                id: 0,
+                provider_config_id: 0,
+                key: "SESSION_TOKEN".to_string(),
+                value: session_token,
+            });
+        }
+    }
+
     if !(utils::user_confirmation(
         skip_confirmation,
         "Do you want to proceed creating this provider configuration?",

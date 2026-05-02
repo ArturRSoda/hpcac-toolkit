@@ -168,8 +168,20 @@ impl AwsInterface {
                 bail!("Key 'SECRET_ACCESS_KEY' not found in config_vars")
             }
         };
-        let credentials =
-            Credentials::from_keys(access_key_id.clone(), secret_access_key.clone(), None);
+        // Support both long-lived credentials and temporary STS credentials.
+        let session_token = self
+            .config_vars
+            .get_value("SESSION_TOKEN")
+            .or_else(|| self.config_vars.get_value("AWS_SESSION_TOKEN"))
+            .map(|token| token.trim())
+            .filter(|token| !token.is_empty())
+            .map(|token| token.to_string());
+
+        let credentials = Credentials::from_keys(
+            access_key_id.trim().to_string(),
+            secret_access_key.trim().to_string(),
+            session_token,
+        );
         let static_provider = SharedCredentialsProvider::new(credentials);
         let region_struct = Region::new(region.to_string());
         let config = SdkConfig::builder()
