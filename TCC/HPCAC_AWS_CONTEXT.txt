@@ -1,0 +1,107 @@
+HPC@Cloud Toolkit - AWS Study Notes (Persistent Context)
+Updated: 2026-04-24
+
+1) High-level architecture
+- CLI layer: src/main.rs + src/commands/* (clap subcommands)
+- Database layer: SQLite via sqlx (src/database/mod.rs + src/database/models/*)
+- Cloud integration layer: src/integrations/cloud_interface.rs + provider implementations
+- Main provider currently used in depth: AWS (src/integrations/providers/aws/*)
+
+2) Core cluster lifecycle
+- create: validates YAML, validates provider/region/zone/instance/AMI, inserts cluster+nodes+init commands in DB with state Pending
+- spawn: creates/ensures AWS resources, boots nodes, waits for readiness, configures shared storage and node init commands, marks Running
+- terminate: tears down cloud resources in reverse dependency order, marks Terminated
+- delete: deletes DB cluster record only in safe states (Pending/Terminated/Failed/Restoring)
+
+3) Main data tracked in DB
+- Cluster: id, display_name, provider config, region/AZ, feature flags (EFS/EFA/affinity), state, migration attempts, tried zones, failure policy
+- Node: instance_type, allocation_mode (on-demand/spot), burstable mode, AMI, private/public IPs, setup flags
+- ShellCommand: per-node init command list with ordering/status/result/timing
+- ProviderConfig + ConfigVar: cloud credentials/config values
+- InstanceType: hardware capabilities/pricing/support flags
+
+4) AWS provider design
+- AwsInterface builds SDK clients (EC2, EFS, IAM, SSM, Pricing) from provider config vars
+- AwsClusterContext carries:
+  - deterministic names for every resource (VPC, subnet, SG, role/profile, key, EFS, ENI/EIP/EC2 per node)
+  - standard network CIDRs: VPC 10.0.0.0/16, subnet 10.0.0.0/24
+  - predictable node private IP pattern: 10.0.0.(index+10)
+  - tag/filter ownership model using ClusterId tag on resources
+- Provisioning is idempotent via ensure_* functions: if resource exists by tag/name, reuse it
+
+5) Spawn flow (important)
+Typical order in AWS resource_manager:
+1. EFS device (optional)
+2. VPC
+3. Subnet
+4. Internet Gateway
+5. Route Table + default route
+6. Security Group
+7. IAM role + trust/policies (SSM core)
+8. IAM instance profile
+9. Wait EFS ready (optional)
+10. EFS mount target (optional)
+11. SSH key import
+12. Placement group (optional, node affinity)
+13. For each node: ENI + EIP + association; save IPs in DB
+14. For each node: EC2 request
+15. Wait all EC2 running
+16. Wait EFS mount target ready (optional)
+17. For each node: wait SSM agent online
+18. For each node: mount EFS via SSM (optional)
+19. For each node: execute init commands via SSM
+
+6) How nodes are configured
+- EC2 launch uses:
+  - selected AMI from node.image_id
+  - instance type from node.instance_type
+  - pre-created ENI (fixed private IP)
+  - IAM instance profile for SSM
+  - root disk 100 GB gp3
+  - optional Spot market type
+  - optional burstable credit spec for t-family
+  - optional placement group when affinity enabled
+- User init_commands (from cluster YAML) execute after instance/SSM readiness
+
+7) Communication model with nodes
+- Automation communication is via AWS SSM Run Command (not direct SSH)
+- Key functions in services_system_manager_command.rs:
+  - wait_for_ssm_agent_ready
+  - create_ssm_command (retry/backoff)
+  - poll_ssm_command_until_completion
+- SSH is still available for humans using Elastic IPs; private key can be injected during init
+
+8) Task execution (run_task)
+- tasks YAML contains task_tag + setup_commands + run_commands
+- Current run_task executes on node 0 (EC2-INSTANCE-0)
+- Each command is sent via SSM and polled to completion
+- Outputs and timings are persisted under results/cluster_<id>/<timestamp>.txt
+
+9) Failure handling policies (instance creation)
+- cancel: abort and terminate cluster
+- on-demand: if spot fails, switch failed node to on-demand and retry spawn (bounded attempts)
+- migrate: switch availability zone and retry spawn (bounded attempts)
+
+10) Networking model summary
+- Isolated per-cluster VPC/subnet
+- One ENI/EIP per node gives fixed private IP + reachable public IP
+- Security group allows intra-cluster traffic and SSH access
+- Shared storage through EFS mounted on nodes at /shared (when enabled)
+
+11) Practical implications for TCC usage
+- Good for reproducible cluster bring-up with deterministic naming and tagging
+- Strong recovery story with retry/migration policies
+- Command-and-control is SSM-centric, useful when SSH connectivity is unreliable
+- Shared filesystem support is built-in for multi-node jobs
+
+Primary files to revisit quickly
+- src/commands/cluster/create.rs
+- src/commands/cluster/spawn.rs
+- src/commands/cluster/terminate.rs
+- src/commands/cluster/run_task.rs
+- src/integrations/providers/aws/interface.rs
+- src/integrations/providers/aws/resource_manager.rs
+- src/integrations/providers/aws/resources/elastic_compute.rs
+- src/integrations/providers/aws/resources/services_system_manager_command.rs
+- cluster.example.yaml
+- tasks.example.yaml
