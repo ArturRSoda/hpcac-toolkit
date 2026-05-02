@@ -524,7 +524,8 @@ impl Cluster {
             r#"
                 SELECT
                     id as "id!", 
-                    cluster_id, 
+                    cluster_id,
+                    role,
                     instance_type, 
                     allocation_mode, 
                     burstable_mode, 

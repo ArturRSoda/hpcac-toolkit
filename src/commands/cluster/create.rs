@@ -32,6 +32,7 @@ struct ClusterYaml {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NodeYaml {
+    role: String,
     instance_type: String,
     allocation_mode: Option<String>,
     burstable_mode: Option<String>,
@@ -70,6 +71,34 @@ pub async fn create(
             )
         }
     };
+
+    // Validate node roles (fast-fail before any cloud API calls)
+    for node in &cluster_yaml.nodes {
+        if node.role != "head" && node.role != "worker" {
+            bail!(
+                "Unknown node role '{}'. Valid values: head, worker",
+                node.role
+            );
+        }
+    }
+    let head_count = cluster_yaml.nodes.iter().filter(|n| n.role == "head").count();
+    if head_count != 1 {
+        bail!(
+            "Cluster must have exactly one node with role 'head', found {}",
+            head_count
+        );
+    }
+    for node in &cluster_yaml.nodes {
+        if node.role == "head" {
+            let mode = node.allocation_mode.as_deref().unwrap_or("on-demand");
+            if mode != "on-demand" {
+                bail!(
+                    "Head node must use allocation_mode 'on-demand', got '{}'",
+                    mode
+                );
+            }
+        }
+    }
 
     // Validate cluster.id
     let new_cluster_id = match cluster_yaml.id {
@@ -396,6 +425,7 @@ pub async fn create(
         nodes_to_insert.push(Node {
             id: new_node_id,
             cluster_id: new_cluster_id.clone(),
+            role: node_definition.role.clone(),
             instance_type: instance_type_name,
             allocation_mode,
             burstable_mode: burstable_mode.cloned(),
@@ -457,6 +487,7 @@ pub async fn create(
         };
 
         println!("  Node {}:", i + 1);
+        println!("    Role            : {}", node.role);
         println!("    Instance Type   : {}", node.instance_type);
         println!("    Processor       : {}", processor_info);
         println!("    vCPUs:          : {}", instance_details.vcpus);

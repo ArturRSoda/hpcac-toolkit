@@ -2,7 +2,7 @@
 ## Integrating MANA Fault Tolerance into HPC@Cloud for AWS Spot Clusters
 
 Date: 2026-04-24
-Last Updated: 2026-05-02 (Phase 0 completed)
+Last Updated: 2026-05-02 (Phase 1 completed)
 
 ## 1. Project Idea (Problem and Motivation)
 This TCC proposes integrating MANA (MPI-Agnostic Network-Agnostic checkpoint/restart) into HPC@Cloud to improve fault tolerance of AWS spot-based HPC clusters.
@@ -158,20 +158,21 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 - Execute a lightweight Phase 0 (engineering baseline) and prioritize Phase 1 and Phase 2 implementation.
 - **Status:** Phase 0 engineering baseline completed. AMI frozen. Proceed to Phase 1.
 
-### Phase 1 - Node Roles and Hybrid Topology ← CURRENT PHASE
+### Phase 1 - Node Roles and Hybrid Topology ✅ COMPLETED 2026-05-02
 #### Goal
 - Enable one on-demand head and N spot workers.
 
 #### Tasks
-- Extend cluster YAML schema with role field per node.
-- Update validation rules in create flow.
-- Persist role in DB node model and migrations.
-- Adapt spawn ordering so head is initialized first.
+- [x] Extend cluster YAML schema with role field per node.
+- [x] Update validation rules in create flow (fast-fail: unknown role, !=1 head, head with spot).
+- [x] Persist role in DB node model and migrations.
+- [x] Adapt spawn ordering so head is initialized first.
 
 #### Deliverable
-- Cluster creation/spawn with role-aware behavior.
+- [x] Cluster creation/spawn with role-aware behavior.
+- [x] Artifact: TCC/phase1/PHASE1_ARTIFACT.md
 
-### Phase 2 - Slurm and MANA Installation Flow
+### Phase 2 - Slurm and MANA Installation Flow ← CURRENT PHASE
 #### Goal
 - Bootstrap complete execution environment automatically.
 
@@ -313,13 +314,15 @@ Evaluate fallback to temporary on-demand worker replacement.
 - [x] Freeze low-credit baseline environment (t3.medium AMI, single node) and validate clean run.
 - [x] Validate MANA checkpoint/restart on single node with Slurm path.
 - [x] Produce Phase 0 artifact and lock AMI.
+- [x] Implement role-aware node model (head vs worker) with DB migration, validation, head-first spawn.
+- [x] Produce Phase 1 artifact.
 
-### Current Priority (Phase 1)
-1. Add node role support (head vs worker) to cluster configuration schema and DB model.
-2. Implement head-first spawn ordering in HPC@Cloud provisioning flow.
-3. Implement head and worker init scripts (Slurm controller vs slurmd, munge key distribution).
-4. Validate manual checkpoint/restart on 1 head + 2 worker cluster with shared EFS.
-5. Then implement interruption detection and single-policy automatic recovery.
+### Current Priority (Phase 2)
+1. Inject cluster context env-vars (`HPCAC_NODE_ROLE`, `HPCAC_HEAD_PRIVATE_IP`, etc.) into SSM init scripts.
+2. Write head init_commands (munge key, slurm.conf generation, slurmctld, EFS share, sentinel).
+3. Write worker init_commands (poll sentinel, copy munge key + slurm.conf, slurmd).
+4. Update cluster.example.yaml and tasks.example.yaml.
+5. Spawn first real 1-head + 2-worker cluster and validate Slurm + MANA checkpoint/restart.
 
 ## 10. Expected TCC Contribution Statement
 This project contributes a practical strategy for making spot-based HPC clusters more resilient and economically viable by combining scheduler-aware orchestration, transparent MPI checkpoint/restart (MANA), and cloud-native dynamic node replacement within HPC@Cloud.

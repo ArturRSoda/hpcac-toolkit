@@ -9,6 +9,7 @@ use tracing::error;
 pub struct Node {
     pub id: String,
     pub cluster_id: String,
+    pub role: String,
     pub instance_type: String,
     pub allocation_mode: String,
     pub burstable_mode: Option<String>,
@@ -25,7 +26,8 @@ impl Node {
             r#"
                 INSERT INTO nodes (
                     id,
-                    cluster_id, 
+                    cluster_id,
+                    role,
                     instance_type, 
                     allocation_mode, 
                     burstable_mode, 
@@ -33,10 +35,11 @@ impl Node {
                     was_efs_configured,
                     was_ssh_configured
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
             self.id,
             self.cluster_id,
+            self.role,
             self.instance_type,
             self.allocation_mode,
             self.burstable_mode,
@@ -143,6 +146,7 @@ impl Node {
             SELECT 
                 id as "id!",
                 cluster_id,
+                role,
                 instance_type,
                 allocation_mode,
                 burstable_mode,

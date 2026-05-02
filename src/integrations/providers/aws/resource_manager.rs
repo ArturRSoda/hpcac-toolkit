@@ -162,6 +162,10 @@ impl CloudResourceManager for AwsInterface {
             main_progress.inc(1);
         }
 
+        // Sort nodes so the head is always provisioned first
+        let mut nodes = nodes;
+        nodes.sort_by_key(|n| if n.role == "head" { 0usize } else { 1usize });
+
         // 13. Create ENI devices, Elastic IPs, and associate them
         for (node_index, node) in nodes.iter().enumerate() {
             // 13.1. Create ENI device
