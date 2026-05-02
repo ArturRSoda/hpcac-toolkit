@@ -79,7 +79,7 @@ Suggested AMI tags:
 - [x] NPB EP.A runs under Slurm with Verification SUCCESSFUL.
 - [x] MANA launch/checkpoint/restart works with hello-world test under Slurm.
 - [x] Setup commands updated to include AL2023 cgroup constraints and first-boot slurm.conf regeneration.
-- [ ] Final AMI metadata fields completed in this artifact.
+- [x] Final AMI metadata fields completed in this artifact.
 
 ## 8. Immediate Next Actions (Phase 1 Entry)
 1. Implement role-aware node model in HPC@Cloud (head vs worker).

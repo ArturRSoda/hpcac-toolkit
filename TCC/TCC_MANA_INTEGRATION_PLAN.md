@@ -2,6 +2,7 @@
 ## Integrating MANA Fault Tolerance into HPC@Cloud for AWS Spot Clusters
 
 Date: 2026-04-24
+Last Updated: 2026-05-02 (Phase 0 completed)
 
 ## 1. Project Idea (Problem and Motivation)
 This TCC proposes integrating MANA (MPI-Agnostic Network-Agnostic checkpoint/restart) into HPC@Cloud to improve fault tolerance of AWS spot-based HPC clusters.
@@ -80,7 +81,7 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 - Collect timing, interruption, restart, and cost metrics.
 
 ## 5. Recommended Implementation Path (Phased)
-### Phase 0 - Scope Lock and Reproducible Baseline
+### Phase 0 - Scope Lock and Reproducible Baseline ✅ COMPLETED 2026-05-02
 #### Goal
 - Freeze a baseline setup where a representative MPI workload runs under Slurm on HPC@Cloud without interruption handling.
 
@@ -123,11 +124,15 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 | LU | C | 2 / 4 / 8 | >= 5 per point |
 
 #### Deliverables
-- Baseline cluster config (YAML with t3.2xlarge head + m5.8xlarge workers)
-- Baseline task workflow (YAML with CG, FT, LU runs)
-- Pilot run report (runtime per benchmark/class/size)
-- Reproducibility checklist (versions, AMI IDs, region, AZ, instance types, NPB version)
-- Baseline validation report (clean run with timing/logs, no interruptions)
+- [x] AMI built and validated: ami-06af33e2399c52709 (us-east-1a, t3.medium)
+- [x] Stack locked: MPICH 3.3.2 + MANA (f967d3a1) + Slurm 24.05.4 + NPB 3.4.4
+- [x] First-boot smoke test defined and passing (section 10 of AL2023_SETUP_COMMANDS.md)
+- [x] MANA checkpoint/restart validated on single node (mpi_hello_world + srun path)
+- [x] Reproducibility record in TCC/artifacts/phase0/PHASE0_BASELINE_ARTIFACT.md
+- [ ] Baseline cluster config YAML (t3.2xlarge head + m5.8xlarge workers) — pending credits
+- [ ] Baseline task workflow YAML (CG, FT, LU runs) — pending credits
+- [ ] Pilot run report (runtime per benchmark/class/size) — pending credits
+- [ ] Baseline validation report (clean run, multi-node, no interruptions) — pending credits
 
 #### Temporary Low-Credit Mode (Current Sponsorship Constraint)
 ##### Objective
@@ -151,8 +156,9 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 
 ##### Practical Decision for Now
 - Execute a lightweight Phase 0 (engineering baseline) and prioritize Phase 1 and Phase 2 implementation.
+- **Status:** Phase 0 engineering baseline completed. AMI frozen. Proceed to Phase 1.
 
-### Phase 1 - Node Roles and Hybrid Topology
+### Phase 1 - Node Roles and Hybrid Topology ← CURRENT PHASE
 #### Goal
 - Enable one on-demand head and N spot workers.
 
@@ -170,33 +176,34 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 - Bootstrap complete execution environment automatically.
 
 #### Tasks
-- Add role-specific init command templates.
-- Configure Slurm controller on head and slurmd on workers.
-- Configure MANA coordinator placement (head).
-- Verify EFS checkpoint directory consistency across nodes.
-- Add pre-baked AMI strategy:
-  - Build AMIs with Slurm and MANA pre-installed per role.
-  - Use separate AMIs for head and worker roles (or common AMI + role scripts).
-  - Version/tag AMIs per experiment batch.
+- [ ] Add role-specific init command templates (head vs worker).
+- [ ] Configure Slurm controller on head and slurmd on workers via SSM.
+- [ ] Configure MANA coordinator placement on head node.
+- [ ] Verify EFS checkpoint directory consistency across nodes.
+- [x] ~~Pre-baked AMI strategy~~ — **completed in Phase 0:**
+  - Single common AMI for all node roles (al2023 + MPICH + MANA + Slurm binaries).
+  - Role differentiation done at first-boot via init commands (slurm.conf generation).
+  - AMI versioned and tagged: ami-06af33e2399c52709.
 
 #### Deliverable
-- End-to-end job launch and manual MANA checkpoint/restart on the cluster.
+- End-to-end job launch and manual MANA checkpoint/restart on multi-node cluster.
 
-### Phase 2.5 - AMI Hardening and Reproducibility Gate
+### Phase 2.5 - AMI Hardening and Reproducibility Gate ✅ COMPLETED IN PHASE 0
 #### Goal
 - Reduce bootstrap drift and startup time before interruption-aware automation.
 
 #### Tasks
-- Freeze package versions and MPI toolchain in AMI build scripts.
-- Add first-boot smoke tests:
-  - Slurm status
-  - mana_coordinator
-  - mana_launch dry run
-  - EFS mount check
-- Record AMI IDs in experiment metadata and cluster/task configs.
+- [x] Freeze package versions and MPI toolchain in AMI build scripts (AL2023_SETUP_COMMANDS.md).
+- [x] First-boot smoke tests defined and passing:
+  - [x] Slurm node State=IDLE
+  - [x] mana_coordinator available
+  - [x] mana_launch + checkpoint + restart validated
+  - [ ] EFS mount check — pending multi-node setup
+- [x] AMI IDs recorded in TCC/artifacts/phase0/PHASE0_BASELINE_ARTIFACT.md.
 
 #### Deliverable
-- Versioned, reusable AMI set validated for repeatable experiments.
+- [x] Versioned, validated single AMI for all node roles: ami-06af33e2399c52709
+- [ ] EFS mount check to be confirmed in Phase 2 multi-node validation.
 
 ### Phase 3 - Interruption-Aware Runtime Control
 #### Goal
@@ -301,11 +308,18 @@ Spot replacement delays degrade throughput.
 Evaluate fallback to temporary on-demand worker replacement.
 
 ## 9. Suggested Immediate Next Actions
-1. Freeze low-credit baseline config (t3.medium or t3.large head, m5.large workers) and validate one full clean run.
-2. Add node role support to cluster configuration and DB model.
-3. Implement head-first bootstrap with Slurm + MANA installation scripts.
-4. Validate manual checkpoint/restart on a 1 head + 2 worker cluster.
-5. Implement interruption detection plus single-policy automatic recovery, then expand benchmarking when credits return.
+
+### Completed
+- [x] Freeze low-credit baseline environment (t3.medium AMI, single node) and validate clean run.
+- [x] Validate MANA checkpoint/restart on single node with Slurm path.
+- [x] Produce Phase 0 artifact and lock AMI.
+
+### Current Priority (Phase 1)
+1. Add node role support (head vs worker) to cluster configuration schema and DB model.
+2. Implement head-first spawn ordering in HPC@Cloud provisioning flow.
+3. Implement head and worker init scripts (Slurm controller vs slurmd, munge key distribution).
+4. Validate manual checkpoint/restart on 1 head + 2 worker cluster with shared EFS.
+5. Then implement interruption detection and single-policy automatic recovery.
 
 ## 10. Expected TCC Contribution Statement
 This project contributes a practical strategy for making spot-based HPC clusters more resilient and economically viable by combining scheduler-aware orchestration, transparent MPI checkpoint/restart (MANA), and cloud-native dynamic node replacement within HPC@Cloud.
