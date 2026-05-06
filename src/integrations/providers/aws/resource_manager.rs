@@ -398,11 +398,9 @@ impl CloudResourceManager for AwsInterface {
             }
 
             // 18. Attach EC2 Instances to EFS mount target using SSM
-            let efs_dns_name = format!(
-                "{}.efs.{}.amazonaws.com",
-                context.efs_device_id.clone().unwrap(),
-                cluster.region,
-            );
+            let efs_mount_target_ip = self
+                .fetch_elastic_file_system_mount_target_ip(&context)
+                .await?;
             let mut ssm_command_ids: HashMap<usize, String> = HashMap::new();
             for (node_index, _) in nodes.iter().enumerate() {
                 let op_msg = format!(
@@ -423,12 +421,17 @@ impl CloudResourceManager for AwsInterface {
                         let node_instance_id = &context.ec2_instance_ids[&node_index];
                         let efs_attach_script = format!(
                             r#"
-sudo yum install -y nfs-utils
+if command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y nfs-utils
+else
+    sudo yum install -y nfs-utils
+fi
 sudo mkdir -p /shared
 i=1
-while true; do
+max_attempts=30
+while [ "$i" -le "$max_attempts" ]; do
    echo "EFS mount attempt $i..."
-   if sudo mount -t nfs4 {}:/ /shared; then
+   if sudo mount -t nfs4 -o nfsvers=4.1 {}:/ /shared; then
        echo "EFS mount successful!"
        break
    else
@@ -437,10 +440,14 @@ while true; do
        i=$((i + 1))
    fi
 done
+if [ "$i" -gt "$max_attempts" ]; then
+    echo "ERROR: EFS mount failed after ${{max_attempts}} attempts"
+    exit 1
+fi
 sudo chown ec2-user:ec2-user /shared
 echo "EFS mount and setup complete!"
 "#,
-                            efs_dns_name
+                            efs_mount_target_ip
                         );
                         let ssm_command_id = self
                             .create_ssm_command(&context, node_instance_id, efs_attach_script)
@@ -512,9 +519,24 @@ echo "EFS mount and setup complete!"
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("id_rsa"); // Fallback to id_rsa if path is weird
+        let worker_count = nodes.len().saturating_sub(1);
 
         for (node_index, node) in nodes.iter().enumerate() {
             let mut node_init_commands = node.get_init_commands(pool).await?;
+            let env_block = format!(
+                "export HPCAC_NODE_ROLE={role} \
+HPCAC_NODE_INDEX={idx} \
+HPCAC_HEAD_PRIVATE_IP=10.0.0.10 \
+HPCAC_NODE_COUNT={count} \
+HPCAC_WORKER_COUNT={worker_count} \
+HPCAC_USE_EFS={use_efs} \
+HPCAC_EFS_MOUNT=/shared",
+                role = node.role,
+                idx = node_index,
+                count = nodes.len(),
+                worker_count = worker_count,
+                use_efs = cluster.use_elastic_file_system,
+            );
 
             let ssh_key_setup_script = format!(
                 r#"echo "Setting up private SSH key..." && \
@@ -530,7 +552,8 @@ echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
                 private_key_content
             );
 
-            node_init_commands.insert(0, ssh_key_setup_script);
+            node_init_commands.insert(0, env_block);
+            node_init_commands.insert(1, ssh_key_setup_script);
             let op_msg = format!(
                 "Dispatching init script for Node {} of {}...",
                 node_index + 1,

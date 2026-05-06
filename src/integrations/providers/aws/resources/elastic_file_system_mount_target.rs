@@ -6,6 +6,56 @@ use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 impl AwsInterface {
+    pub async fn fetch_elastic_file_system_mount_target_ip(
+        &self,
+        context: &AwsClusterContext,
+    ) -> Result<String> {
+        let efs_id = context.efs_device_id.clone().unwrap();
+        let subnet_id = context.subnet_id.clone().unwrap();
+
+        let describe_mount_targets_response = match context
+            .efs_client
+            .describe_mount_targets()
+            .file_system_id(&efs_id)
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(e) => {
+                error!("{:?}", e);
+                bail!("Failure describing EFS mount targets");
+            }
+        };
+
+        for mount_target in describe_mount_targets_response.mount_targets() {
+            if mount_target.subnet_id() != subnet_id {
+                continue;
+            }
+
+            if mount_target.life_cycle_state() != &aws_sdk_efs::types::LifeCycleState::Available {
+                continue;
+            }
+
+            let mount_target_ip = match mount_target.ip_address() {
+                Some(ip) => ip.to_string(),
+                None => {
+                    bail!(
+                        "EFS mount target in subnet '{}' has no IP address in AWS response",
+                        subnet_id
+                    );
+                }
+            };
+
+            return Ok(mount_target_ip);
+        }
+
+        bail!(
+            "No available EFS mount target found in subnet '{}' for file system '{}'",
+            subnet_id,
+            efs_id
+        );
+    }
+
     pub async fn request_elastic_file_system_mount_target_creation(
         &self,
         context: &AwsClusterContext,
@@ -71,6 +121,7 @@ impl AwsInterface {
         context: &AwsClusterContext,
     ) -> Result<()> {
         let efs_id = context.efs_device_id.clone().unwrap();
+        let subnet_id = context.subnet_id.clone().unwrap();
         info!(
             "Waiting for EFS mount target (id='{}') to be ready...",
             efs_id
@@ -91,9 +142,9 @@ impl AwsInterface {
                 bail!(message);
             }
 
-            let describe_efs_device_response = match context
+            let describe_mount_targets_response = match context
                 .efs_client
-                .describe_file_systems()
+                .describe_mount_targets()
                 .file_system_id(&efs_id)
                 .send()
                 .await
@@ -101,29 +152,40 @@ impl AwsInterface {
                 Ok(response) => response,
                 Err(e) => {
                     error!("{:?}", e);
-                    bail!("Failure describing EFS devices");
+                    bail!("Failure describing EFS mount targets");
                 }
             };
 
-            let efs_devices = describe_efs_device_response.file_systems();
-            if efs_devices.is_empty() {
-                error!("{:?}", describe_efs_device_response);
-                bail!("Couldn't retrieve the existing EFS device id from AWS response");
-            }
+            let mut found_target_in_subnet = false;
+            for mount_target in describe_mount_targets_response.mount_targets() {
+                if mount_target.subnet_id() != subnet_id {
+                    continue;
+                }
 
-            let efs_device = &efs_devices[0];
-            match efs_device.life_cycle_state() {
-                aws_sdk_efs::types::LifeCycleState::Available => {
-                    info!("EFS device (id='{}') is now available!", efs_id);
+                found_target_in_subnet = true;
+                let mount_target_id = mount_target.mount_target_id();
+                let state = mount_target.life_cycle_state();
+                if state == &aws_sdk_efs::types::LifeCycleState::Available {
+                    info!(
+                        "EFS mount target (id='{}') is now available for subnet '{}'!",
+                        mount_target_id,
+                        subnet_id
+                    );
                     return Ok(());
                 }
-                _ => {
-                    info!(
-                        "EFS device (id='{}') is not available yet, (state='{}')...",
-                        efs_id,
-                        efs_device.life_cycle_state()
-                    );
-                }
+                info!(
+                    "EFS mount target (id='{}') is not available yet, (state='{:?}')...",
+                    mount_target_id,
+                    state
+                );
+            }
+
+            if !found_target_in_subnet {
+                info!(
+                    "No EFS mount target found yet for subnet '{}' and file system '{}'...",
+                    subnet_id,
+                    efs_id
+                );
             }
 
             sleep(poll_interval).await;
