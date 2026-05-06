@@ -1,18 +1,20 @@
 tasks:
-  - task_tag: "task1"
+  # Smoke test: verify all Slurm nodes are registered and IDLE
+  - task_tag: "slurm_smoke_test"
     setup_commands:
-      - hostname
-      - uptime
-    run_commands:
+      - sinfo -N
+      - scontrol show nodes
+    run_commands: []
 
-  - task_tag: "task2"
-    setup_commands:
-      - if [ -f "/shared/hostfile" ]; then rm /shared/hostfile; else echo "hostfile does not exist"; fi
-      - echo -e '10.0.0.10 slots=4\n10.0.0.11 slots=4\n10.0.0.12 slots=4\n10.0.0.13 slots=4\n' > /shared/hostfile
-      - cat /shared/hostfile
-      - if [ ! -d "/shared/hpcac-toolkit-apps" ]; then git clone https://github.com/lapesd/hpcac-toolkit-apps.git /shared/hpcac-toolkit-apps; else echo "Repo already exists"; fi
-      - mkdir -p /shared/hpcac-toolkit-apps/NPB3.3.1/NPB3.3-MPI/bin
-      - make -C /shared/hpcac-toolkit-apps/NPB3.3.1/NPB3.3-MPI is NPROCS=16 CLASS=C
+  # NPB EP class A — embarrassingly parallel, good for baseline throughput
+  - task_tag: "npb_ep_a"
+    setup_commands: []
     run_commands:
-      - mpirun -np 16 -hostfile /shared/hostfile /shared/hpcac-toolkit-apps/NPB3.3.1/NPB3.3-MPI/bin/is.C.16
+      - srun -N2 -n4 /home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/bin/ep.A.x
+
+  # NPB CG class A — conjugate gradient, communication-heavy
+  - task_tag: "npb_cg_a"
+    setup_commands: []
+    run_commands:
+      - srun -N2 -n4 /home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/bin/cg.A.x
 

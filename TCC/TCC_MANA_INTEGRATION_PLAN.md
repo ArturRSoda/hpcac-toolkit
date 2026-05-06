@@ -172,22 +172,30 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 - [x] Cluster creation/spawn with role-aware behavior.
 - [x] Artifact: TCC/phase1/PHASE1_ARTIFACT.md
 
-### Phase 2 - Slurm and MANA Installation Flow ← CURRENT PHASE
+### Phase 2 - Slurm and MANA Installation Flow ✅ COMPLETED 2026-05-06
 #### Goal
 - Bootstrap complete execution environment automatically.
 
 #### Tasks
-- [ ] Add role-specific init command templates (head vs worker).
-- [ ] Configure Slurm controller on head and slurmd on workers via SSM.
-- [ ] Configure MANA coordinator placement on head node.
-- [ ] Verify EFS checkpoint directory consistency across nodes.
+- [x] Add role-specific init command templates (head vs worker).
+- [x] Configure Slurm controller on head and slurmd on workers via SSM.
+- [x] Configure MANA coordinator placement on head node.
+- [x] Verify EFS checkpoint directory consistency across nodes.
 - [x] ~~Pre-baked AMI strategy~~ — **completed in Phase 0:**
   - Single common AMI for all node roles (al2023 + MPICH + MANA + Slurm binaries).
   - Role differentiation done at first-boot via init commands (slurm.conf generation).
-  - AMI versioned and tagged: ami-06af33e2399c52709.
+  - AMI versioned and tagged: ami-08b9f0fb120be798a.
 
 #### Deliverable
-- End-to-end job launch and manual MANA checkpoint/restart on multi-node cluster.
+- [x] End-to-end job launch and manual MANA checkpoint/restart on multi-node cluster.
+- [x] Artifact: `TCC/artifacts/phase2/PHASE2_ARTIFACT.md`
+
+#### Key Findings
+- `slurm.conf` is generated at spawn time from injected env-vars (`HPCAC_*`); no AMI baking needed.
+- `$HOME` is node-local: MANA rc file must be copied via EFS to each node per allocation.
+- EFS (`/shared`) stores both Slurm config (munge key, slurm.conf) and MANA checkpoints.
+- Fixed coordinator port (7779) required for reliable multi-run operation.
+- `MpiDefault=pmi2` required; `pmix` plugin unavailable on AL2023.
 
 ### Phase 2.5 - AMI Hardening and Reproducibility Gate ✅ COMPLETED IN PHASE 0
 #### Goal
@@ -199,14 +207,14 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
   - [x] Slurm node State=IDLE
   - [x] mana_coordinator available
   - [x] mana_launch + checkpoint + restart validated
-  - [ ] EFS mount check — pending multi-node setup
+  - [x] EFS mount check — confirmed in Phase 2 multi-node validation
 - [x] AMI IDs recorded in TCC/artifacts/phase0/PHASE0_BASELINE_ARTIFACT.md.
 
 #### Deliverable
 - [x] Versioned, validated single AMI for all node roles: ami-06af33e2399c52709
-- [ ] EFS mount check to be confirmed in Phase 2 multi-node validation.
+- [x] EFS mount check confirmed: `/shared/checkpoints` visible on all nodes via `srun -N2 -n2 --label /bin/sh -c 'ls /shared/checkpoints'`.
 
-### Phase 3 - Interruption-Aware Runtime Control
+### Phase 3 - Interruption-Aware Runtime Control ← CURRENT PHASE
 #### Goal
 - React to spot interruption signals with controlled checkpoint/recovery.
 
@@ -316,13 +324,13 @@ Evaluate fallback to temporary on-demand worker replacement.
 - [x] Produce Phase 0 artifact and lock AMI.
 - [x] Implement role-aware node model (head vs worker) with DB migration, validation, head-first spawn.
 - [x] Produce Phase 1 artifact.
+    - [x] Produce Phase 2 artifact.
 
-### Current Priority (Phase 2)
-1. Inject cluster context env-vars (`HPCAC_NODE_ROLE`, `HPCAC_HEAD_PRIVATE_IP`, etc.) into SSM init scripts.
-2. Write head init_commands (munge key, slurm.conf generation, slurmctld, EFS share, sentinel).
-3. Write worker init_commands (poll sentinel, copy munge key + slurm.conf, slurmd).
-4. Update cluster.example.yaml and tasks.example.yaml.
-5. Spawn first real 1-head + 2-worker cluster and validate Slurm + MANA checkpoint/restart.
-
+### Current Priority (Phase 3)
+1. Implement spot interruption detection agent on each worker node (poll EC2 metadata termination endpoint).
+2. Trigger `mana_status --checkpoint` on interruption notice.
+3. Drain interrupted node in Slurm (`scontrol update NodeName=<host> State=DRAIN`).
+4. Implement replacement node respawn workflow in HPC@Cloud.
+5. Validate full interrupt → checkpoint → drain → respawn → restart cycle.
 ## 10. Expected TCC Contribution Statement
 This project contributes a practical strategy for making spot-based HPC clusters more resilient and economically viable by combining scheduler-aware orchestration, transparent MPI checkpoint/restart (MANA), and cloud-native dynamic node replacement within HPC@Cloud.

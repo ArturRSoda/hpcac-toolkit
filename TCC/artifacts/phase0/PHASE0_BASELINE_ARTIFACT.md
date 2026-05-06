@@ -57,7 +57,7 @@ Fill and keep frozen for this experiment batch.
 - Availability Zone: us-east-1a
 - Source instance ID: i-07bca576b432a26f2
 - Source instance type: t3.medium
-- Final AMI ID: ami-06af33e2399c52709
+- Final AMI ID: ami-08b9f0fb120be798a 
 - AMI Name: hpcac-al2023-mpich3.3.2-mana-slurm24.05.4-v1
 - AMI Creation Timestamp (UTC): 2026/05/02 16:05 GMT-3
 

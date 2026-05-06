@@ -2,8 +2,26 @@ use crate::integrations::providers::aws::{AwsInterface, interface::AwsClusterCon
 
 use anyhow::{Result, bail};
 use aws_sdk_iam::error::SdkError;
+use aws_sdk_iam::operation::detach_role_policy::DetachRolePolicyError;
 use aws_sdk_iam::operation::get_role::GetRoleError;
 use tracing::{error, info};
+
+const SSM_MANAGED_POLICY_ARN: &str = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore";
+const EC2_ASSUME_ROLE_TRUST_POLICY: &str = r#"{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": [
+                    "ec2.amazonaws.com",
+                    "ssm.amazonaws.com"
+                ]
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}"#;
 
 impl AwsInterface {
     pub async fn ensure_iam_role_and_trust_policies(
@@ -12,7 +30,7 @@ impl AwsInterface {
     ) -> Result<String> {
         let role_name = context.iam_role_name.clone();
 
-        match context
+        let role_id = match context
             .iam_client
             .get_role()
             .role_name(&role_name)
@@ -23,10 +41,12 @@ impl AwsInterface {
                 if let Some(role) = response.role() {
                     let iam_role_id = role.role_id();
                     info!(
-                        "Found existing IAM Role (id='{}'), skipping creation...",
+                        "Found existing IAM Role (id='{}'), reconciling configuration...",
                         iam_role_id
                     );
-                    return Ok(iam_role_id.to_string());
+                    iam_role_id.to_string()
+                } else {
+                    bail!("Unexpected empty IAM Role response for role '{}'", role_name);
                 }
             }
             Err(SdkError::ServiceError(service_err)) => match service_err.err() {
@@ -35,6 +55,45 @@ impl AwsInterface {
                         "IAM Role (name='{}') does not exist, will create it",
                         role_name
                     );
+
+                    let create_iam_role_response = match context
+                        .iam_client
+                        .create_role()
+                        .role_name(&role_name)
+                        .assume_role_policy_document(EC2_ASSUME_ROLE_TRUST_POLICY)
+                        .description("Role for EC2 instances to use Systems Manager")
+                        .tags(
+                            aws_sdk_iam::types::Tag::builder()
+                                .key("Name")
+                                .value(&role_name)
+                                .build()
+                                .unwrap(),
+                        )
+                        .tags(
+                            aws_sdk_iam::types::Tag::builder()
+                                .key(context.cluster_id_tag.key().unwrap())
+                                .value(context.cluster_id_tag.value().unwrap())
+                                .build()
+                                .unwrap(),
+                        )
+                        .send()
+                        .await
+                    {
+                        Ok(response) => {
+                            info!("Created IAM role (name='{}')", role_name);
+                            response
+                        }
+                        Err(e) => {
+                            error!("{:?}", e);
+                            bail!("Failed to create IAM role (name='{}')", role_name);
+                        }
+                    };
+
+                    create_iam_role_response
+                        .role()
+                        .unwrap()
+                        .role_id()
+                        .to_string()
                 }
                 _ => {
                     error!("{:?}", service_err);
@@ -47,60 +106,31 @@ impl AwsInterface {
             }
         };
 
-        let trust_policy = r#"{
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": {
-                        "Service": [
-                            "ec2.amazonaws.com",
-                            "ssm.amazonaws.com"
-                        ]
-                    },
-                    "Action": "sts:AssumeRole"
-                }
-            ]
-        }"#;
-
-        let create_iam_role_response = match context
+        match context
             .iam_client
-            .create_role()
+            .update_assume_role_policy()
             .role_name(&role_name)
-            .assume_role_policy_document(trust_policy)
-            .description("Role for EC2 instances to use Systems Manager")
-            .tags(
-                aws_sdk_iam::types::Tag::builder()
-                    .key("Name")
-                    .value(&role_name)
-                    .build()
-                    .unwrap(),
-            )
-            .tags(
-                aws_sdk_iam::types::Tag::builder()
-                    .key(context.cluster_id_tag.key().unwrap())
-                    .value(context.cluster_id_tag.value().unwrap())
-                    .build()
-                    .unwrap(),
-            )
+            .policy_document(EC2_ASSUME_ROLE_TRUST_POLICY)
             .send()
             .await
         {
-            Ok(response) => {
-                info!("Created IAM role (name='{}')", role_name);
-                response
+            Ok(_) => {
+                info!("Ensured IAM Role '{}' trust policy is up to date", role_name);
             }
             Err(e) => {
                 error!("{:?}", e);
-                bail!("Failed to create IAM role (name='{}')", role_name);
+                bail!(
+                    "Failed to update trust policy for IAM Role (name='{}')",
+                    role_name
+                );
             }
-        };
+        }
 
         match context
             .iam_client
             .attach_role_policy()
             .role_name(&role_name)
-            .policy_arn("arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore")
+            .policy_arn(SSM_MANAGED_POLICY_ARN)
             .send()
             .await
         {
@@ -115,12 +145,6 @@ impl AwsInterface {
                 );
             }
         }
-
-        let role_id = create_iam_role_response
-            .role()
-            .unwrap()
-            .role_id()
-            .to_string();
 
         Ok(role_id)
     }
@@ -173,25 +197,39 @@ impl AwsInterface {
             }
         }
 
-        let _detach_ssm_policy_from_iam_role_response = match context
+        match context
             .iam_client
             .detach_role_policy()
             .role_name(&role_name)
-            .policy_arn("arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore")
+            .policy_arn(SSM_MANAGED_POLICY_ARN)
             .send()
             .await
         {
-            Ok(response) => {
+            Ok(_) => {
                 info!(
-                    "Detached SSM Trust Policy from IAM Role (name='{}')",
+                    "Detached SSM managed policy from IAM Role (name='{}')",
                     role_name
                 );
-                response
             }
+            Err(SdkError::ServiceError(service_err)) => match service_err.err() {
+                DetachRolePolicyError::NoSuchEntityException(_) => {
+                    info!(
+                        "SSM managed policy was already absent from IAM Role (name='{}'), continuing...",
+                        role_name
+                    );
+                }
+                _ => {
+                    error!("{:?}", service_err);
+                    bail!(
+                        "Failure detaching SSM managed policy from IAM Role (name='{}')",
+                        role_name
+                    );
+                }
+            },
             Err(e) => {
                 error!("{:?}", e);
                 bail!(
-                    "Failure detaching SSM Trust Policy from IAM Role (name='{}')",
+                    "Failure detaching SSM managed policy from IAM Role (name='{}')",
                     role_name
                 );
             }

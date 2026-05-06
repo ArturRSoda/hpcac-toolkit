@@ -183,6 +183,9 @@ Recommended for this project:
 - Use Slurm launch path (`srun`) for launch and restart during experiments.
 - Avoid Hydra-based restart for multi-rank jobs in this stack.
 - Compile MPI apps with regular `mpicc` (not `mpicc_mana`) when using MPICH 3.x.
+- In multi-node clusters where `$HOME` is node-local (not shared), copy or symlink
+  `$HOME/.mana-slurm-$SLURM_JOB_ID.rc` to each node before running `mana_launch`.
+  The coordinator writes this file on the submission node only.
 
 ---
 
@@ -432,6 +435,17 @@ sudo rm -f /etc/ssh/ssh_host_*
 # slurm.conf must be regenerated at first boot (see section 5.5).
 sudo rm -f /etc/slurm/slurm.conf
 
+# Disable Slurm daemons so they do not auto-start on first boot with no config.
+# init_commands in cluster.yaml will re-enable them with the correct multi-node config.
+# Without this, slurmctld starts on every node (including workers) and crashes with
+# CLUSTER NAME MISMATCH because /var/spool/slurmctld/clustername still contains "local".
+sudo systemctl disable slurmctld slurmd
+
+# Clear stale single-node Slurm controller state baked in during Phase 0 testing.
+# If left in the AMI, worker nodes crash immediately with:
+#   fatal: CLUSTER NAME MISMATCH — read "local" from StateSaveLocation
+sudo rm -f /var/spool/slurmctld/clustername /var/spool/slurmctld/*.old
+
 sudo sync
 sudo shutdown -h now
 ```
@@ -588,6 +602,7 @@ Optional follow-up after hello-world passes:
 # Longer real workload checkpoint/restart validation
 EP_BIN="$HOME/downloads/NPB3.4.4/NPB3.4-MPI/bin/ep.A.x"
 mana_coordinator --exit-on-last --daemon
+rm -rf ~/mana_test/ckpt/*
 srun -N1 -n2 mana_launch --ckptdir ~/mana_test/ckpt "$EP_BIN" &
 sleep 2
 mana_status --checkpoint
