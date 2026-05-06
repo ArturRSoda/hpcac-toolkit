@@ -201,6 +201,17 @@ enum ProviderConfigCommands {
         yes: bool,
     },
 
+    /// Update an existing provider configuration
+    Update {
+        /// The ID of the provider configuration to update
+        #[arg(required = true)]
+        id: String,
+
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
+
     /// List existing provider configurations
     List {},
 }
@@ -335,6 +346,9 @@ async fn main() -> Result<()> {
             }
             ProviderConfigCommands::Delete { id, yes } => {
                 commands::provider_config::delete(&sqlite_pool, id, *yes).await?;
+            }
+            ProviderConfigCommands::Update { id, yes } => {
+                commands::provider_config::update(&sqlite_pool, id, *yes).await?;
             }
             ProviderConfigCommands::List {} => {
                 commands::provider_config::list(&sqlite_pool).await?;

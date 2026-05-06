@@ -214,6 +214,82 @@ impl ProviderConfig {
         Ok(config_vars)
     }
 
+    pub async fn upsert_config_var(&self, pool: &SqlitePool, key: &str, value: &str) -> Result<()> {
+        let mut tx = match pool.begin().await {
+            Ok(result) => result,
+            Err(e) => {
+                error!("SQLx Error: {}", e.to_string());
+                bail!("DB Operation Failure");
+            }
+        };
+
+        let update_result = match sqlx::query(
+            r#"
+                UPDATE config_variables
+                SET value = ?
+                WHERE provider_config_id = ? AND key = ?
+            "#,
+        )
+        .bind(value)
+        .bind(self.id)
+        .bind(key)
+        .execute(&mut *tx)
+        .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                error!("SQLx Error: {}", e.to_string());
+                bail!("DB Operation Failure");
+            }
+        };
+
+        if update_result.rows_affected() == 0 {
+            let _ = match sqlx::query(
+                r#"
+                    INSERT INTO config_variables (provider_config_id, key, value)
+                    VALUES (?, ?, ?)
+                "#,
+            )
+            .bind(self.id)
+            .bind(key)
+            .bind(value)
+            .execute(&mut *tx)
+            .await
+            {
+                Ok(result) => result,
+                Err(e) => {
+                    error!("SQLx Error: {}", e.to_string());
+                    bail!("DB Operation Failure");
+                }
+            };
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn delete_config_var_by_key(&self, pool: &SqlitePool, key: &str) -> Result<()> {
+        let _ = match sqlx::query(
+            r#"
+                DELETE FROM config_variables
+                WHERE provider_config_id = ? AND key = ?
+            "#,
+        )
+        .bind(self.id)
+        .bind(key)
+        .execute(pool)
+        .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                error!("SQLx Error: {}", e.to_string());
+                bail!("DB Operation Failure");
+            }
+        };
+
+        Ok(())
+    }
+
     pub async fn delete(&self, pool: &SqlitePool) -> Result<()> {
         let mut tx = match pool.begin().await {
             Ok(result) => result,
