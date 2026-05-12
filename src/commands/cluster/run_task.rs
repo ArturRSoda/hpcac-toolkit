@@ -1,20 +1,339 @@
-use crate::database::models::{Cluster, ClusterState, InstanceType, ProviderConfig};
+use super::watcher;
+use crate::database::models::{Cluster, ClusterState, InstanceType, Node, ProviderConfig};
 use crate::integrations::providers::aws::AwsInterface;
 use crate::utils;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use aws_sdk_ec2::types::Filter;
-use chrono::Local;
+use chrono::{Local, Utc};
+use indicatif::ProgressBar;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use tokio::task::JoinHandle;
 use tracing::{error, info};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct FaultToleranceConfig {
+    strategy: String,
+    #[serde(default = "default_replacement_allocation_mode")]
+    replacement_allocation_mode: String,
+    process_count: u32,
+    checkpoint_dir: String,
+    #[serde(default = "default_poll_interval")]
+    poll_interval_secs: u64,
+    #[serde(default)]
+    terminate_cluster_on_zero_workers: bool,
+}
+
+fn default_replacement_allocation_mode() -> String {
+    "spot".to_string()
+}
+
+fn default_poll_interval() -> u64 {
+    10
+}
+
+fn is_ft_active(ft: &Option<FaultToleranceConfig>) -> bool {
+    matches!(ft, Some(f) if f.strategy != "NONE")
+}
+
+fn node_index_from_private_ip(ip: &str) -> Result<usize> {
+    let last = ip
+        .rsplit('.')
+        .next()
+        .ok_or_else(|| anyhow!("invalid private IP: {}", ip))?
+        .parse::<usize>()?;
+    if last < 10 {
+        bail!("invalid HPCAC private IP: {}", ip);
+    }
+    Ok(last - 10)
+}
+
+fn extract_cycle_id(details: Option<&str>) -> Option<String> {
+    let details = details?;
+    let marker = "cycle_id=";
+    let start = details.find(marker)? + marker.len();
+    let tail = &details[start..];
+    let end = tail
+        .find(|c: char| c == '|' || c.is_whitespace())
+        .unwrap_or(tail.len());
+    let id = tail[..end].trim();
+    if id.is_empty() {
+        None
+    } else {
+        Some(id.to_string())
+    }
+}
+
+fn extract_restart_output(details: Option<&str>) -> Option<String> {
+    let details = details?;
+    let begin_marker = "--restart_output_begin--";
+    let end_marker = "--restart_output_end--";
+    let begin = details.find(begin_marker)? + begin_marker.len();
+    let tail = &details[begin..];
+    let end = tail.find(end_marker)?;
+    Some(tail[..end].trim().to_string())
+}
+
+async fn get_latest_restart_output_for_cycles(
+    pool: &SqlitePool,
+    cluster_id: &str,
+    run_started_at: &str,
+    cycle_ids: &[String],
+) -> Result<Option<(String, String)>> {
+    if cycle_ids.is_empty() {
+        return Ok(None);
+    }
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT details
+        FROM interruption_events
+        WHERE cluster_id = ?
+          AND occurred_at >= ?
+          AND event_type = 'restart_completed'
+        ORDER BY occurred_at DESC
+        LIMIT 16
+        "#,
+        cluster_id,
+        run_started_at,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for row in rows {
+        let details = row.details.as_deref();
+        if let Some(cycle_id) = extract_cycle_id(details) {
+            if cycle_ids.iter().any(|id| id == &cycle_id) {
+                if let Some(output) = extract_restart_output(details) {
+                    return Ok(Some((cycle_id, output)));
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+async fn get_active_recovery_cycle_ids(
+    pool: &SqlitePool,
+    cluster_id: &str,
+    run_started_at: &str,
+) -> Result<Vec<String>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT event_type as "event_type!", details
+        FROM interruption_events
+        WHERE cluster_id = ?
+          AND occurred_at >= ?
+          AND event_type IN ('recovery_started', 'recovery_completed', 'degraded_resume', 'no_workers_remaining', 'recovery_failed')
+        ORDER BY occurred_at ASC
+        "#,
+        cluster_id,
+        run_started_at,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut started: HashMap<String, bool> = HashMap::new();
+    for row in rows {
+        if let Some(cycle_id) = extract_cycle_id(row.details.as_deref()) {
+            if row.event_type == "recovery_started" {
+                started.insert(cycle_id, true);
+            } else {
+                started.remove(&cycle_id);
+            }
+        }
+    }
+
+    let mut active_ids: Vec<String> = started.into_keys().collect();
+    active_ids.sort();
+    Ok(active_ids)
+}
+
+async fn get_completed_recovery_cycle_ids(
+    pool: &SqlitePool,
+    cluster_id: &str,
+    run_started_at: &str,
+) -> Result<Vec<String>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT details
+        FROM interruption_events
+        WHERE cluster_id = ?
+          AND occurred_at >= ?
+          AND event_type IN ('recovery_completed', 'degraded_resume', 'no_workers_remaining')
+        ORDER BY occurred_at ASC
+        "#,
+        cluster_id,
+        run_started_at,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut cycle_ids: Vec<String> = rows
+        .iter()
+        .filter_map(|row| extract_cycle_id(row.details.as_deref()))
+        .collect();
+    cycle_ids.sort();
+    cycle_ids.dedup();
+    Ok(cycle_ids)
+}
+
+async fn wait_for_watcher_recovery_if_needed(
+    pool: &SqlitePool,
+    cluster_id: &str,
+    run_started_at: &str,
+    max_wait: Duration,
+    progress_bar: &utils::ProgressTracker,
+) -> Result<bool> {
+    let started_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(1)
+        FROM interruption_events
+        WHERE cluster_id = ?
+          AND occurred_at >= ?
+          AND event_type = 'recovery_started'
+        "#,
+    )
+    .bind(cluster_id)
+    .bind(run_started_at)
+    .fetch_one(pool)
+    .await?;
+
+    let terminal_count = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(1)
+        FROM interruption_events
+        WHERE cluster_id = ?
+          AND occurred_at >= ?
+                    AND event_type IN ('recovery_completed', 'degraded_resume', 'no_workers_remaining', 'recovery_failed')
+        "#,
+    )
+    .bind(cluster_id)
+    .bind(run_started_at)
+    .fetch_one(pool)
+    .await?;
+
+    if started_count <= terminal_count {
+        return Ok(false);
+    }
+
+    let waiting_message = format!(
+        "Waiting for watcher recovery and restarted workload completion (started={}, completed={})...",
+        started_count, terminal_count
+    );
+    progress_bar.update_message(&waiting_message);
+    info!("{}", waiting_message);
+
+    let deadline = Instant::now() + max_wait;
+    loop {
+        let started_now = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(1)
+            FROM interruption_events
+            WHERE cluster_id = ?
+              AND occurred_at >= ?
+              AND event_type = 'recovery_started'
+            "#,
+        )
+        .bind(cluster_id)
+        .bind(run_started_at)
+        .fetch_one(pool)
+        .await?;
+
+        let terminal_now = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(1)
+            FROM interruption_events
+            WHERE cluster_id = ?
+              AND occurred_at >= ?
+                            AND event_type IN ('recovery_completed', 'degraded_resume', 'no_workers_remaining', 'recovery_failed')
+            "#,
+        )
+        .bind(cluster_id)
+        .bind(run_started_at)
+        .fetch_one(pool)
+        .await?;
+
+        let active_cycle_ids = get_active_recovery_cycle_ids(pool, cluster_id, run_started_at).await?;
+        let active_cycle_label = if active_cycle_ids.is_empty() {
+            "none".to_string()
+        } else {
+            active_cycle_ids.join(",")
+        };
+
+        if started_now <= terminal_now {
+            let latest_terminal = sqlx::query!(
+                r#"
+                SELECT event_type as "event_type!", details
+                FROM interruption_events
+                WHERE cluster_id = ?
+                  AND occurred_at >= ?
+                  AND event_type IN ('recovery_completed', 'degraded_resume', 'no_workers_remaining', 'recovery_failed')
+                ORDER BY occurred_at DESC
+                LIMIT 1
+                "#,
+                cluster_id,
+                run_started_at,
+            )
+            .fetch_optional(pool)
+            .await?;
+
+            if let Some(latest) = latest_terminal {
+                if latest.event_type == "recovery_failed" {
+                    let failed_cycle = extract_cycle_id(latest.details.as_deref())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    let waiting_retry_message = format!(
+                        "Latest watcher cycle failed (cycle={}); waiting for next recovery attempt...",
+                        failed_cycle
+                    );
+                    progress_bar.update_message(&waiting_retry_message);
+                    info!("{}", waiting_retry_message);
+
+                    if Instant::now() >= deadline {
+                        bail!(
+                            "Watcher recovery did not complete successfully before timeout (last_failed_cycle={}).",
+                            failed_cycle
+                        );
+                    }
+
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    continue;
+                }
+            }
+
+            let completion_message = format!(
+                "Watcher recovery and restarted workload completed (started={}, completed={}, active_cycles={}).",
+                started_now, terminal_now, active_cycle_label
+            );
+            progress_bar.update_message(&completion_message);
+            info!("{}", completion_message);
+            return Ok(true);
+        }
+
+        if Instant::now() >= deadline {
+            let timeout_message = format!(
+                "Timed out waiting for watcher recovery/restarted workload completion (started={}, completed={}, active_cycles={}).",
+                started_now, terminal_now, active_cycle_label
+            );
+            progress_bar.update_message(&timeout_message);
+            bail!("{}", timeout_message);
+        }
+
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct TasksYaml {
+    #[serde(default)]
+    fault_tolerance: Option<FaultToleranceConfig>,
     tasks: Vec<Task>,
 }
 
@@ -105,6 +424,27 @@ pub async fn run_task(
         }
     };
 
+    if let Some(ft) = &tasks_yaml.fault_tolerance {
+        match ft.strategy.as_str() {
+            "NONE" | "REPLACE_RESUME" | "DEGRADED_RESUME" => {}
+            other => {
+                bail!(
+                    "Invalid fault_tolerance.strategy '{}'. Expected NONE, REPLACE_RESUME, or DEGRADED_RESUME.",
+                    other
+                )
+            }
+        }
+        if ft.strategy == "REPLACE_RESUME"
+            && ft.replacement_allocation_mode != "spot"
+            && ft.replacement_allocation_mode != "on-demand"
+        {
+            bail!(
+                "Invalid fault_tolerance.replacement_allocation_mode '{}'. Expected 'spot' or 'on-demand'.",
+                ft.replacement_allocation_mode
+            );
+        }
+    }
+
     info!("fetching Clusters (id='{}')", cluster_id);
     let cluster = match Cluster::fetch_by_id(pool, cluster_id).await? {
         Some(cluster) => cluster,
@@ -132,13 +472,32 @@ pub async fn run_task(
     let config_vars = provider_config.get_config_vars(pool).await?;
     let provider_id = provider_config.provider_id.clone();
     let cloud_interface = match provider_id.as_str() {
-        "aws" => AwsInterface { config_vars },
+        "aws" => AwsInterface {
+            config_vars: config_vars.clone(),
+        },
         _ => {
             bail!("Provider '{}' is currently not supported.", &provider_id)
         }
     };
 
     // Confirm with user
+    if let Some(ft) = &tasks_yaml.fault_tolerance {
+        println!("Fault Tolerance:");
+        println!(" - strategy: {}", ft.strategy);
+        if ft.strategy == "REPLACE_RESUME" {
+            println!(
+                " - replacement_allocation_mode: {}",
+                ft.replacement_allocation_mode
+            );
+        }
+        println!(" - process_count: {}", ft.process_count);
+        println!(" - checkpoint_dir: {}", ft.checkpoint_dir);
+        println!(" - poll_interval_secs: {}", ft.poll_interval_secs);
+        println!(
+            " - terminate_cluster_on_zero_workers: {}",
+            ft.terminate_cluster_on_zero_workers
+        );
+    }
     println!("Tasks:");
     for task in tasks_yaml.tasks.iter() {
         println!(" - name: {}", task.task_tag);
@@ -192,15 +551,105 @@ pub async fn run_task(
         None => bail!("Unable to retrieve ec2 instance id."),
     };
 
+    let mut worker_nodes: Vec<(usize, Node)> = nodes
+        .iter()
+        .filter(|n| n.role == "worker")
+        .map(|n| {
+            let ip = n
+                .private_ip
+                .as_deref()
+                .ok_or_else(|| anyhow!("Worker node {} has no private IP", n.id))?;
+            Ok((node_index_from_private_ip(ip)?, n.clone()))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    worker_nodes.sort_by_key(|(idx, _)| *idx);
+
+    if is_ft_active(&tasks_yaml.fault_tolerance) {
+        println!("Fault tolerance worker mapping (private_ip -> node_index):");
+        for (idx, worker) in &worker_nodes {
+            let ip = worker.private_ip.as_deref().unwrap_or("<missing>");
+            println!(" - {} -> {}", ip, idx);
+        }
+    }
+
+    let head_count = nodes.iter().filter(|n| n.role == "head").count();
+    if head_count != 1 {
+        bail!(
+            "Invalid cluster topology: expected exactly one head node, found {}",
+            head_count
+        );
+    }
+    let head = nodes.iter().find(|n| n.role == "head").unwrap();
+    let head_ip = head
+        .private_ip
+        .as_deref()
+        .ok_or_else(|| anyhow!("Head has no private IP"))?;
+    if node_index_from_private_ip(head_ip)? != 0 {
+        bail!(
+            "Invalid topology: head private IP {} does not map to node_index 0",
+            head_ip
+        );
+    }
+
+    let worker_instance_ids: HashMap<usize, String> = if is_ft_active(&tasks_yaml.fault_tolerance)
+    {
+        let mut map = HashMap::new();
+        let running_filter = Filter::builder()
+            .name("instance-state-name")
+            .values("running")
+            .build();
+        let cluster_filter = Filter::builder()
+            .name("tag:ClusterId")
+            .values(&cluster.id)
+            .build();
+
+        for (node_index, worker) in &worker_nodes {
+            let private_ip = worker
+                .private_ip
+                .as_deref()
+                .ok_or_else(|| anyhow!("Worker at index {} has no private IP", node_index))?;
+            let ip_filter = Filter::builder()
+                .name("private-ip-address")
+                .values(private_ip)
+                .build();
+            let resp = context
+                .ec2_client
+                .describe_instances()
+                .filters(ip_filter)
+                .filters(running_filter.clone())
+                .filters(cluster_filter.clone())
+                .send()
+                .await?;
+            let worker_ec2_id = resp
+                .reservations()
+                .iter()
+                .flat_map(|r| r.instances())
+                .find_map(|i| i.instance_id().map(|id| id.to_string()));
+
+            if let Some(worker_ec2_id) = worker_ec2_id {
+                map.insert(*node_index, worker_ec2_id);
+            } else {
+                println!(
+                    "[watcher] warning: no running instance found for worker IP {} (node_index={}); preflight recovery will handle it",
+                    private_ip, node_index
+                );
+            }
+        }
+
+        map
+    } else {
+        HashMap::new()
+    };
+
     info!("Checking SSM Agent status for instance '{}'...", task_runner_instance_ec2_id);
-    println!("Waiting for node to be ready for commands (SSM Agent)...");
-    
+    println!("Waiting for node to be ready for commands (SSM Agent)...\n");
+
     cloud_interface.wait_for_ssm_agent_ready(
         &context, 
         &task_runner_instance_ec2_id, 
         Duration::from_secs(300) // Wait up to 5 minutes
     ).await?;
-    
+
     info!("SSM Agent is ready!");
 
     // Write cluster details to file
@@ -239,6 +688,28 @@ pub async fn run_task(
         provider_config.display_name
     );
     log_report!("{:<35}: {}\n\n", "Node Count", nodes.len());
+    if let Some(ft) = &tasks_yaml.fault_tolerance {
+        log_report!("{:<35}: {}\n", "Fault Tolerance Strategy", ft.strategy);
+        if ft.strategy == "REPLACE_RESUME" {
+            log_report!(
+                "{:<35}: {}\n",
+                "Replacement Allocation Mode",
+                ft.replacement_allocation_mode
+            );
+        }
+        log_report!("{:<35}: {}\n", "FT Process Count", ft.process_count);
+        log_report!("{:<35}: {}\n", "FT Checkpoint Dir", ft.checkpoint_dir);
+        log_report!(
+            "{:<35}: {}\n",
+            "FT Poll Interval (secs)",
+            ft.poll_interval_secs
+        );
+        log_report!(
+            "{:<35}: {}\n\n",
+            "FT Terminate on Zero Workers",
+            ft.terminate_cluster_on_zero_workers
+        );
+    }
 
     log_report!("Node Details:\n");
     for (i, node) in nodes.iter().enumerate() {
@@ -294,9 +765,67 @@ pub async fn run_task(
     let multi = utils::ProgressTracker::create_multi();
     let main_progress =
         utils::ProgressTracker::add_to_multi(&multi, steps as u64, Some("Initializing..."));
+
     let operation_spinner = utils::ProgressTracker::new_indeterminate(&multi, "Initializing...");
+    let watcher_progress_bar: Option<ProgressBar> = if is_ft_active(&tasks_yaml.fault_tolerance) { Some(
+            utils::ProgressTracker::new_indeterminate(&multi, "[watcher] waiting for events")
+                .progress_bar
+                .clone(),
+        )
+    } else {
+        None
+    };
+
+    let watcher_handle: Option<JoinHandle<Result<()>>> =
+        if let Some(ft) = &tasks_yaml.fault_tolerance {
+            if ft.strategy == "NONE" {
+                None
+            } else {
+
+                let watcher_interface = AwsInterface {
+                    config_vars: config_vars.clone(),
+                };
+                let watcher_context = watcher_interface.create_cluster_context(&cluster)?;
+                let watcher_ft = watcher::FaultToleranceConfig {
+                    strategy: ft.strategy.clone(),
+                    replacement_allocation_mode: ft.replacement_allocation_mode.clone(),
+                    process_count: ft.process_count,
+                    checkpoint_dir: ft.checkpoint_dir.clone(),
+                    poll_interval_secs: ft.poll_interval_secs,
+                    terminate_cluster_on_zero_workers: ft.terminate_cluster_on_zero_workers,
+                };
+
+                let pool_clone = pool.clone();
+                let cluster_clone = cluster.clone();
+                let all_nodes_clone = nodes.clone();
+                let worker_nodes_clone = worker_nodes.clone();
+                let worker_ids_clone = worker_instance_ids.clone();
+                let head_id_clone = task_runner_instance_ec2_id.clone();
+                let watcher_progress_clone = watcher_progress_bar.clone();
+
+                Some(tokio::spawn(async move {
+                    watcher::run_watcher(
+                        pool_clone,
+                        cluster_clone,
+                        all_nodes_clone,
+                        worker_nodes_clone,
+                        worker_ids_clone,
+                        head_id_clone,
+                        watcher_context,
+                        watcher_interface,
+                        watcher_ft,
+                        watcher_progress_clone,
+                    )
+                    .await
+                }))
+            }
+        } else {
+            None
+        };
+
 
     info!("Starting Task loop...");
+    let run_started_at = Utc::now().to_rfc3339();
     for task in tasks_yaml.tasks.iter() {
         log_report!("===> Task: '{}'\n", task.task_tag);
 
@@ -305,58 +834,22 @@ pub async fn run_task(
         main_progress.update_message(&running_task_message);
 
         let setup_commands_start = Instant::now();
-        for command in task.setup_commands.iter() {
-            operation_spinner.update_message(&format!("Executing command: '{}'", command));
-            log_report!("$ {}\n", command);
-
-            let result = async {
-                // Create Command
-                let cmd_id = cloud_interface
-                    .create_ssm_command(
-                        &context,
-                        &task_runner_instance_ec2_id,
-                        command.clone(),
-                    )
-                    .await?;
-
-                // Poll until completion
-                cloud_interface
-                    .poll_ssm_command_until_completion(
-                        &context,
-                        &cmd_id,
-                        &task_runner_instance_ec2_id,
-                        Duration::from_secs(3600), // 1 hour timeout
-                        Duration::from_secs(2),
-                    )
-                    .await
-            }
-            .await;
-
-            match result {
-                Ok(out) => log_report!("{}\n", out),
-                Err(e) => log_report!("error: {}\n\n", e),
-            }
-
-            main_progress.inc(1);
-        }
-        let setup_commands_elapsed_sec = setup_commands_start.elapsed().as_secs_f64();
-
-        let running_task_message = format!("Running task '{}' run_commands...", task.task_tag);
-        info!(running_task_message);
-        main_progress.update_message(&running_task_message);
-
-        let run_commands_start = Instant::now();
-        for command in task.run_commands.iter() {
-            operation_spinner.update_message(&format!("Executing command: '{}'", command));
+        let mut setup_idx: usize = 0;
+        let setup_total = task.setup_commands.len();
+        while setup_idx < setup_total {
+            let command = &task.setup_commands[setup_idx];
+            operation_spinner.update_message(&format!(
+                "Executing setup command {}/{} for task '{}': '{}'",
+                setup_idx + 1,
+                setup_total,
+                task.task_tag,
+                command
+            ));
             log_report!("$ {}\n", command);
 
             let result = async {
                 let cmd_id = cloud_interface
-                    .create_ssm_command(
-                        &context,
-                        &task_runner_instance_ec2_id,
-                        command.clone(),
-                    )
+                    .create_ssm_command(&context, &task_runner_instance_ec2_id, command.clone())
                     .await?;
 
                 cloud_interface
@@ -371,12 +864,206 @@ pub async fn run_task(
             }
             .await;
 
-            match result {
-                Ok(out) => log_report!("{}\n", out),
-                Err(e) => log_report!("{}\n\n", e),
-            }
+            match &result {
+                Ok(out) => {
+                    log_report!("{}\n", out);
+                    setup_idx += 1;
+                    main_progress.inc(1);
+                }
+                Err(e) => {
+                    log_report!("error: {}\n\n", e);
+                    if !is_ft_active(&tasks_yaml.fault_tolerance) {
+                        if let Some(handle) = watcher_handle.as_ref() {
+                            handle.abort();
+                        }
+                        bail!("Task setup command failed: {}", e);
+                    }
 
-            main_progress.inc(1);
+                    let recovered = match wait_for_watcher_recovery_if_needed(
+                        pool,
+                        &cluster.id,
+                        &run_started_at,
+                        Duration::from_secs(600),
+                        &operation_spinner,
+                    )
+                    .await
+                    {
+                        Ok(recovered) => recovered,
+                        Err(wait_err) => {
+                            if let Some(handle) = watcher_handle.as_ref() {
+                                handle.abort();
+                            }
+                            bail!("{}", wait_err);
+                        }
+                    };
+
+                    if !recovered {
+                        if let Some(handle) = watcher_handle.as_ref() {
+                            handle.abort();
+                        }
+                        bail!(
+                            "Task setup command failed without watcher recovery event: {}",
+                            e
+                        );
+                    }
+
+                    let completed_cycles =
+                        get_completed_recovery_cycle_ids(pool, &cluster.id, &run_started_at)
+                            .await?;
+                    let completed_cycles_label = if completed_cycles.is_empty() {
+                        "unknown".to_string()
+                    } else {
+                        completed_cycles.join(",")
+                    };
+                    let resume_message = format!(
+                        "Recovery complete (cycle(s): {}). Treating failed setup command {}/{} of task '{}' as recovered and continuing to next command.",
+                        completed_cycles_label,
+                        setup_idx + 1,
+                        setup_total,
+                        task.task_tag
+                    );
+                    info!("{}", resume_message);
+                    println!("{}", resume_message);
+                    main_progress.update_message(&resume_message);
+                    operation_spinner.update_message(&resume_message);
+                    log_report!("[recovery] {}\n", resume_message);
+                    if let Some((cycle_id, restart_output)) = get_latest_restart_output_for_cycles(
+                        pool,
+                        &cluster.id,
+                        &run_started_at,
+                        &completed_cycles,
+                    )
+                    .await?
+                    {
+                        log_report!(
+                            "[recovery] watcher restart output (cycle={}):\n{}\n",
+                            cycle_id,
+                            restart_output
+                        );
+                    }
+                    setup_idx += 1;
+                    main_progress.inc(1);
+                }
+            }
+        }
+        let setup_commands_elapsed_sec = setup_commands_start.elapsed().as_secs_f64();
+
+        let running_task_message = format!("Running task '{}' run_commands...", task.task_tag);
+        info!(running_task_message);
+        main_progress.update_message(&running_task_message);
+
+        let run_commands_start = Instant::now();
+        let mut run_idx: usize = 0;
+        let run_total = task.run_commands.len();
+        while run_idx < run_total {
+            let command = &task.run_commands[run_idx];
+            operation_spinner.update_message(&format!(
+                "Executing run command {}/{} for task '{}': '{}'",
+                run_idx + 1,
+                run_total,
+                task.task_tag,
+                command
+            ));
+            log_report!("$ {}\n", command);
+
+            let result = async {
+                let cmd_id = cloud_interface
+                    .create_ssm_command(&context, &task_runner_instance_ec2_id, command.clone())
+                    .await?;
+
+                cloud_interface
+                    .poll_ssm_command_until_completion(
+                        &context,
+                        &cmd_id,
+                        &task_runner_instance_ec2_id,
+                        Duration::from_secs(3600),
+                        Duration::from_secs(2),
+                    )
+                    .await
+            }
+            .await;
+
+            match &result {
+                Ok(out) => {
+                    log_report!("{}\n", out);
+                    run_idx += 1;
+                    main_progress.inc(1);
+                }
+                Err(e) => {
+                    log_report!("error: {}\n\n", e);
+                    if !is_ft_active(&tasks_yaml.fault_tolerance) {
+                        if let Some(handle) = watcher_handle.as_ref() {
+                            handle.abort();
+                        }
+                        bail!("Task run command failed: {}", e);
+                    }
+
+                    let recovered = match wait_for_watcher_recovery_if_needed(
+                        pool,
+                        &cluster.id,
+                        &run_started_at,
+                        Duration::from_secs(600),
+                        &operation_spinner,
+                    )
+                    .await
+                    {
+                        Ok(recovered) => recovered,
+                        Err(wait_err) => {
+                            if let Some(handle) = watcher_handle.as_ref() {
+                                handle.abort();
+                            }
+                            bail!("{}", wait_err);
+                        }
+                    };
+
+                    if !recovered {
+                        if let Some(handle) = watcher_handle.as_ref() {
+                            handle.abort();
+                        }
+                        bail!(
+                            "Task run command failed without watcher recovery event: {}",
+                            e
+                        );
+                    }
+
+                    let completed_cycles =
+                        get_completed_recovery_cycle_ids(pool, &cluster.id, &run_started_at)
+                            .await?;
+                    let completed_cycles_label = if completed_cycles.is_empty() {
+                        "unknown".to_string()
+                    } else {
+                        completed_cycles.join(",")
+                    };
+                    let resume_message = format!(
+                        "Recovery complete (cycle(s): {}). Treating failed run command {}/{} of task '{}' as recovered and continuing to next command.",
+                        completed_cycles_label,
+                        run_idx + 1,
+                        run_total,
+                        task.task_tag
+                    );
+                    info!("{}", resume_message);
+                    println!("{}", resume_message);
+                    main_progress.update_message(&resume_message);
+                    operation_spinner.update_message(&resume_message);
+                    log_report!("[recovery] {}\n", resume_message);
+                    if let Some((cycle_id, restart_output)) = get_latest_restart_output_for_cycles(
+                        pool,
+                        &cluster.id,
+                        &run_started_at,
+                        &completed_cycles,
+                    )
+                    .await?
+                    {
+                        log_report!(
+                            "[recovery] watcher restart output (cycle={}):\n{}\n",
+                            cycle_id,
+                            restart_output
+                        );
+                    }
+                    run_idx += 1;
+                    main_progress.inc(1);
+                }
+            }
         }
 
         let run_commands_elapsed_sec = run_commands_start.elapsed().as_secs_f64();
@@ -393,9 +1080,96 @@ pub async fn run_task(
 
     operation_spinner.finish_with_message("All commands of all tasks completed!");
     main_progress.finish_with_message("All tasks completed!");
+
+    if is_ft_active(&tasks_yaml.fault_tolerance) {
+        let cluster_id_ref = cluster.id.as_str();
+        let run_started_at_ref = run_started_at.as_str();
+        let recovery_rows = sqlx::query!(
+            r#"
+            SELECT event_type as "event_type!", details, occurred_at as "occurred_at!", node_private_ip as "node_private_ip!"
+            FROM interruption_events
+            WHERE cluster_id = ?
+              AND occurred_at >= ?
+            ORDER BY occurred_at ASC
+            "#,
+            cluster_id_ref,
+            run_started_at_ref,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        if !recovery_rows.is_empty() {
+            let mut event_counts: HashMap<String, usize> = HashMap::new();
+            let mut cycle_ids: Vec<String> = Vec::new();
+            for row in &recovery_rows {
+                *event_counts.entry(row.event_type.clone()).or_insert(0) += 1;
+                if let Some(cycle_id) = extract_cycle_id(row.details.as_deref()) {
+                    cycle_ids.push(cycle_id);
+                }
+            }
+            cycle_ids.sort();
+            cycle_ids.dedup();
+
+            log_report!("\n-=-=-=-=-=-=-=-= FT RECOVERY SUMMARY =-=-=-=-=-=-=-=-\n");
+            log_report!("{:<35}: {}\n", "Recovery Events", recovery_rows.len());
+            log_report!(
+                "{:<35}: {}\n",
+                "Recovery Cycle IDs",
+                if cycle_ids.is_empty() {
+                    "none".to_string()
+                } else {
+                    cycle_ids.join(",")
+                }
+            );
+
+            let mut event_keys: Vec<String> = event_counts.keys().cloned().collect();
+            event_keys.sort();
+            for key in event_keys {
+                if let Some(count) = event_counts.get(&key) {
+                    log_report!("{:<35}: {}\n", format!("event:{}", key), count);
+                }
+            }
+
+            log_report!("\nRecovery Timeline:\n");
+            for row in &recovery_rows {
+                let details = row.details.clone().unwrap_or_else(|| "-".to_string());
+                log_report!(
+                    " - [{}] {} | ip={} | details={}\n",
+                    row.occurred_at,
+                    row.event_type,
+                    row.node_private_ip,
+                    details
+                );
+            }
+            log_report!("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n");
+
+            println!(
+                "Fault-tolerance summary: {} recovery event(s), cycle(s): {}",
+                recovery_rows.len(),
+                if cycle_ids.is_empty() {
+                    "none".to_string()
+                } else {
+                    cycle_ids.join(",")
+                }
+            );
+        }
+    }
+
+    if let Some(pb) = &watcher_progress_bar {
+        pb.finish_with_message("[watcher] stopped");
+    }
     info!("All tasks completed!");
 
+    if let Some(handle) = watcher_handle {
+        println!("Tasks complete. Stopping watcher...");
+        handle.abort();
+    }
+
     info!("Result report saved at '{:?}'", report_path);
+    println!(
+        "All logs and results were saved at '{}'",
+        report_path.display()
+    );
 
     Ok(())
 }

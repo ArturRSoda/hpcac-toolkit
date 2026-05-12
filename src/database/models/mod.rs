@@ -1,5 +1,6 @@
 pub mod cluster;
 pub mod instance_type;
+pub mod interruption_event;
 pub mod machine_image;
 pub mod node;
 pub mod provider;
@@ -9,6 +10,7 @@ pub mod instance_creation_failure_policy;
 
 pub use cluster::*;
 pub use instance_type::*;
+pub use interruption_event::*;
 pub use machine_image::*;
 pub use node::*;
 pub use provider::*;

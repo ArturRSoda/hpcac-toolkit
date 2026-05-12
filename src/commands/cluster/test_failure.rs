@@ -10,6 +10,7 @@ pub async fn test_failure(
     pool: &SqlitePool,
     cluster_id: &str,
     node_private_ip: &str,
+    warning_time_secs: u64,
     skip_confirmation: bool,
 ) -> Result<()> {
     let cluster = match Cluster::fetch_by_id(pool, cluster_id).await? {
@@ -59,7 +60,7 @@ pub async fn test_failure(
     }
 
     cloud_interface
-        .simulate_cluster_failure(pool, cluster, node_private_ip)
+        .simulate_cluster_failure(pool, cluster, node_private_ip, warning_time_secs)
         .await?;
     Ok(())
 }

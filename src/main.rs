@@ -85,6 +85,17 @@ enum ClusterCommands {
         yes: bool,
     },
 
+    /// Restore failed/down instances
+    Restore {
+        /// Cluster identifier
+        #[arg(long)]
+        cluster_id: String,
+
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
+
     /// Run tasks on a Cluster
     RunTask {
         /// Cluster ID
@@ -109,6 +120,10 @@ enum ClusterCommands {
         /// Node private_ip to terminate
         #[arg(long)]
         node_private_ip: String,
+
+        /// Simulated warning window in seconds before termination (e.g., 120)
+        #[arg(long = "warning-time", default_value_t = 0)]
+        warning_time: u64,
 
         /// Skip confirmation prompt
         #[arg(short = 'y', long = "yes")]
@@ -285,13 +300,23 @@ async fn main() -> Result<()> {
             ClusterCommands::Terminate { cluster_id, yes } => {
                 commands::cluster::terminate(&sqlite_pool, cluster_id, *yes).await?;
             }
+            ClusterCommands::Restore { cluster_id, yes } => {
+                commands::cluster::restore(&sqlite_pool, cluster_id, *yes).await?;
+            }
             ClusterCommands::TestFailure {
                 cluster_id,
                 node_private_ip,
+                warning_time,
                 yes,
             } => {
-                commands::cluster::test_failure(&sqlite_pool, cluster_id, node_private_ip, *yes)
-                    .await?;
+                commands::cluster::test_failure(
+                    &sqlite_pool,
+                    cluster_id,
+                    node_private_ip,
+                    *warning_time,
+                    *yes,
+                )
+                .await?;
             }
         },
         Commands::InstanceType { command } => match command {

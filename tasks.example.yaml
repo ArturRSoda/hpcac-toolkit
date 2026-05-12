@@ -1,3 +1,19 @@
+# Optional fault tolerance block.
+# If omitted entirely, or if strategy is "NONE", the watcher is not started
+# and run_task behaves exactly as before (Phase 2 behavior).
+#
+# Uncomment and set strategy to REPLACE_RESUME or DEGRADED_RESUME to enable the watcher.
+#   "NONE"             — no watcher (explicit opt-out, same as omitting the block)
+#   "REPLACE_RESUME"   — replace interrupted worker + restart from checkpoint
+#   "DEGRADED_RESUME"  — resume with remaining workers (no replacement)
+#
+fault_tolerance:
+  strategy: "NONE"                     # "NONE" | "REPLACE_RESUME" | "DEGRADED_RESUME"
+  replacement_allocation_mode: "spot"  # only for REPLACE_RESUME: "spot" | "on-demand"
+  process_count: 4                     # total MPI process count
+  checkpoint_dir: "/shared/checkpoints"
+  poll_interval_secs: 10               # how often to poll the AWS EC2 API
+
 tasks:
   # Smoke test: verify all Slurm nodes are registered and IDLE
   - task_tag: "slurm_smoke_test"

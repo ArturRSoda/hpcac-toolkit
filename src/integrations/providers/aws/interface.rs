@@ -14,6 +14,7 @@ use tracing::error;
 
 /// Context struct containing all cluster-related information and resource identifiers
 /// used throughout the cluster lifecycle operations
+#[derive(Clone)]
 pub struct AwsClusterContext {
     // AWS SDK Clients
     pub ec2_client: Ec2Client,
@@ -149,6 +150,7 @@ impl AwsClusterContext {
     }
 }
 
+#[derive(Clone)]
 pub struct AwsInterface {
     pub config_vars: Vec<ConfigVar>,
 }

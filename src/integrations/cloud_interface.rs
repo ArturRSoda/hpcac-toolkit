@@ -48,11 +48,27 @@ pub trait CloudResourceManager {
         cluster: Cluster,
         nodes: Vec<Node>,
     ) -> Result<(), Error>;
+    async fn restore_cluster(
+        &self,
+        pool: &SqlitePool,
+        cluster: Cluster,
+        nodes: Vec<Node>,
+    ) -> Result<(), Error>;
     async fn simulate_cluster_failure(
         &self,
         pool: &SqlitePool,
         cluster: Cluster,
         node_private_ip: &str,
+        warning_time_secs: u64,
+    ) -> Result<(), Error>;
+    async fn respawn_worker_node(
+        &self,
+        pool: &SqlitePool,
+        cluster: Cluster,
+        node: Node,
+        node_index: usize,
+        all_nodes: Vec<Node>,
+        replacement_allocation_mode: Option<String>,
     ) -> Result<(), Error>;
 }
 
@@ -142,20 +158,69 @@ impl CloudResourceManager for CloudProvider {
         }
     }
 
+    async fn restore_cluster(
+        &self,
+        pool: &SqlitePool,
+        cluster: Cluster,
+        nodes: Vec<Node>,
+    ) -> Result<(), Error> {
+        match self {
+            CloudProvider::Aws(aws) => aws.restore_cluster(pool, cluster, nodes).await,
+            CloudProvider::Vultr(vultr) => vultr.restore_cluster(pool, cluster, nodes).await,
+        }
+    }
+
     async fn simulate_cluster_failure(
         &self,
         pool: &SqlitePool,
         cluster: Cluster,
         node_private_ip: &str,
+        warning_time_secs: u64,
     ) -> Result<(), Error> {
         match self {
             CloudProvider::Aws(aws) => {
-                aws.simulate_cluster_failure(pool, cluster, node_private_ip)
+                aws.simulate_cluster_failure(pool, cluster, node_private_ip, warning_time_secs)
                     .await
             }
             CloudProvider::Vultr(vultr) => {
                 vultr
-                    .simulate_cluster_failure(pool, cluster, node_private_ip)
+                    .simulate_cluster_failure(pool, cluster, node_private_ip, warning_time_secs)
+                    .await
+            }
+        }
+    }
+
+    async fn respawn_worker_node(
+        &self,
+        pool: &SqlitePool,
+        cluster: Cluster,
+        node: Node,
+        node_index: usize,
+        all_nodes: Vec<Node>,
+        replacement_allocation_mode: Option<String>,
+    ) -> Result<(), Error> {
+        match self {
+            CloudProvider::Aws(aws) => {
+                aws.respawn_worker_node(
+                    pool,
+                    cluster,
+                    node,
+                    node_index,
+                    all_nodes,
+                    replacement_allocation_mode,
+                )
+                .await
+            }
+            CloudProvider::Vultr(vultr) => {
+                vultr
+                    .respawn_worker_node(
+                        pool,
+                        cluster,
+                        node,
+                        node_index,
+                        all_nodes,
+                        replacement_allocation_mode,
+                    )
                     .await
             }
         }

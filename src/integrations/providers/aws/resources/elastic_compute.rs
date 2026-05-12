@@ -523,6 +523,39 @@ impl AwsInterface {
         Ok(())
     }
 
+    /// Returns the AWS spot status code for the given EC2 instance ID.
+    /// Returns "not-spot" for on-demand instances (no spot request exists).
+    /// Returns "unknown" if the status code is absent.
+    pub async fn fetch_spot_instance_status(
+        &self,
+        context: &AwsClusterContext,
+        instance_id: &str,
+    ) -> Result<String> {
+        let response = context
+            .ec2_client
+            .describe_spot_instance_requests()
+            .filters(
+                aws_sdk_ec2::types::Filter::builder()
+                    .name("instance-id")
+                    .values(instance_id)
+                    .build(),
+            )
+            .send()
+            .await?;
+
+        let requests = response.spot_instance_requests();
+        if requests.is_empty() {
+            // No spot request for this instance — it is on-demand (e.g., head node)
+            return Ok("not-spot".to_string());
+        }
+
+        Ok(requests[0]
+            .status()
+            .and_then(|s| s.code())
+            .unwrap_or("unknown")
+            .to_string())
+    }
+
     pub async fn find_elastic_compute_instance_by_private_ip(
         &self,
         context: &AwsClusterContext,

@@ -1,9 +1,11 @@
-use super::interface::AwsInterface;
-use crate::database::models::{Cluster, ClusterState, Node, InstanceCreationFailurePolicy};
+use super::interface::{AwsClusterContext, AwsInterface};
+use crate::database::models::{
+    Cluster, ClusterState, InstanceCreationFailurePolicy, InterruptionEvent, Node,
+};
 use crate::integrations::CloudResourceManager;
 use crate::utils;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, bail};
 use sqlx::sqlite::SqlitePool;
@@ -13,6 +15,55 @@ use tracing::error;
 use tracing::warn;
 
 const MAX_MIGRATION_ATTEMPTS: usize = 3;
+
+fn node_index_from_private_ip(private_ip: &str) -> Option<usize> {
+    let last_octet = private_ip.rsplit('.').next()?.parse::<usize>().ok()?;
+    (last_octet >= 10).then_some(last_octet - 10)
+}
+
+fn is_active_instance_state(state: &str) -> bool {
+    state == "running" || state == "pending"
+}
+
+fn is_terminated_like_instance_state(state: &str) -> bool {
+    matches!(state, "terminated" | "shuttingdown" | "shutting_down" | "shutting-down")
+}
+
+impl AwsInterface {
+    async fn find_cluster_instance_state_by_private_ip(
+        &self,
+        context: &AwsClusterContext,
+        private_ip: &str,
+    ) -> Result<Option<(String, String)>> {
+        let describe_instances_response = context
+            .ec2_client
+            .describe_instances()
+            .filters(
+                aws_sdk_ec2::types::Filter::builder()
+                    .name("private-ip-address")
+                    .values(private_ip)
+                    .build(),
+            )
+            .filters(context.cluster_id_filter.clone())
+            .send()
+            .await?;
+
+        for reservation in describe_instances_response.reservations() {
+            for instance in reservation.instances() {
+                if let Some(instance_id) = instance.instance_id() {
+                    let state_name = instance
+                        .state()
+                        .and_then(|state| state.name())
+                        .map(|state| format!("{:?}", state).to_lowercase())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    return Ok(Some((instance_id.to_string(), state_name)));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+}
 
 impl CloudResourceManager for AwsInterface {
     async fn spawn_cluster(
@@ -789,13 +840,178 @@ echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
         Ok(())
     }
 
+    async fn restore_cluster(
+        &self,
+        pool: &SqlitePool,
+        cluster: Cluster,
+        nodes: Vec<Node>,
+    ) -> Result<()> {
+        let context = self.create_cluster_context(&cluster)?;
+
+        let mut indexed_nodes: Vec<(usize, Node, String)> = Vec::new();
+        let mut nodes_without_index: Vec<Node> = Vec::new();
+        let mut assigned_indexes: HashSet<usize> = HashSet::new();
+
+        for node in nodes.iter().cloned() {
+            if let Some(private_ip) = node.private_ip.clone() {
+                if let Some(node_index) = node_index_from_private_ip(&private_ip) {
+                    assigned_indexes.insert(node_index);
+                    indexed_nodes.push((node_index, node, private_ip));
+                    continue;
+                }
+            }
+            nodes_without_index.push(node);
+        }
+
+        nodes_without_index.sort_by_key(|node| {
+            (
+                if node.role == "head" { 0usize } else { 1usize },
+                node.id.clone(),
+            )
+        });
+
+        let mut next_index = 0usize;
+        for node in nodes_without_index {
+            while assigned_indexes.contains(&next_index) {
+                next_index += 1;
+            }
+            let expected_private_ip = context.network_interface_private_ip(next_index);
+            assigned_indexes.insert(next_index);
+            indexed_nodes.push((next_index, node, expected_private_ip));
+            next_index += 1;
+        }
+
+        indexed_nodes.sort_by_key(|(node_index, node, _)| {
+            (
+                if node.role == "head" { 0usize } else { 1usize },
+                *node_index,
+            )
+        });
+
+        let all_nodes: Vec<Node> = indexed_nodes
+            .iter()
+            .map(|(_, node, _)| node.clone())
+            .collect();
+
+        println!(
+            "Restoring Cluster '{}' (checking {} node slot(s))...",
+            cluster.display_name,
+            indexed_nodes.len()
+        );
+        cluster.update_state(pool, ClusterState::Restoring).await?;
+
+        let mut restored_nodes = 0usize;
+        let mut healthy_nodes = 0usize;
+
+        for (node_index, node, expected_private_ip) in indexed_nodes {
+            let role = node.role.clone();
+            let slot_label = format!("{}:{}", role, expected_private_ip);
+            let status = self
+                .find_cluster_instance_state_by_private_ip(&context, &expected_private_ip)
+                .await?;
+
+            let mut needs_restore = true;
+            if let Some((instance_id, state)) = status.clone() {
+                if is_active_instance_state(&state) {
+                    info!(
+                        "[restore] Slot '{}' already has active instance '{}' (state={})",
+                        slot_label, instance_id, state
+                    );
+                    println!(
+                        "[restore] OK  node={} private_ip={} instance={} state={}",
+                        role, expected_private_ip, instance_id, state
+                    );
+                    needs_restore = false;
+                    healthy_nodes += 1;
+                } else if !is_terminated_like_instance_state(&state) {
+                    warn!(
+                        "[restore] Slot '{}' has instance '{}' in state '{}'; terminating before restore",
+                        slot_label, instance_id, state
+                    );
+                    self.terminate_elastic_compute_instance(&context, &instance_id)
+                        .await?;
+
+                    for _ in 0..24 {
+                        sleep(Duration::from_secs(5)).await;
+                        match self
+                            .find_cluster_instance_state_by_private_ip(
+                                &context,
+                                &expected_private_ip,
+                            )
+                            .await?
+                        {
+                            None => break,
+                            Some((_, s)) if is_terminated_like_instance_state(&s) => break,
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            if needs_restore {
+                info!(
+                    "[restore] Recreating node slot '{}' at index {}",
+                    slot_label, node_index
+                );
+                println!(
+                    "[restore] FIX node={} private_ip={} action=respawn",
+                    role, expected_private_ip
+                );
+                self.respawn_worker_node(
+                    pool,
+                    cluster.clone(),
+                    node.clone(),
+                    node_index,
+                    all_nodes.clone(),
+                    None,
+                )
+                .await?;
+                restored_nodes += 1;
+            }
+        }
+
+        cluster.update_state(pool, ClusterState::Running).await?;
+        println!(
+            "Restore complete for cluster '{}': {} healthy, {} restored.",
+            cluster.display_name, healthy_nodes, restored_nodes
+        );
+
+        Ok(())
+    }
+
     async fn simulate_cluster_failure(
         &self,
         pool: &SqlitePool,
         cluster: Cluster,
         node_private_ip: &str,
+        warning_time_secs: u64,
     ) -> Result<()> {
         let context = self.create_cluster_context(&cluster)?;
+        let db_node = Node::fetch_by_private_ip(pool, node_private_ip).await?;
+
+        if warning_time_secs > 0 {
+            if let Some(node) = &db_node {
+                InterruptionEvent::new(
+                    &cluster.id,
+                    &node.id,
+                    node_private_ip,
+                    "interruption_warning",
+                    Some(&format!(
+                        "simulated_warning_time_secs={}",
+                        warning_time_secs
+                    )),
+                )
+                .insert(pool)
+                .await?;
+            }
+
+            println!(
+                "Issued simulated interruption warning for node '{}' ({}s before termination)",
+                node_private_ip, warning_time_secs
+            );
+            sleep(Duration::from_secs(warning_time_secs)).await;
+        }
+
         match self
             .find_elastic_compute_instance_by_private_ip(&context, node_private_ip)
             .await?
@@ -814,9 +1030,18 @@ echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
             }
         }
 
-        match Node::fetch_by_private_ip(pool, node_private_ip).await? {
+        match db_node {
             Some(failed_node) => {
                 failed_node.set_efs_configuration_state(pool, false).await?;
+                InterruptionEvent::new(
+                    &cluster.id,
+                    &failed_node.id,
+                    node_private_ip,
+                    "interruption_termination_requested",
+                    Some("simulated_test_failure"),
+                )
+                .insert(pool)
+                .await?;
                 println!(
                     "Requested termination for Instance '{}' (failure simulation)",
                     failed_node.id
@@ -828,6 +1053,187 @@ echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
                     node_private_ip
                 );
             }
+        }
+
+        Ok(())
+    }
+
+    async fn respawn_worker_node(
+        &self,
+        pool: &SqlitePool,
+        cluster: Cluster,
+        node: Node,
+        node_index: usize,
+        all_nodes: Vec<Node>,
+        replacement_allocation_mode: Option<String>,
+    ) -> Result<()> {
+        let mut context = self.create_cluster_context(&cluster)?;
+
+        context.vpc_id = Some(self.ensure_vpc(&context).await?);
+        context.subnet_id = Some(self.ensure_subnet(&context).await?);
+        context.gateway_id = Some(self.ensure_internet_gateway(&context).await?);
+        context.route_table_id = Some(self.ensure_route_table(&context).await?);
+        context.security_group_ids = self.ensure_security_group(&context).await?;
+        self.ensure_iam_role_and_trust_policies(&context).await?;
+        self.ensure_iam_profile(&context).await?;
+
+        if cluster.use_elastic_file_system {
+            context.efs_device_id = Some(self.request_elastic_file_system_device_creation(&context).await?);
+            self.wait_for_elastic_file_system_device_to_be_ready(&context)
+                .await?;
+            context.efs_mount_target_id =
+                Some(self.request_elastic_file_system_mount_target_creation(&context).await?);
+            self.wait_for_elastic_file_system_mount_target_to_be_ready(&context)
+                .await?;
+        }
+
+        context.ssh_key_id = Some(self.ensure_ssh_key(&context).await?);
+        if context.use_node_affinity {
+            context.placement_group_name_actual = Some(self.ensure_placement_group(&context).await?);
+        }
+
+        let eni_id = self
+            .ensure_elastic_network_interface(&context, node_index)
+            .await?;
+        context
+            .elastic_network_interface_ids
+            .insert(node_index, eni_id.clone());
+
+        let eip_id = self.ensure_elastic_ip(&context, node_index).await?;
+        context.elastic_ip_ids.insert(node_index, eip_id.clone());
+
+        let node_public_ip = self
+            .associate_elastic_ip_with_network_interface(&context, &eip_id, &eni_id)
+            .await?;
+        context.elastic_ips.insert(node_index, node_public_ip.clone());
+
+        let node_private_ip = context.network_interface_private_ip(node_index);
+        node.set_ips(pool, &node_private_ip, &node_public_ip).await?;
+
+        let mut replacement_node = node.clone();
+        if let Some(mode) = replacement_allocation_mode {
+            replacement_node.allocation_mode = mode;
+            sqlx::query!(
+                "UPDATE nodes SET allocation_mode = ? WHERE id = ?",
+                replacement_node.allocation_mode,
+                replacement_node.id
+            )
+            .execute(pool)
+            .await?;
+        }
+
+        let instance_id = self
+            .request_elastic_compute_instance_creation(&context, &replacement_node, node_index)
+            .await?;
+        context.ec2_instance_ids.insert(node_index, instance_id);
+
+        self.wait_for_all_elastic_compute_instances_to_be_available(&context)
+            .await?;
+
+        let node_instance_id = &context.ec2_instance_ids[&node_index];
+        self.wait_for_ssm_agent_ready(&context, node_instance_id, Duration::from_secs(300))
+            .await?;
+
+        if cluster.use_elastic_file_system {
+            let efs_mount_target_ip = self
+                .fetch_elastic_file_system_mount_target_ip(&context)
+                .await?;
+            let efs_attach_script = format!(
+                r#"
+if command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y nfs-utils
+else
+    sudo yum install -y nfs-utils
+fi
+sudo mkdir -p /shared
+i=1
+max_attempts=30
+while [ "$i" -le "$max_attempts" ]; do
+   echo "EFS mount attempt $i..."
+   if sudo mount -t nfs4 -o nfsvers=4.1 {}:/ /shared; then
+       echo "EFS mount successful!"
+       break
+   else
+       echo "EFS mount failed, waiting 10 seconds for DNS propagation..."
+       sleep 10
+       i=$((i + 1))
+   fi
+done
+if [ "$i" -gt "$max_attempts" ]; then
+    echo "ERROR: EFS mount failed after ${{max_attempts}} attempts"
+    exit 1
+fi
+sudo chown ec2-user:ec2-user /shared
+echo "EFS mount and setup complete!"
+"#,
+                efs_mount_target_ip
+            );
+            let ssm_command_id = self
+                .create_ssm_command(&context, node_instance_id, efs_attach_script)
+                .await?;
+            self.poll_ssm_command_until_completion(
+                &context,
+                &ssm_command_id,
+                node_instance_id,
+                Duration::from_secs(5 * 60),
+                Duration::from_secs(15),
+            )
+            .await?;
+            node.set_efs_configuration_state(pool, true).await?;
+        }
+
+        let private_key_content = std::fs::read_to_string(&cluster.private_ssh_key_path)?;
+        let local_key_path = std::path::Path::new(&cluster.private_ssh_key_path);
+        let key_filename = local_key_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("id_rsa");
+
+        let mut node_init_commands = node.get_init_commands(pool).await?;
+        let worker_count = all_nodes.iter().filter(|n| n.role == "worker").count();
+        let env_block = format!(
+            "export HPCAC_NODE_ROLE={role} \
+HPCAC_NODE_INDEX={idx} \
+HPCAC_HEAD_PRIVATE_IP=10.0.0.10 \
+HPCAC_NODE_COUNT={count} \
+HPCAC_WORKER_COUNT={worker_count} \
+HPCAC_USE_EFS={use_efs} \
+HPCAC_EFS_MOUNT=/shared",
+            role = node.role,
+            idx = node_index,
+            count = all_nodes.len(),
+            worker_count = worker_count,
+            use_efs = cluster.use_elastic_file_system,
+        );
+        let ssh_key_setup_script = format!(
+            r#"echo "Setting up private SSH key..." && \
+mkdir -p ~/.ssh && \
+rm -f ~/.ssh/*.pub && \
+cat > ~/.ssh/{0} << 'PRIVATE_KEY_EOF'
+{1}
+PRIVATE_KEY_EOF
+chmod 600 ~/.ssh/{0} && \
+chown ec2-user:ec2-user ~/.ssh/{0} && \
+echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
+            key_filename,
+            private_key_content
+        );
+        node_init_commands.insert(0, env_block);
+        node_init_commands.insert(1, ssh_key_setup_script);
+
+        if !node_init_commands.is_empty() {
+            let node_init_script = node_init_commands.join(" && ");
+            let ssm_command_id = self
+                .create_ssm_command(&context, node_instance_id, node_init_script)
+                .await?;
+            self.poll_ssm_command_until_completion(
+                &context,
+                &ssm_command_id,
+                node_instance_id,
+                Duration::from_secs(15 * 60),
+                Duration::from_secs(15),
+            )
+            .await?;
         }
 
         Ok(())

@@ -6,7 +6,7 @@ use sqlx::Row;
 use sqlx::sqlite::{SqlitePool, SqliteRow};
 use tracing::error;
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ConfigVar {
     pub id: i64,
     pub provider_config_id: i64,

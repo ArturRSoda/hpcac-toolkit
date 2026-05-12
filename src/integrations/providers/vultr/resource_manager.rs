@@ -25,11 +25,33 @@ impl CloudResourceManager for VultrInterface {
         bail!("Not implemented")
     }
 
+    async fn restore_cluster(
+        &self,
+        _pool: &SqlitePool,
+        _cluster: Cluster,
+        _nodes: Vec<Node>,
+    ) -> Result<()> {
+        bail!("Not implemented")
+    }
+
     async fn simulate_cluster_failure(
         &self,
         _pool: &SqlitePool,
         _cluster: Cluster,
         _node_private_ip: &str,
+        _warning_time_secs: u64,
+    ) -> Result<()> {
+        bail!("Not implemented")
+    }
+
+    async fn respawn_worker_node(
+        &self,
+        _pool: &SqlitePool,
+        _cluster: Cluster,
+        _node: Node,
+        _node_index: usize,
+        _all_nodes: Vec<Node>,
+        _replacement_allocation_mode: Option<String>,
     ) -> Result<()> {
         bail!("Not implemented")
     }

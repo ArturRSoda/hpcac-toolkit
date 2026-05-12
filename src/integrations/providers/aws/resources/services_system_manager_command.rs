@@ -72,6 +72,7 @@ impl AwsInterface {
             r#"#!/bin/bash
 set -e
 sudo -u ec2-user -i bash << 'EOF'
+set -euo pipefail
 {}
 EOF"#,
             command
@@ -248,30 +249,34 @@ EOF"#,
                 | CommandInvocationStatus::Cancelled
                 | CommandInvocationStatus::TimedOut
                 | CommandInvocationStatus::Cancelling => {
-                    println!(
-                        "SSM Command '{}' failed with status: {:?}",
+                    let mut details = format!(
+                        "SSM command '{}' failed with status: {:?}",
                         command_id, status
                     );
                     if !stdout.trim().is_empty() {
-                        println!("SSM Output: {}", stdout);
+                        details.push_str("\nSSM stdout:\n");
+                        details.push_str(&stdout);
                     }
                     if !stderr.trim().is_empty() {
-                        println!("SSM Error: {}", stderr);
+                        details.push_str("\nSSM stderr:\n");
+                        details.push_str(&stderr);
                     }
-                    bail!("SSM command failed with status: {:?}", status);
+                    bail!(details);
                 }
                 _ => {
-                    println!(
-                        "SSM Command '{}' has unexpected status: {:?}",
+                    let mut details = format!(
+                        "SSM command '{}' has unexpected status: {:?}",
                         command_id, status
                     );
                     if !stdout.trim().is_empty() {
-                        println!("SSM Output: {}", stdout);
+                        details.push_str("\nSSM stdout:\n");
+                        details.push_str(&stdout);
                     }
                     if !stderr.trim().is_empty() {
-                        println!("SSM Error: {}", stderr);
+                        details.push_str("\nSSM stderr:\n");
+                        details.push_str(&stderr);
                     }
-                    bail!("SSM command has unexpected status: {:?}", status);
+                    bail!(details);
                 }
             }
 
