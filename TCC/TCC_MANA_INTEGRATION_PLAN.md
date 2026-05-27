@@ -2,7 +2,7 @@
 ## Integrating MANA Fault Tolerance into HPC@Cloud for AWS Spot Clusters
 
 Date: 2026-04-24
-Last Updated: 2026-05-02 (Phase 1 completed)
+Last Updated: 2026-05-27 (Phase 4 completed — all planned phases done)
 
 ## 1. Project Idea (Problem and Motivation)
 This TCC proposes integrating MANA (MPI-Agnostic Network-Agnostic checkpoint/restart) into HPC@Cloud to improve fault tolerance of AWS spot-based HPC clusters.
@@ -90,22 +90,26 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 - Decide and lock the exact stack to avoid moving targets during implementation and evaluation.
 
 #### Baseline Decisions for This TCC (Current Proposal)
-- Head node: t3.2xlarge (on-demand, burstable mode Unlimited)
-- Worker nodes: m5.8xlarge (spot), primary profile
-  - m5.16xlarge reserved as optional stress profile for larger classes only
-  - m5.8xlarge gives good memory headroom with lower per-run cost, enabling more repetitions
+
+> **Note on deviations from original plan (updated 2026-05-27):**
+> The original plan targeted m5.8xlarge workers, FT benchmark, and 20–40 min runtimes.
+> Actual execution used m5.xlarge workers (quota availability), EP instead of FT (EP provides
+> a cleaner low-communication contrast than FT), and the runtimes were shorter than targeted
+> (CG ~35 s, LU ~147 s, EP ~330 s natively). See Phase 4 artifact for the locked experiment matrix.
+
+- Head node: t3.large (on-demand) — *original plan: t3.2xlarge; t3.large used in actual experiments*
+- Worker nodes: m5.xlarge (spot) — *original plan: m5.8xlarge; changed due to quota availability*
 - Workload suite: NAS Parallel Benchmarks (NPB), MPI version (NPB 3.4.x)
 - Selected benchmarks:
   - CG: irregular memory access and communication
-  - FT: all-to-all communication stress
+  - EP: embarrassingly parallel, low communication — *substituted for FT for cleaner low-communication baseline*
   - LU: pseudo-application close to real CFD behavior
-- Initial problem class: C for all three benchmarks
-  - Promote to D if runtime < 15 min on 4-worker pilot
-  - Downgrade to B if runtime > 60 min on 4-worker pilot
-- Worker counts for experiments: 2, 4, 8
+- Final problem classes: CG Class C, EP Class D, LU Class C
+  - EP Class D used instead of C because Class C completed too quickly on m5.xlarge
+- Worker counts for experiments: 2, 4 — *8-worker runs pending AWS EIP quota increase*
 - Target runtime:
-  - Baseline (no fault): 20 to 40 minutes
-  - Fault-injection run: 30 to 60 minutes
+  - Baseline (no fault): 20 to 40 minutes (not met — actual runtimes much shorter; see note above)
+  - Fault-injection run: varies by benchmark
 
 #### Pilot Procedure to Finalize Class Choice
 1. Spawn a 4-worker cluster (m5.8xlarge spot + t3.2xlarge head).
@@ -116,12 +120,16 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
    - Otherwise keep C.
 4. Lock classes and do not change them during the project.
 
-#### Locked Experiment Matrix (To Confirm After Pilot)
-| Benchmark | Class | Worker Counts | Repetitions |
-|---|---|---|---|
-| CG | C | 2 / 4 / 8 | >= 5 per point |
-| FT | C | 2 / 4 / 8 | >= 5 per point |
-| LU | C | 2 / 4 / 8 | >= 5 per point |
+#### Locked Experiment Matrix (Actual — finalized during Phase 4)
+| Benchmark | Class | Worker Counts | Strategies | Repetitions (actual) |
+|---|---|---|---|---|
+| CG | C | 2 / 4 | noFT, MANA_noFT, REPLACE, DEGRADED | 1 per point |
+| EP | D | 2 / 4 | noFT, MANA_noFT, REPLACE, DEGRADED | 1 per point |
+| LU | C | 2 / 4 | noFT, MANA_noFT, REPLACE, DEGRADED | 1 per point |
+
+Total runs executed: 24 (3 benchmarks × 2 cluster sizes × 4 strategies).
+8-worker runs and statistical repetitions (≥3 per point) are deferred to future work.
+FT benchmark from original plan replaced by EP.
 
 #### Deliverables
 - [x] AMI built and validated: ami-06af33e2399c52709 (us-east-1a, t3.medium)
@@ -214,48 +222,75 @@ Design, implement, and evaluate a resilient cluster execution strategy that comb
 - [x] Versioned, validated single AMI for all node roles: ami-06af33e2399c52709
 - [x] EFS mount check confirmed: `/shared/checkpoints` visible on all nodes via `srun -N2 -n2 --label /bin/sh -c 'ls /shared/checkpoints'`.
 
-### Phase 3 - Interruption-Aware Runtime Control ← CURRENT PHASE
+### Phase 3 - Interruption-Aware Runtime Control ✅ COMPLETED 2026-05-13
+
 #### Goal
 - React to spot interruption signals with controlled checkpoint/recovery.
 
 #### Tasks
-- Implement interruption detection agent/process.
-- Trigger checkpoint command path.
-- Integrate node draining and replacement logic.
-- Persist runtime event log:
-  - interruption detected
-  - checkpoint started/completed
-  - restart started/completed
+- [x] Implement watcher process running alongside the MPI job (`src/commands/cluster/watcher.rs`).
+- [x] Trigger `mana_status --bcheckpoint` on interruption / failure detection.
+- [x] Integrate node draining and replacement logic in HPC@Cloud.
+- [x] Implement `auto_test_failure` YAML field for reproducible synthetic failure injection.
+- [x] Implement two recovery strategies switchable via task YAML:
+  - `REPLACE_RESUME`: replace the lost node with a new EC2 spot instance and restart.
+  - `DEGRADED_RESUME`: restart immediately with one fewer process (no reprovisioning).
+- [x] Persist structured event log embedded in run-task output as `[RUN_METRICS]` blocks.
+- [x] Deploy MANA binaries (6 files) to worker nodes after each AMI respawn.
 
 #### Deliverable
-- Automatic recovery pipeline validated in controlled tests.
+- [x] Artifact: `TCC/artifacts/phase3/PHASE3_ARTIFACT.md`
+- [x] Both recovery strategies (REPLACE_RESUME, DEGRADED_RESUME) validated in controlled tests.
+- [x] `auto_test_failure` mechanism produces reproducible failure timing across runs.
 
-### Phase 4 - Recovery Policies for Evaluation
+#### Key Findings
+- MANA binaries must be redeployed to worker nodes after every respawn (AMI does not pre-install the version used in experiments).
+- Phase 2 of recovery (checkpoint → restart dispatch) is the dominant cost differentiator: ~185–220 s for REPLACE vs ~21–23 s for DEGRADED.
+- The `auto_test_failure` YAML field (`trigger_after_secs`, `target_node_index`) provides fully reproducible fault injection.
+
+### Phase 4 - Evaluation and Metrics Consolidation ✅ COMPLETED 2026-05-27
+
 #### Goal
-- Compare at least two recovery strategies.
+- Execute a reproducible evaluation campaign for the recovery policies implemented in Phase 3,
+  producing TCC-quality metrics, comparisons, and cost/performance analysis.
 
-#### Suggested Policies
-- Policy A: pause/restart only after replacement node is ready (fixed-size recovery).
-- Policy B: resume with reduced nodes, then rescale and restart later with full size.
+#### Tasks
+- [x] Finalize benchmark classes: CG Class C, EP Class D, LU Class C.
+- [x] Implement `[RUN_METRICS]` structured output blocks in run-task output for machine-readable metric extraction.
+- [x] Implement `analyze.py` pipeline: parse result files → flat CSV + summary.md + 6 analysis plots.
+- [x] Execute 24-run pilot matrix (3 benchmarks × 2 cluster sizes × 4 strategies, 1 repetition each).
+- [x] Produce consolidated dataset (`results_raw.csv`).
+- [x] Generate analysis figures:
+  - `fig1_wall_time.png` — absolute wall time per benchmark and strategy
+  - `fig2_mana_overhead.png` — MANA interposition overhead relative to noFT
+  - `fig3_recovery_phases.png` — stacked recovery phases (Phase 1 / 2 / 3) for FT runs
+  - `fig4_scalability.png` — wall time vs worker count per strategy
+  - `fig5_cost.png` — cost per run: noFT on-demand vs FT strategies on spot
+  - `fig6_replace_vs_degraded.png` — FT overhead relative to MANA_noFT baseline
+- [x] Write English analysis report: `TCC/artifacts/phase4/analysis/analysis_report.md`
+- [x] Write PT-BR professor update: `TCC/artifacts/phase4/analysis/analysis_report_ptbr.md`
+- [x] Write Phase 4 artifact: `TCC/artifacts/phase4/PHASE4_ARTIFACT.md`
+
+#### Cluster Profile (Actual)
+- Head node: t3.large (on-demand), region us-west-2
+- Worker nodes: m5.xlarge (spot), AMI `ami-053c434f0309cfbe0`
+- EFS: enabled, `/shared/checkpoints`
+
+#### Key Findings
+- MANA overhead scales with communication intensity: EP ~1.49×, LU ~1.66×, CG 4w ~1.57×.
+- DEGRADED_RESUME consistently outperforms REPLACE_RESUME due to Phase 2 infrastructure cost.
+- Phase 2 (checkpoint → dispatch): DEGRADED ~21–23 s; REPLACE ~185–221 s (EC2 provisioning).
+- Economic argument: DEGRADED on spot is 34% cheaper than noFT on-demand for EP Class D (4 workers).
+- Short jobs (CG) favor DEGRADED; for very short jobs, FT adds cost — noFT on-demand is cheaper.
 
 #### Deliverable
-- Policy implementation switch in config.
+- [x] Artifact: `TCC/artifacts/phase4/PHASE4_ARTIFACT.md`
+- [x] Consolidated dataset: `TCC/artifacts/phase4/analysis/results_raw.csv`
+- [x] Analysis figures: `TCC/artifacts/phase4/analysis/plots/`
+- [x] Analysis reports: `analysis_report.md` (EN), `analysis_report_ptbr.md` (PT-BR)
 
-### Phase 5 - Evaluation and Analysis
-#### Goal
-- Produce TCC-quality evidence.
-
-#### Metrics
-- Total execution time (makespan)
-- Checkpoint overhead
-- Recovery latency
-- Lost work after interruption
-- Job completion success rate
-- Total cloud cost per completed run
-- Cost/performance ratio vs on-demand baseline
-
-#### Deliverable
-- Structured experiment matrix and statistical summary.
+> **Note:** Phase 5 (Evaluation and Analysis) from the original plan was folded into Phase 4.
+> The original Phase 5 metrics are all covered by the Phase 4 analysis pipeline and reports.
 
 ## 6. Consistency Requirements for a Strong Project
 ### A) Experimental Consistency
@@ -324,13 +359,23 @@ Evaluate fallback to temporary on-demand worker replacement.
 - [x] Produce Phase 0 artifact and lock AMI.
 - [x] Implement role-aware node model (head vs worker) with DB migration, validation, head-first spawn.
 - [x] Produce Phase 1 artifact.
-    - [x] Produce Phase 2 artifact.
+- [x] Produce Phase 2 artifact.
+- [x] Implement interruption-aware watcher, auto_test_failure, REPLACE_RESUME, DEGRADED_RESUME.
+- [x] Produce Phase 3 artifact.
+- [x] Implement [RUN_METRICS] structured output blocks and analyze.py pipeline.
+- [x] Execute 24-run pilot matrix and produce analysis reports.
+- [x] Produce Phase 4 artifact.
 
-### Current Priority (Phase 3)
-1. Implement spot interruption detection agent on each worker node (poll EC2 metadata termination endpoint).
-2. Trigger `mana_status --checkpoint` on interruption notice.
-3. Drain interrupted node in Slurm (`scontrol update NodeName=<host> State=DRAIN`).
-4. Implement replacement node respawn workflow in HPC@Cloud.
-5. Validate full interrupt → checkpoint → drain → respawn → restart cycle.
+### Current Status: All Phases Completed (updated 2026-05-27)
+
+All planned implementation phases (Phase 0 through Phase 4) are complete.
+The pilot evaluation campaign (24 runs) and analysis reports have been produced.
+
+#### Remaining Work (Future / Post-TCC)
+1. Repeat each configuration ≥3 times for statistical confidence (standard deviation on all metrics).
+2. Extend to 8-worker clusters (pending AWS EIP quota increase in us-west-2).
+3. Test LU Class D and EP Class E for longer job durations where spot savings should be more pronounced.
+4. Confirm CG Class C MANA overhead at 2 workers (suspected single-run outlier at 3.13×).
+5. Investigate REPLACE_RESUME for workloads >10 min where its Phase 2 cost can be amortized.
 ## 10. Expected TCC Contribution Statement
 This project contributes a practical strategy for making spot-based HPC clusters more resilient and economically viable by combining scheduler-aware orchestration, transparent MPI checkpoint/restart (MANA), and cloud-native dynamic node replacement within HPC@Cloud.

@@ -3,7 +3,7 @@
 **Goal:** Support exactly one on-demand head node and N spot worker nodes in the cluster
 configuration, with DB persistence and head-first spawn ordering.
 
-**Depends on:** Phase 0 AMI `ami-06af33e2399c52709` (all nodes use same image)
+**Depends on:** Phase 0 AMI `ami-08b9f0fb120be798a` (all nodes use same image; us-east-1 build, later replicated to us-west-2 as `ami-053c434f0309cfbe0`)
 
 ---
 

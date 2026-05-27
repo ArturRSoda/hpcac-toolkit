@@ -5,7 +5,7 @@ on a spawned 1-head + N-worker cluster, using role-specific `init_commands` disp
 via SSM.
 
 **Depends on:**
-- Phase 0 AMI `ami-06af33e2399c52709` (all nodes pre-installed with Slurm + MANA binaries)
+- Phase 0 AMI `ami-08b9f0fb120be798a` (us-east-1 build; replicated to us-west-2 as `ami-053c434f0309cfbe0`)
 - Phase 1 role-aware node model and head-first provisioning order
 
 **This version is post-fix:**
