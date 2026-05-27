@@ -33,6 +33,12 @@ db.sqlite-wal
 results/
 
 # YAML files in root directory (except cluster.example.yaml)
-/*.yaml
-!cluster.example.yaml
-!task.example.yaml
+#*.yaml
+#!cluster.example.yaml
+#!task.example.yaml
+
+__pycache__/
+
+# MANA binaries and source (not version-controlled)
+MANAcommandfiles/
+mana/
