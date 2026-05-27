@@ -13,6 +13,10 @@ fault_tolerance:
   process_count: 4                     # total MPI process count
   checkpoint_dir: "/shared/checkpoints"
   poll_interval_secs: 10               # how often to poll the AWS EC2 API
+  auto_test_failure:              # Optional block
+    trigger_after_secs: 45        # fire 45s after run starts
+    target_worker_index: 0        # 0 = first worker (ip-10-0-0-11)
+    warning_time_secs: 120        # 2-min spot warning simulation
 
 tasks:
   # Smoke test: verify all Slurm nodes are registered and IDLE

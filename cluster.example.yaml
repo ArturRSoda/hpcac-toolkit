@@ -15,7 +15,7 @@ nodes:
     instance_type: t3.medium
     allocation_mode: on-demand
     burstable_mode: Unlimited
-    image_id: ami-0bdf7242993c9ba85
+    image_id: ami-053c434f0309cfbe0
     init_commands:
       # 1. Create shared directories used by Slurm config and checkpoint files
       - sudo mkdir -p /shared/slurm /shared/checkpoints
@@ -53,7 +53,7 @@ nodes:
   - role: worker
     instance_type: m5.large
     allocation_mode: on-demand
-    image_id: ami-0bdf7242993c9ba85
+    image_id: ami-05eca8f13c2934abf  # mana-worker-fix-20260526: libdmtcp wrapperLockCount race fix + libmana MPI_Test_internal fix
     init_commands:
       # 0. Disable slurmctld on workers — the AMI has it enabled from Phase 0 single-node setup
       # Workers must never run slurmctld; also clear stale AMI state to avoid cluster name mismatch
@@ -78,7 +78,7 @@ nodes:
   - role: worker
     instance_type: m5.large
     allocation_mode: on-demand
-    image_id: ami-0bdf7242993c9ba85
+    image_id: ami-05eca8f13c2934abf  # mana-worker-fix-20260526: libdmtcp wrapperLockCount race fix + libmana MPI_Test_internal fix
     init_commands:
       # 0. Disable slurmctld on workers — the AMI has it enabled from Phase 0 single-node setup
       # Workers must never run slurmctld; also clear stale AMI state to avoid cluster name mismatch
