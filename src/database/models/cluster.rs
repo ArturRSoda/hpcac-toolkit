@@ -447,6 +447,31 @@ impl Cluster {
             }
         };
 
+        // Delete interruption events associated with nodes in this cluster
+        info!("Deleting interruption events for Cluster (id='{}')", cluster_id);
+        match sqlx::query!(
+            r#"
+                DELETE FROM interruption_events
+                WHERE cluster_id = ?
+            "#,
+            cluster_id
+        )
+        .execute(&mut *tx)
+        .await
+        {
+            Ok(result) => {
+                info!(
+                    "Deleted {} interruption events for Cluster (id='{}')",
+                    result.rows_affected(),
+                    cluster_id
+                );
+            }
+            Err(e) => {
+                error!("SQLx Error: {:?}", e);
+                bail!("DB Operation Failure");
+            }
+        };
+
         // Then, delete all nodes associated with this cluster
         info!("Deleting nodes for Cluster (id='{}')", cluster_id);
         match sqlx::query!(

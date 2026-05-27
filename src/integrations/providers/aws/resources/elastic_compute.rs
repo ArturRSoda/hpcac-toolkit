@@ -184,7 +184,7 @@ impl AwsInterface {
             Ok(response) => response,
             Err(e) => {
                 error!("{:?}", e);
-                bail!("Failure creating EC2 Instance resource");
+                bail!("Failure creating EC2 Instance resource: {}", e);
             }
         };
 

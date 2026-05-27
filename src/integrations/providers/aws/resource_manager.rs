@@ -902,6 +902,8 @@ echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
 
         let mut restored_nodes = 0usize;
         let mut healthy_nodes = 0usize;
+        let mut head_instance_id: Option<String> = None;
+        let mut restored_worker_hosts: Vec<String> = Vec::new();
 
         for (node_index, node, expected_private_ip) in indexed_nodes {
             let role = node.role.clone();
@@ -923,6 +925,9 @@ echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
                     );
                     needs_restore = false;
                     healthy_nodes += 1;
+                    if role == "head" {
+                        head_instance_id = Some(instance_id);
+                    }
                 } else if !is_terminated_like_instance_state(&state) {
                     warn!(
                         "[restore] Slot '{}' has instance '{}' in state '{}'; terminating before restore",
@@ -966,15 +971,47 @@ echo "Private SSH key successfully installed at ~/.ssh/{0}""#,
                     None,
                 )
                 .await?;
+                if role == "worker" {
+                    let worker_host = format!("ip-{}", expected_private_ip.replace('.', "-"));
+                    restored_worker_hosts.push(worker_host);
+                }
                 restored_nodes += 1;
             }
         }
 
+        if let Some(head_id) = &head_instance_id {
+            for worker_host in &restored_worker_hosts {
+                println!("[restore] Resuming '{}' in Slurm", worker_host);
+                let resume_cmd = format!(
+                    "sudo /opt/slurm-24.05.4/bin/scontrol update NodeName={} State=RESUME",
+                    worker_host
+                );
+                let cmd_id = self
+                    .create_ssm_command(&context, head_id, resume_cmd)
+                    .await?;
+                self.poll_ssm_command_until_completion(
+                    &context,
+                    &cmd_id,
+                    head_id,
+                    Duration::from_secs(30),
+                    Duration::from_secs(5),
+                )
+                .await?;
+            }
+        }
+
         cluster.update_state(pool, ClusterState::Running).await?;
+        let updated_nodes = cluster.get_nodes(pool).await?;
         println!(
             "Restore complete for cluster '{}': {} healthy, {} restored.",
             cluster.display_name, healthy_nodes, restored_nodes
         );
+        println!("\nYou can access your nodes using:");
+        for node in &updated_nodes {
+            if let (Some(private_ip), Some(public_ip)) = (&node.private_ip, &node.public_ip) {
+                println!("Node '{}': ssh ec2-user@{}", private_ip, public_ip);
+            }
+        }
 
         Ok(())
     }
