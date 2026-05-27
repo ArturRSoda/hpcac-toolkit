@@ -1,0 +1,103 @@
+id: ClusterMANA_2Workers_8vCPUs
+display_name: MyClusterMANA_2Workers_8vCPUs
+public_ssh_key_path: ~/.ssh/id_ed25519.pub
+private_ssh_key_path: ~/.ssh/id_ed25519
+provider_id: aws
+region: us-west-2
+availability_zone: us-west-2a
+use_node_affinity: false
+use_elastic_fabric_adapters: false
+use_elastic_file_system: true
+on_instance_creation_failure: migrate
+nodes:
+  # Head node: must be on-demand, exactly one per cluster
+  - role: head
+    instance_type: t3.large
+    allocation_mode: on-demand
+    burstable_mode: Unlimited
+    image_id: ami-008909502934cfa3d
+    init_commands:
+      # 1. Create shared directories used by Slurm config and checkpoint files
+      - sudo mkdir -p /shared/slurm /shared/checkpoints
+      - sudo chown ec2-user:ec2-user /shared/slurm /shared/checkpoints && sudo chmod 775 /shared/slurm /shared/checkpoints
+
+      # 2. Generate munge key and start munge on head
+      - sudo bash -c 'dd if=/dev/urandom bs=1 count=1024 2>/dev/null > /etc/munge/munge.key && chmod 400 /etc/munge/munge.key && chown munge:munge /etc/munge/munge.key'
+      - sudo systemctl enable munge && sudo systemctl restart munge
+
+      # 3. Generate /etc/slurm/slurm.conf (head + worker NodeName lines)
+      - HEAD_CPUS=$(nproc) && HEAD_HOST="ip-${HPCAC_HEAD_PRIVATE_IP//./-}" && sudo bash -c "printf '%s\n' 'ClusterName=hpcac' 'SlurmctldHost='${HEAD_HOST} 'SlurmctldAddr='${HPCAC_HEAD_PRIVATE_IP} 'SlurmUser=slurm' 'SlurmdUser=root' 'SlurmctldPidFile=/var/spool/slurmctld/slurmctld.pid' 'SlurmdPidFile=/var/spool/slurmd/slurmd.pid' 'StateSaveLocation=/var/spool/slurmctld' 'SlurmdSpoolDir=/var/spool/slurmd' 'MailProg=/bin/true' 'AuthType=auth/munge' 'MpiDefault=pmi2' 'ProctrackType=proctrack/linuxproc' 'TaskPlugin=task/none' 'SchedulerType=sched/backfill' 'SelectType=select/cons_tres' 'SelectTypeParameters=CR_Core' 'JobAcctGatherType=jobacct_gather/none' 'SlurmctldLogFile=/var/log/slurm/slurmctld.log' 'SlurmdLogFile=/var/log/slurm/slurmd.log' 'NodeName='${HEAD_HOST}' CPUs='${HEAD_CPUS}' NodeAddr='${HPCAC_HEAD_PRIVATE_IP}' State=UNKNOWN' > /etc/slurm/slurm.conf"
+      - for i in $(seq 1 "$HPCAC_WORKER_COUNT"); do WHOST="ip-10-0-0-$((10+i))"; WIP="10.0.0.$((10+i))"; sudo bash -c "echo 'NodeName='${WHOST}' CPUs=8 NodeAddr='${WIP}' State=UNKNOWN' >> /etc/slurm/slurm.conf"; done
+
+      # 4. Add default partition
+      - sudo bash -c "echo 'PartitionName=hpcac Nodes=ALL Default=YES MaxTime=INFINITE State=UP' >> /etc/slurm/slurm.conf"
+
+      # 5. Prepare Slurm runtime directories and start slurmctld
+      # Stop any slurmctld already started by systemd from the AMI, then clear stale single-node state
+      - sudo systemctl stop slurmctld || true
+      - sudo mkdir -p /var/log/slurm /var/spool/slurmctld /var/spool/slurmd && sudo chown -R slurm:slurm /var/log/slurm /var/spool/slurmctld /var/spool/slurmd
+      - sudo rm -f /var/spool/slurmctld/clustername /var/spool/slurmctld/*.old
+      - sudo systemctl enable slurmctld && sudo systemctl restart slurmctld
+      - sudo systemctl is-active --quiet slurmctld || (sudo journalctl -u slurmctld -n 80 --no-pager; exit 1)
+      - sudo systemctl enable slurmd && sudo systemctl restart slurmd
+      - sudo systemctl is-active --quiet slurmd || (sudo journalctl -u slurmd -n 80 --no-pager; exit 1)
+
+      # 6. Share munge key and slurm.conf with workers via EFS
+      - sudo cp /etc/munge/munge.key /shared/slurm/munge.key && sudo chmod 644 /shared/slurm/munge.key
+      - sudo cp /etc/slurm/slurm.conf /shared/slurm/slurm.conf
+
+      # 7. Write readiness sentinel for workers
+      - sudo bash -c 'echo ok > /shared/slurm/head_ready'
+
+  # Worker nodes: spot for cost efficiency
+  - role: worker
+    instance_type: m5.2xlarge
+    allocation_mode: on-demand
+    image_id: ami-008909502934cfa3d
+    init_commands:
+      # 0. Disable slurmctld on workers — the AMI has it enabled from Phase 0 single-node setup
+      # Workers must never run slurmctld; also clear stale AMI state to avoid cluster name mismatch
+      - sudo systemctl stop slurmctld && sudo systemctl disable slurmctld || true
+      - sudo rm -f /var/spool/slurmctld/clustername /var/spool/slurmctld/*.old
+
+      # 1. Wait for head to publish shared config and readiness sentinel
+      - timeout=300; elapsed=0; while [ ! -f /shared/slurm/head_ready ]; do sleep 5; elapsed=$((elapsed+5)); if [ $elapsed -ge $timeout ]; then echo 'TIMEOUT waiting for head'; exit 1; fi; done
+
+      # 2. Install munge key from EFS and start munge
+      - sudo cp /shared/slurm/munge.key /etc/munge/munge.key && sudo chmod 400 /etc/munge/munge.key && sudo chown munge:munge /etc/munge/munge.key
+      - sudo systemctl enable munge && sudo systemctl restart munge
+
+      # 3. Install slurm.conf from EFS
+      - sudo cp /shared/slurm/slurm.conf /etc/slurm/slurm.conf
+
+      # 4. Prepare Slurm runtime directories and start slurmd
+      - sudo mkdir -p /var/log/slurm /var/spool/slurmd && sudo chown slurm:slurm /var/log/slurm /var/spool/slurmd
+      - sudo systemctl enable slurmd && sudo systemctl restart slurmd
+      - sudo systemctl is-active --quiet slurmd || (sudo journalctl -u slurmd -n 80 --no-pager; exit 1)
+
+  - role: worker
+    instance_type: m5.2xlarge
+    allocation_mode: on-demand
+    image_id: ami-008909502934cfa3d
+    init_commands:
+      # 0. Disable slurmctld on workers — the AMI has it enabled from Phase 0 single-node setup
+      # Workers must never run slurmctld; also clear stale AMI state to avoid cluster name mismatch
+      - sudo systemctl stop slurmctld && sudo systemctl disable slurmctld || true
+      - sudo rm -f /var/spool/slurmctld/clustername /var/spool/slurmctld/*.old
+
+      # 1. Wait for head to publish shared config and readiness sentinel
+      - timeout=300; elapsed=0; while [ ! -f /shared/slurm/head_ready ]; do sleep 5; elapsed=$((elapsed+5)); if [ $elapsed -ge $timeout ]; then echo 'TIMEOUT waiting for head'; exit 1; fi; done
+
+      # 2. Install munge key from EFS and start munge
+      - sudo cp /shared/slurm/munge.key /etc/munge/munge.key && sudo chmod 400 /etc/munge/munge.key && sudo chown munge:munge /etc/munge/munge.key
+      - sudo systemctl enable munge && sudo systemctl restart munge
+
+      # 3. Install slurm.conf from EFS
+      - sudo cp /shared/slurm/slurm.conf /etc/slurm/slurm.conf
+
+      # 4. Prepare Slurm runtime directories and start slurmd
+      - sudo mkdir -p /var/log/slurm /var/spool/slurmd && sudo chown slurm:slurm /var/log/slurm /var/spool/slurmd
+      - sudo systemctl enable slurmd && sudo systemctl restart slurmd
+      - sudo systemctl is-active --quiet slurmd || (sudo journalctl -u slurmd -n 80 --no-pager; exit 1)
+
+
