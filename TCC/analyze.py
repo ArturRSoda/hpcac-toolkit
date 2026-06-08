@@ -1281,71 +1281,112 @@ def plot_recovery_overhead_ratio(df: pd.DataFrame, out_dir: Path):
 
 def plot_cost(df: pd.DataFrame, out_dir: Path):
     """
-    Fig 7: Economic comparison — cost per run.
-    noFT must use on-demand instances (cannot risk spot interruption without FT).
-    REPLACE and DEGRADED use spot workers (FT handles interruptions).
-    Uses CG base-trigger runs and EP/LU 25pct representative runs.
+    Fig 7: Economic cost per run with per-timing breakdown.
+    2×3 grid: rows = {REPLACE, DEGRADED}, cols = {CG, EP, LU}.
+    Each subplot shows noFT on-demand as reference + FT spot cost per fault timing.
+    noFT uses on-demand (no FT means a spot interruption requires full restart).
+    FT strategies use spot workers (~70% discount) and handle interruptions.
     """
-    # Use representative runs: CG base trigger, EP/LU 25pct
-    def is_rep_or_baseline(row):
-        if row["strategy"] in (STRATEGY_KEY_NONE, STRATEGY_KEY_MANA_NONE):
-            return True
-        if row["benchmark"] == "CG":
-            return pd.isna(row["timing_pct"])
-        return row["timing_pct"] == 25
+    benchmarks  = ["CG", "EP", "LU"]
+    bench_class = {"CG": "C", "EP": "D", "LU": "C"}
+    ft_strats   = [STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]
+    timings     = [10.0, 25.0, 50.0]
 
-    rep = df[
-        df["benchmark"].isin(["CG", "EP", "LU"]) &
-        df["strategy"].isin([STRATEGY_KEY_NONE, STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
-        df.apply(is_rep_or_baseline, axis=1)
-    ].copy()
+    # colour ramps: light→dark per timing level, per strategy
+    rep_colors = ["#aec6e8", "#4c9be8", "#1a5fa8"]   # blue shades
+    deg_colors = ["#a8d8a4", "#5cb85c", "#2d7a2d"]   # green shades
+    strat_colors = {STRATEGY_KEY_REPLACE: rep_colors,
+                    STRATEGY_KEY_DEGRADED: deg_colors}
 
-    if rep.empty:
+    cost_df = df[df["benchmark"].isin(benchmarks)].copy()
+    if cost_df.empty:
         print("  Skipping fig7 (no cost data)")
         return
 
-    bench_class = {"CG": "C", "EP": "D", "LU": "C"}
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
-    fig.suptitle("Cost per run — spot workers with FT vs on-demand workers without FT\n"
-                 "(noFT requires on-demand to avoid losing work on spot interruption)",
-                 fontsize=11)
+    fig, axes = plt.subplots(2, 3, figsize=(14, 9))
+    fig.suptitle(
+        "Cost per run — spot workers with FT vs on-demand without FT\n"
+        "(noFT requires on-demand; FT strategies use ~70%-cheaper spot instances)",
+        fontsize=11)
 
-    strats = [STRATEGY_KEY_NONE, STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]
-    bar_w  = 0.22
+    for row_i, strat in enumerate(ft_strats):
+        for col_i, bench in enumerate(benchmarks):
+            ax = axes[row_i][col_i]
+            sub = cost_df[cost_df["benchmark"] == bench]
+            worker_counts = sorted(sub["config_workers"].unique())
+            x = np.arange(len(worker_counts))
 
-    for ax, bench in zip(axes, ["CG", "EP", "LU"]):
-        sub = rep[rep["benchmark"] == bench]
-        worker_counts = sorted(sub["config_workers"].unique())
-        x = np.arange(len(worker_counts))
+            has_timing = (bench != "CG")  # CG has no timing variation
 
-        for i, s in enumerate(strats):
-            vals = []
-            for w in worker_counts:
-                srow = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
-                if srow.empty:
-                    vals.append(np.nan)
-                    continue
-                col = "run_cost_ondemand_usd" if s == STRATEGY_KEY_NONE else "run_cost_usd"
-                vals.append(float(srow[col].iloc[0]))
+            if has_timing:
+                # 4 bars per x: noFT + 10% + 25% + 50%
+                bar_w   = 0.18
+                offsets = [-1.5, -0.5, 0.5, 1.5]
+                labels  = ["noFT (on-demand)", "10% timing", "25% timing", "50% timing"]
+                colors  = [STRATEGY_COLOR[STRATEGY_KEY_NONE]] + strat_colors[strat]
 
-            offset = (i - 1) * (bar_w + 0.02)
-            bars = ax.bar(x + offset, vals, bar_w,
-                          label=_label(s), color=_color(s))
-            for bar, val in zip(bars, vals):
-                if not np.isnan(val):
-                    ax.annotate(f"${val:.3f}",
-                                xy=(bar.get_x() + bar.get_width() / 2, val),
-                                xytext=(0, 3), textcoords="offset points",
-                                ha="center", fontsize=6.5, rotation=45)
+                datasets = []
+                # noFT
+                vals = []
+                for w in worker_counts:
+                    r = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]
+                    vals.append(float(r["run_cost_ondemand_usd"].iloc[0]) if not r.empty else np.nan)
+                datasets.append(vals)
+                # FT timings
+                for t in timings:
+                    vals = []
+                    for w in worker_counts:
+                        r = sub[(sub["config_workers"] == w) & (sub["strategy"] == strat) &
+                                (sub["timing_pct"] == t)]
+                        vals.append(float(r["run_cost_usd"].iloc[0]) if not r.empty else np.nan)
+                    datasets.append(vals)
 
-        ax.set_xticks(x)
-        ax.set_xticklabels([f"{w}w" for w in worker_counts])
-        ax.set_xlabel("Worker count")
-        ax.set_ylabel("Estimated cost per run (USD)")
-        ax.set_title(f"{bench}-{bench_class[bench]}")
-        ax.legend(fontsize=8)
-        ax.grid(axis="y", linestyle="--", alpha=0.4)
-        ax.set_ylim(bottom=0)
+                for idx, (data, lbl, col, off) in enumerate(zip(datasets, labels, colors, offsets)):
+                    bars = ax.bar(x + off * bar_w, data, bar_w, label=lbl, color=col,
+                                  alpha=(0.85 if idx == 0 else 1.0))
+                    for bar, val in zip(bars, data):
+                        if not np.isnan(val):
+                            ax.annotate(f"${val:.3f}",
+                                        xy=(bar.get_x() + bar.get_width() / 2, val),
+                                        xytext=(0, 3), textcoords="offset points",
+                                        ha="center", fontsize=6, rotation=50)
+            else:
+                # CG: 2 bars per x: noFT + FT (no timing variation)
+                bar_w = 0.3
+                for i, (s, col, lbl) in enumerate([
+                    (STRATEGY_KEY_NONE, STRATEGY_COLOR[STRATEGY_KEY_NONE], "noFT (on-demand)"),
+                    (strat, strat_colors[strat][1], _label(strat) + " (spot)"),
+                ]):
+                    vals = []
+                    for w in worker_counts:
+                        r = sub[(sub["config_workers"] == w) & (sub["strategy"] == s) &
+                                (sub["timing_pct"].isna() if s != STRATEGY_KEY_NONE else pd.Series([True]*len(sub)))]
+                        if s == STRATEGY_KEY_NONE:
+                            r2 = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
+                            vals.append(float(r2["run_cost_ondemand_usd"].iloc[0]) if not r2.empty else np.nan)
+                        else:
+                            r2 = sub[(sub["config_workers"] == w) & (sub["strategy"] == s) &
+                                     sub["timing_pct"].isna()]
+                            vals.append(float(r2["run_cost_usd"].iloc[0]) if not r2.empty else np.nan)
+                    offset = (i - 0.5) * bar_w
+                    bars = ax.bar(x + offset, vals, bar_w, label=lbl, color=col,
+                                  alpha=(0.85 if i == 0 else 1.0))
+                    for bar, val in zip(bars, vals):
+                        if not np.isnan(val):
+                            ax.annotate(f"${val:.3f}",
+                                        xy=(bar.get_x() + bar.get_width() / 2, val),
+                                        xytext=(0, 3), textcoords="offset points",
+                                        ha="center", fontsize=6.5, rotation=45)
+
+            ax.set_xticks(x)
+            ax.set_xticklabels([f"{w}w" for w in worker_counts])
+            ax.set_xlabel("Worker count")
+            if col_i == 0:
+                ax.set_ylabel("Estimated cost per run (USD)")
+            ax.set_title(f"{bench}-{bench_class[bench]} — {_label(strat)}")
+            ax.legend(fontsize=7)
+            ax.grid(axis="y", linestyle="--", alpha=0.4)
+            ax.set_ylim(bottom=0)
 
     plt.tight_layout()
     path = out_dir / "fig7_cost.png"

@@ -626,43 +626,58 @@ time.
 
 ## 9. Economic Analysis
 
+Figure 7 shows cost per run broken down by fault timing (10%, 25%, 50%) for each
+benchmark, strategy, and worker count. The cost model compares two scenarios:
+
+- **noFT** must run on **on-demand** instances — a spot interruption without fault
+  tolerance loses all progress and requires a full restart from scratch.
+- **REPLACE and DEGRADED** can use **spot instances** (~70% cheaper) because MANA
+  handles interruptions automatically and the job resumes from checkpoint.
+
 ![Cost per run — spot with FT vs on-demand without FT](plots/fig7_cost.png)
 
-**Table 11 — Estimated cost per run (USD), representative runs:**
+**Table 11 — Estimated cost per run (USD), 25% fault timing (representative):**
 
-| Benchmark | Workers | noFT on-demand | REPLACE (spot) | DEGRADED (spot) | DEGRADED saving vs noFT |
-|---|---|---|---|---|---|
-| CG-C | 2w | $0.0045 | $0.0136 | $0.0092 | FT costs more — expected for very short jobs |
-| CG-C | 4w | $0.0044 | $0.0177 | $0.0089 | FT costs more — expected for very short jobs |
-| EP-D | 2w | $0.0435 | $0.0307 | $0.0298 | **−31% (saves $0.0137)** |
-| EP-D | 4w | $0.0676 | $0.0315 | $0.0259 | **−62% (saves $0.0417)** |
-| EP-D | 8w | $0.1244 | $0.0470 | $0.0271 | **−78% (saves $0.0973)** |
-| LU-C | 2w | $0.0166 | $0.0194 | $0.0168 | −1% (marginal) |
-| LU-C | 4w | $0.0309 | $0.0244 | $0.0171 | **−45% (saves $0.0138)** |
-| LU-C | 8w | $0.0547 | $0.0463 | $0.0215 | **−61% (saves $0.0332)** |
-
-The cost model assumes:
-- **noFT** must use **on-demand** instances because a spot interruption without fault
-  tolerance loses all work and requires a full restart.
-- **REPLACE and DEGRADED** can use **spot instances** (~70% cheaper than on-demand)
-  because MANA handles interruptions automatically.
+| Benchmark | Workers | noFT on-demand | REPLACE spot | DEGRADED spot | REPLACE vs noFT | DEGRADED vs noFT |
+|---|---|---|---|---|---|---|
+| CG-C | 2w | $0.0045 | $0.0136 | $0.0092 | +202% costlier | +105% costlier |
+| CG-C | 4w | $0.0044 | $0.0177 | $0.0089 | +301% costlier | +101% costlier |
+| CG-C | 8w | $0.0055 | $0.0311 | $0.0150 | +470% costlier | +175% costlier |
+| EP-D | 2w | $0.0435 | $0.0305 | $0.0297 | **−30% saving** | **−32% saving** |
+| EP-D | 4w | $0.0676 | $0.0339 | $0.0260 | **−50% saving** | **−62% saving** |
+| EP-D | 8w | $0.0460 | $0.0555 | $0.0277 | +21% costlier | **−40% saving** |
+| LU-C | 2w | $0.0194 | $0.0193 | $0.0169 | ≈0% break-even | −13% saving |
+| LU-C | 4w | $0.0206 | $0.0249 | $0.0173 | +21% costlier | −16% saving |
+| LU-C | 8w | $0.0213 | $0.0470 | $0.0208 | +121% costlier | ≈0% break-even |
 
 **Key findings:**
 
-1. **CG-C shows the limit of FT applicability:** CG is so short that recovery overhead
-   (103–202 s) dwarfs the original job. Spot pricing does not compensate. MANA-based FT
-   is not economically justified for very short jobs.
+1. **CG-C: FT is never economically justified.** Recovery overhead (103–311 s) is 6–57×
+   the base job duration (12–35 s). Spot pricing cannot compensate. Short jobs have no
+   economic case for MANA-based FT.
 
-2. **For EP and LU at 4 and 8 workers, spot + FT (DEGRADED) saves 45–78% vs
-   on-demand + noFT.** Even accounting for recovery overhead, the 70% spot discount
-   dominates for jobs that run more than a few minutes.
+2. **EP-D DEGRADED saves 32–62% vs noFT on-demand at all worker counts.**
+   EP scales well: 8 workers runs 2.8× faster than 4 workers, making 8w on-demand even
+   cheaper than 4w on-demand ($0.046 vs $0.068). DEGRADED at any scale beats on-demand.
 
-3. **DEGRADED is consistently cheaper than REPLACE** because it completes faster
-   (lower P2b), spending less time on instance-hour billing.
+3. **EP-D REPLACE at 8 workers costs more than noFT on-demand.** EP-D at 8 workers
+   runs only ~102 s; REPLACE adds ~260 s of EC2 provisioning. The recovery time overwhelms
+   the spot discount at this scale. Fault timing matters: REPLACE at 10% costs $0.040
+   (cheaper than noFT), but at 25% costs $0.055 (more expensive). Timing is significant.
 
-4. **The 8-worker configurations show the strongest economic case** for spot + FT:
-   more workers means more spot savings, and with DEGRADED the recovery is fast enough
-   that total runtime stays well below the on-demand baseline.
+4. **LU-C DEGRADED saves 13–16% at 2w and 4w but breaks even at 8w.**
+   LU-C at 8 workers runs only 47 s. Even DEGRADED adds ~89 s (total ~136 s), and eight
+   spot workers cost just enough to match eight on-demand workers at 47 s.
+
+5. **LU-C REPLACE costs 2× more than noFT on-demand at 8 workers.** With a 47 s base
+   job and ~260 s REPLACE recovery, the runtime is 6× longer. Spot discount (~3.3×
+   cheaper per-hour) is insufficient. For short LU-C runs at scale, noFT on-demand is
+   the economically superior choice.
+
+6. **Fault timing affects cost significantly for FT strategies.** Earlier failures (10%)
+   mean less P0 compute but the same fixed recovery cost, so total cost is dominated by
+   recovery. Later failures (50%) amortize recovery over more productive P0 time. This
+   effect is largest for REPLACE at 8 workers (see Figure 7).
 
 ---
 

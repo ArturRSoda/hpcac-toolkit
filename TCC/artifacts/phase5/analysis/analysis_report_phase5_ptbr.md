@@ -354,22 +354,56 @@ Falhas logo no início (10%) significam que ~90% do tempo será gasto apenas lid
 
 ## 9. Análise Econômica (Custos)
 
+A Figura 7 compara o custo por execução para diferentes momentos de falha (10%, 25%, 50%)
+em cada benchmark, estratégia e quantidade de workers. O modelo de custo compara dois cenários:
+
+- **noFT** precisa usar instâncias **sob demanda** — uma interrupção spot sem tolerância
+  a falhas perde todo o progresso e exige reiniciar do zero.
+- **REPLACE e DEGRADED** podem usar instâncias **spot** (~70% mais baratas) porque o
+  MANA trata as interrupções automaticamente e o job retoma do checkpoint.
+
 ![Cost per run — spot with FT vs on-demand without FT](plots/fig7_cost.png)
 
-**Tabela 11 — Custo estimado por execução (USD):**
+**Tabela 11 — Custo estimado por execução (USD), falha em 25% do job (representativo):**
 
-| Benchmark | Workers | noFT sob demanda | REPLACE (spot) | DEGRADED (spot) | Economia DEGRADED vs noFT |
-|---|---|---|---|---|---|
-| CG-C | 2w | $0.0045 | $0.0136 | $0.0092 | FT custa mais (esperado para jobs curtos) |
-| CG-C | 4w | $0.0044 | $0.0177 | $0.0089 | FT custa mais (esperado para jobs curtos) |
-| EP-D | 2w | $0.0435 | $0.0307 | $0.0298 | **−31% (economiza $0.0137)** |
-| EP-D | 4w | $0.0676 | $0.0315 | $0.0259 | **−62% (economiza $0.0417)** |
-| EP-D | 8w | $0.1244 | $0.0470 | $0.0271 | **−78% (economiza $0.0973)** |
-| LU-C | 2w | $0.0166 | $0.0194 | $0.0168 | −1% (marginal) |
-| LU-C | 4w | $0.0309 | $0.0244 | $0.0171 | **−45% (economiza $0.0138)** |
-| LU-C | 8w | $0.0547 | $0.0463 | $0.0215 | **−61% (economiza $0.0332)** |
+| Benchmark | Workers | noFT sob demanda | REPLACE spot | DEGRADED spot | REPLACE vs noFT | DEGRADED vs noFT |
+|---|---|---|---|---|---|---|
+| CG-C | 2w | $0.0045 | $0.0136 | $0.0092 | +202% mais caro | +105% mais caro |
+| CG-C | 4w | $0.0044 | $0.0177 | $0.0089 | +301% mais caro | +101% mais caro |
+| CG-C | 8w | $0.0055 | $0.0311 | $0.0150 | +470% mais caro | +175% mais caro |
+| EP-D | 2w | $0.0435 | $0.0305 | $0.0297 | **−30% de economia** | **−32% de economia** |
+| EP-D | 4w | $0.0676 | $0.0339 | $0.0260 | **−50% de economia** | **−62% de economia** |
+| EP-D | 8w | $0.0460 | $0.0555 | $0.0277 | +21% mais caro | **−40% de economia** |
+| LU-C | 2w | $0.0194 | $0.0193 | $0.0169 | ≈0% equilíbrio | −13% de economia |
+| LU-C | 4w | $0.0206 | $0.0249 | $0.0173 | +21% mais caro | −16% de economia |
+| LU-C | 8w | $0.0213 | $0.0470 | $0.0208 | +121% mais caro | ≈0% equilíbrio |
 
-Para trabalhos que duram mais de 1 a 2 minutos, o uso de instâncias Spot em conjunto com o MANA (estratégia DEGRADED) gera **economias massivas que vão de 45% a 78%** em comparação a pagar o valor cheio por máquinas garantidas (sob demanda). A estratégia DEGRADED ganha na economia porque o trabalho termina mais rápido, reduzindo as horas cobradas de aluguel da máquina.
+**Observações principais:**
+
+1. **CG-C: FT nunca é economicamente justificado.** O overhead de recuperação (103–311 s)
+   é 6 a 57× maior que o tempo base do job (12–35 s). O desconto spot não compensa.
+
+2. **EP-D DEGRADED economiza 32–62% em todos os tamanhos de cluster.** O EP escala bem:
+   8 workers roda 2,8× mais rápido que 4 workers, tornando o custo com 8w sob demanda até
+   menor que com 4w ($0.046 vs $0.068). DEGRADED com spot bate sob demanda em todos os casos.
+
+3. **EP-D REPLACE com 8 workers custa mais que noFT sob demanda.** O job dura apenas ~102 s,
+   mas REPLACE adiciona ~260 s de provisionamento EC2. O tempo de recuperação supera o
+   desconto spot nessa escala. O momento da falha importa: falha em 10% custa $0.040
+   (mais barato que noFT), mas falha em 25% custa $0.055 (mais caro).
+
+4. **LU-C DEGRADED economiza 13–16% com 2w e 4w, mas empata com 8w.** Com 8 workers,
+   o job base dura apenas 47 s. Mesmo o DEGRADED adiciona ~89 s, e o custo spot total
+   se iguala ao custo sob demanda.
+
+5. **LU-C REPLACE com 8 workers custa 2× mais que noFT sob demanda.** Com ~260 s de
+   recuperação para um job de 47 s, o tempo total é 6× maior. O desconto spot (~3,3×)
+   não cobre essa diferença.
+
+6. **O momento da falha afeta significativamente o custo das estratégias FT.** Falhas
+   mais cedo (10%) deixam menos tempo produtivo P0 antes da recuperação, aumentando o
+   custo relativo. Falhas mais tarde (50%) amortizam o custo fixo de recuperação sobre
+   mais computação útil. Esse efeito é maior para REPLACE com 8 workers (veja Figura 7).
 
 ---
 
