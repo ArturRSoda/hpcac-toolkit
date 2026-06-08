@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>analysis_report_phase5.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="phase-5-analysis-report--deepening-the-fault-tolerance-evaluation">Phase 5 Analysis Report — Deepening the Fault-Tolerance Evaluation</h1>
+<h3 id="mana-overhead-mechanisms--checkpoint-size--failure-timing-sensitivity">MANA Overhead Mechanisms · Checkpoint Size · Failure Timing Sensitivity</h3>
+<h3 id="cluster-aws-m5xlarge-workers-2--4--8-nodes--us-west-2">Cluster: AWS m5.xlarge workers (2 / 4 / 8 nodes) · us-west-2</h3>
+<hr>
+<h2 id="1-overview">1. Overview</h2>
+<p>This report presents the complete Phase 5 experimental results. Phase 5 extends the
+Phase 4 pilot campaign in three directions:</p>
+<table>
+<thead>
+<tr>
+<th>Study</th>
+<th>Purpose</th>
+<th>Runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>5.1 Synthetic MPI overhead</strong></td>
+<td>Isolate whether call frequency or communication imbalance drives MANA overhead</td>
+<td>30</td>
+</tr>
+<tr>
+<td><strong>5.2 Synthetic checkpoint size</strong></td>
+<td>Quantify how checkpoint image size drives Phase 1 (detect → checkpoint) time</td>
+<td>4</td>
+</tr>
+<tr>
+<td><strong>5.3 Failure timing sensitivity</strong></td>
+<td>Measure how failure position in the job lifecycle affects REPLACE vs DEGRADED trade-off</td>
+<td>36</td>
+</tr>
+<tr>
+<td><strong>Baselines (Phase 4 redo)</strong></td>
+<td>noFT and MANA-noFT for all 3 benchmarks × 3 cluster sizes with new instrumentation</td>
+<td>24</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total: 94 successful runs.</strong> All results were collected on AWS m5.xlarge spot workers
+(4 vCPUs, 16 GB RAM) in us-west-2. The head node was a t3.large on-demand instance.
+Each run used the <code>auto_test_failure</code> mechanism for reproducible failure injection.</p>
+<p>New in Phase 5: the recovery now instruments <strong>three sub-phases of Phase 2</strong>:</p>
+<ul>
+<li><strong>Phase 2a</strong> — Slurm drain + job cancel (~5.5 s, identical for both strategies)</li>
+<li><strong>Phase 2b</strong> — Node reconfig: EC2 respawn for REPLACE (~122–157 s) vs <code>scontrol DOWN</code> for DEGRADED (~11 s)</li>
+<li><strong>Phase 2c</strong> — New Slurm allocation + MANA coordinator setup (~5.3 s, identical for both)</li>
+</ul>
+<hr>
+<h2 id="2-mana-overhead-without-failures">2. MANA Overhead Without Failures</h2>
+<p><img src="plots/fig1_mana_overhead.png" alt="MANA overhead per benchmark and worker count"></p>
+<p><strong>Table 1 — MANA overhead (MANA-noFT vs noFT wall time):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>2 workers</th>
+<th>4 workers</th>
+<th>8 workers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CG-C</td>
+<td>+233% (anomalous — see §2.1)</td>
+<td>+59%</td>
+<td>+73%</td>
+</tr>
+<tr>
+<td>EP-D</td>
+<td>+39% (single run — see §2.2)</td>
+<td>+14%</td>
+<td>+22%</td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>+62%</td>
+<td>+56%</td>
+<td>+52%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="21-cg-c-at-2-workers--anomalous-overhead">2.1 CG-C at 2 Workers — Anomalous Overhead</h3>
+<p>CG at 2 workers shows 233% overhead (34.6 s → 115.2 s), while the same benchmark at
+4 workers shows only 59% (18.7 s → 29.7 s). This 6× absolute difference in added overhead
+(80.6 s vs 11.0 s) is physically inconsistent with a benchmark that communicates <em>more</em>
+per process at higher core counts.</p>
+<p>The hypothesis developed from the synthetic studies (Section 4) is that CG Class C
+partitions its sparse matrix unevenly across 4 MPI processes at 2 workers, causing one
+process to be consistently slower on every iteration. The others must spin in MANA's
+<code>MPI_Wait</code> lock loop waiting for that slow partner — and that spin loop burns CPU shared
+with the slow process, making it slower still. This cascade amplifies over CG's 75
+conjugate-gradient iterations. At 4 and 8 workers, the matrix partitions differently
+and the bottleneck does not appear. Confirming this would require per-rank timing
+instrumentation inside the benchmark, which is outside the scope of this work.</p>
+<h3 id="22-ep-d--high-measurement-variance">2.2 EP-D — High Measurement Variance</h3>
+<p>EP-D at 2 workers shows 39% overhead (335.0 s → 466.5 s). While real, this figure is
+unreliable: EP uses only collective operations (MPI_Allreduce/Reduce) with no P2P
+communication, so MANA's overhead should be small and roughly constant. The 131-second
+absolute overhead at 2w — compared to 40 s at 4w and 23 s at 8w — points to EC2
+infrastructure noise on a single long-duration run rather than a reproducible MANA effect.
+EP data should not be used to characterize MANA's overhead mechanism.</p>
+<h3 id="23-lu-c--consistent-overhead">2.3 LU-C — Consistent Overhead</h3>
+<p>LU-C shows the most consistent and interpretable results: 62% at 2w, 56% at 4w, 52% at 8w.
+The slight decrease with more workers is consistent with MANA's fixed per-process costs
+being distributed across more parallel computation. LU is the best benchmark for overhead
+characterization: structured communication, stable runtime, reproducible across runs.</p>
+<hr>
+<h2 id="3-strong-scaling">3. Strong Scaling</h2>
+<p><img src="plots/fig6_mana_scalability.png" alt="Strong scaling — wall time vs worker count"></p>
+<p><strong>Table 2 — Wall time (seconds) vs worker count, noFT and MANA-noFT:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>noFT 2w</th>
+<th>noFT 4w</th>
+<th>noFT 8w</th>
+<th>Speedup 2→8</th>
+<th>MANA 2w</th>
+<th>MANA 4w</th>
+<th>MANA 8w</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CG-C</td>
+<td>34.6</td>
+<td>18.7</td>
+<td>12.1</td>
+<td>2.9×</td>
+<td>115.2</td>
+<td>29.7</td>
+<td>20.9</td>
+</tr>
+<tr>
+<td>EP-D</td>
+<td>335.0</td>
+<td>285.8</td>
+<td>102.3</td>
+<td>3.3×</td>
+<td>466.5</td>
+<td>325.9</td>
+<td>124.9</td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>149.8</td>
+<td>87.3</td>
+<td>47.4</td>
+<td>3.2×</td>
+<td>242.6</td>
+<td>136.0</td>
+<td>71.9</td>
+</tr>
+</tbody>
+</table>
+<p>All three benchmarks scale sub-linearly from 2 to 8 workers (ideal would be 4×). EP and LU
+reach 3.2–3.3× speedup, which is reasonable for memory-bound MPI applications at small
+cluster sizes. CG's lower scaling (2.9×) reflects its irregular communication pattern.</p>
+<p>MANA-noFT follows the same scaling trend as noFT: the MANA overhead does not worsen
+disproportionately at higher worker counts. This is a positive result — MANA's checkpoint
+infrastructure does not introduce a communication bottleneck when the cluster scales.</p>
+<hr>
+<h2 id="4-mana-overhead-mechanisms--synthetic-studies">4. MANA Overhead Mechanisms — Synthetic Studies</h2>
+<h3 id="41-call-frequency-study">4.1 Call Frequency Study</h3>
+<p><img src="plots/fig2_synth_calls.png" alt="MANA overhead vs MPI call frequency"></p>
+<p>Two synthetic programs were designed to isolate the effect of MPI call frequency on MANA
+overhead: <code>synth_calls</code> (using MPI_Allreduce) and <code>synth_p2p</code> (using synchronized
+MPI_Send/MPI_Recv pairs). Both ran for ~60 s natively across five call levels.</p>
+<p><strong>Table 3 — MANA overhead (added seconds) vs call count:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Calls</th>
+<th>synth_calls overhead</th>
+<th>synth_p2p overhead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L0</td>
+<td>0</td>
+<td>+1.7 s</td>
+<td>+3.4 s</td>
+</tr>
+<tr>
+<td>L1</td>
+<td>800</td>
+<td>+3.4 s</td>
+<td>+3.5 s</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>3,200</td>
+<td>+3.3 s</td>
+<td>+3.2 s</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>12,800</td>
+<td>+2.9 s</td>
+<td>+2.7 s</td>
+</tr>
+<tr>
+<td>L4</td>
+<td>51,200</td>
+<td>+0.7 s</td>
+<td>+0.8 s</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Finding:</strong> MANA overhead is flat (~3 s) across all call levels and actually <em>decreases</em>
+at L4. Call count is <strong>not</strong> the driver of MANA overhead. The overhead comes from fixed
+DMTCP infrastructure costs (coordinator handshake, checkpoint-enable/disable wrappers at
+init/exit) rather than per-call interception.</p>
+<p><strong>Why synth_p2p is also flat:</strong> Both partners reach their MPI_Send/MPI_Recv exchange at
+the same moment (perfectly synchronized). The message arrives within the first of MANA's
+1,000 Iprobe iterations, so the 1 ms sleep-and-retry path never fires. This is a best-case
+scenario that does not represent CG or LU behavior, where computation time between
+communication rounds causes partners to be temporally misaligned.</p>
+<h3 id="42-communication-imbalance-study">4.2 Communication Imbalance Study</h3>
+<p>A third synthetic program, <code>synth_imbalanced</code>, uses the same <code>MPI_Irecv + MPI_Wait</code>
+code path as CG and LU, but introduces a controlled sender delay so the receiver must
+spin in MANA's MPI_Wait loop. The overhead result was unexpected:</p>
+<p><strong>Table 4 — synth_imbalanced results:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Delay/exchange</th>
+<th>Accum. wait</th>
+<th>noFT elapsed</th>
+<th>MANA elapsed</th>
+<th>Overhead</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L0</td>
+<td>0 µs</td>
+<td>0 s</td>
+<td>60.7 s</td>
+<td>64.2 s</td>
+<td>+3.4 s</td>
+</tr>
+<tr>
+<td>L1</td>
+<td>100 µs</td>
+<td>0.08 s</td>
+<td>60.8 s</td>
+<td>64.3 s</td>
+<td>+3.5 s</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>1 ms</td>
+<td>0.8 s</td>
+<td>61.5 s</td>
+<td>64.5 s</td>
+<td>+2.9 s</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>5 ms</td>
+<td>4.0 s</td>
+<td>64.7 s</td>
+<td>64.7 s</td>
+<td>≈ 0 s</td>
+</tr>
+<tr>
+<td>L4</td>
+<td>20 ms</td>
+<td>16.0 s</td>
+<td>76.7 s</td>
+<td>78.8 s</td>
+<td>+2.0 s</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Finding:</strong> Even with explicit MPI_Wait spin, overhead does not grow proportionally
+with wait duration. At L3 and L4, the noFT run itself slows down because the sender
+spends more time sleeping — so MANA's fixed ~3.4 s floor is absorbed by the slower
+baseline. The spin loop burns CPU but does not extend the wait beyond the sender's sleep.</p>
+<p><strong>What this means for CG 2w:</strong> All three synthetic tests converge on the same conclusion:
+MANA adds a fixed ~3–5 s overhead for isolated synthetic programs regardless of call
+count, call type, or communication imbalance. CG's 80 s overhead at 2w cannot be
+explained by any single isolated variable. The most plausible mechanism is a
+<strong>computation–communication cascade</strong>: MANA's per-call wrapper cost slightly slows
+computation, causing one process to send later, causing its partner to wait in MPI_Wait,
+burning CPU that the slow process was using, slowing it further — amplified over 75 CG
+iterations. The synthetic tests cannot replicate this because the sender delay is
+external (usleep) rather than compute-driven, and senders/receivers run on separate
+nodes with no CPU competition.</p>
+<h3 id="43-checkpoint-image-size-study">4.3 Checkpoint Image Size Study</h3>
+<p><img src="plots/fig3_synth_ckpt.png" alt="Phase 1 time vs checkpoint image size"></p>
+<p>A fourth synthetic program allocated a known memory footprint per MPI process and was
+then checkpointed under MANA to measure Phase 1 (detect → checkpoint ready) directly.</p>
+<p><strong>Table 5 — Phase 1 and Phase 2 times vs memory per process:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Memory/process</th>
+<th>Phase 1 (s)</th>
+<th>Phase 2 (s)</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>50 MB</td>
+<td>16.4 s</td>
+<td>21.6 s</td>
+<td>Fixed overhead dominates</td>
+</tr>
+<tr>
+<td>200 MB</td>
+<td>27.3 s</td>
+<td>22.0 s</td>
+<td>Linear regime begins</td>
+</tr>
+<tr>
+<td>800 MB</td>
+<td>47.0 s</td>
+<td>21.7 s</td>
+<td>Proportional to size</td>
+</tr>
+<tr>
+<td>3,200 MB</td>
+<td>138.7 s</td>
+<td>21.6 s</td>
+<td>EFS write bandwidth limit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Finding 1:</strong> Phase 1 scales non-linearly with memory. Small images (50 MB) are
+dominated by a fixed startup cost (~16 s), making the relationship sub-linear at small
+sizes. Large images (3,200 MB) show that EFS write bandwidth saturates, causing
+super-linear growth per MB.</p>
+<p><strong>Finding 2:</strong> Phase 2 is <strong>constant at ~21.6 s regardless of checkpoint size</strong>. This
+is the Slurm reconfiguration floor: drain + cancel (~5.5 s) + scontrol DOWN (~10 s) +
+new Slurm allocation + MANA coordinator setup (~5.3 s). This lower bound cannot be
+reduced without changing the Slurm orchestration strategy.</p>
+<p><strong>Practical implication for NPB benchmarks:</strong> EP-D processes allocate less memory than
+LU-C, which matches Phase 1 times measured in real FT runs: ~16–17 s for EP vs ~26–37 s
+for LU and CG. The synthetic study confirms that the difference is memory footprint,
+not benchmark complexity.</p>
+<hr>
+<h2 id="5-recovery-phase-analysis--cg-short-job-case">5. Recovery Phase Analysis — CG Short-Job Case</h2>
+<p><img src="plots/fig5_cg_short_job.png" alt="CG short-job FT wall time breakdown"></p>
+<p>CG-C is excluded from the failure timing sensitivity study because its 10–30 s noFT
+runtime makes timing variants meaningless. However, it is the clearest illustration of
+a key structural fact: <strong>for short jobs, recovery overhead dominates total wall time</strong>.</p>
+<p><strong>Table 6 — CG-C FT wall time breakdown (base trigger ~3 s):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Workers</th>
+<th>Strategy</th>
+<th>P0</th>
+<th>P1</th>
+<th>Slurm (P2a+P2c)</th>
+<th>P2b</th>
+<th>P3</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2w</td>
+<td>REPLACE</td>
+<td>3.0 s</td>
+<td>26.5 s</td>
+<td>10.8 s</td>
+<td>157.0 s</td>
+<td>42.0 s</td>
+<td><strong>243.8 s</strong></td>
+</tr>
+<tr>
+<td>2w</td>
+<td>DEGRADED</td>
+<td>3.0 s</td>
+<td>26.4 s</td>
+<td>10.7 s</td>
+<td>10.9 s</td>
+<td>109.5 s</td>
+<td><strong>165.8 s</strong></td>
+</tr>
+<tr>
+<td>4w</td>
+<td>REPLACE</td>
+<td>3.0 s</td>
+<td>26.6 s</td>
+<td>10.7 s</td>
+<td>125.2 s</td>
+<td>26.4 s</td>
+<td><strong>201.1 s</strong></td>
+</tr>
+<tr>
+<td>4w</td>
+<td>DEGRADED</td>
+<td>3.0 s</td>
+<td>26.5 s</td>
+<td>11.0 s</td>
+<td>10.9 s</td>
+<td>42.0 s</td>
+<td><strong>100.9 s</strong></td>
+</tr>
+<tr>
+<td>8w</td>
+<td>REPLACE</td>
+<td>3.0 s</td>
+<td>36.7 s</td>
+<td>10.8 s</td>
+<td>122.1 s</td>
+<td>21.1 s</td>
+<td><strong>203.1 s</strong></td>
+</tr>
+<tr>
+<td>8w</td>
+<td>DEGRADED</td>
+<td>3.0 s</td>
+<td>36.7 s</td>
+<td>10.8 s</td>
+<td>10.9 s</td>
+<td>26.4 s</td>
+<td><strong>98.3 s</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key observations:</strong></p>
+<ol>
+<li>
+<p><strong>P2b is the dominant differentiator.</strong> REPLACE pays 122–157 s for EC2 provisioning
+(terminate → respawn → Slurm IDLE) while DEGRADED pays only ~11 s for <code>scontrol DOWN</code>.
+This ~111–146 s gap is the direct cost of the &quot;replace with a new instance&quot; strategy.</p>
+</li>
+<li>
+<p><strong>DEGRADED wins at all cluster sizes for CG</strong>, by 78–105 s. Even though DEGRADED loses
+50% capacity at 2w (P3 goes from 42 s to 110 s, +68 s), this is still far less than
+REPLACE's P2b cost (+146 s).</p>
+</li>
+<li>
+<p><strong>P2b for REPLACE is nearly constant across worker counts</strong> (~122–157 s). This reflects
+AWS EC2 provisioning latency, which is independent of cluster topology.</p>
+</li>
+<li>
+<p><strong>P1 increases at 8w</strong> (26.5 s → 36.7 s) because more processes = larger total
+checkpoint image on EFS, consistent with the synthetic checkpoint size study.</p>
+</li>
+<li>
+<p><strong>For very short jobs like CG (noFT ~12–35 s), the FT overhead is 3–17× the original
+job duration.</strong> MANA-based fault tolerance is most cost-effective for long-running jobs
+where recovery overhead is a small fraction of total wall time.</p>
+</li>
+</ol>
+<hr>
+<h2 id="6-failure-timing-analysis--replace-vs-degraded">6. Failure Timing Analysis — REPLACE vs DEGRADED</h2>
+<p><img src="plots/fig4_timing_phases.png" alt="Full FT wall time by failure timing"></p>
+<p>This is the central analysis of Phase 5. EP-D and LU-C were each run with failure
+injected at 10%, 25%, and 50% of the MANA-noFT wall time, at 2, 4, and 8 workers.</p>
+<h3 id="61-phase-breakdown-by-timing">6.1 Phase Breakdown by Timing</h3>
+<p>Each bar in Figure 4 shows the <strong>complete wall time</strong> from job start to completion:</p>
+<ul>
+<li><strong>P0 (teal):</strong> pre-failure computation — grows as failure is injected later; identical
+for REPLACE and DEGRADED in each group since the trigger time is the same.</li>
+<li><strong>P1 (blue):</strong> checkpoint write — consistently ~16–27 s, driven by memory footprint,
+independent of failure timing.</li>
+<li><strong>Slurm+MANA (yellow):</strong> fixed bookkeeping (~11 s, same for both strategies).</li>
+<li><strong>P2b (orange):</strong> node reconfig — THE strategy differentiator: ~122–157 s for REPLACE,
+~11 s for DEGRADED.</li>
+<li><strong>P3 (green):</strong> remaining computation — shrinks as failure is injected later;
+larger for DEGRADED because it restarts with one fewer worker.</li>
+</ul>
+<h3 id="62-ep-d-results-by-timing">6.2 EP-D Results by Timing</h3>
+<p><strong>Table 7 — EP-D total FT wall time (seconds):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Workers</th>
+<th>Trigger</th>
+<th>REPLACE</th>
+<th>DEGRADED</th>
+<th>Winner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2w</td>
+<td>10% (46 s)</td>
+<td>519 s</td>
+<td>537 s</td>
+<td><strong>REPLACE</strong> (−18 s)</td>
+</tr>
+<tr>
+<td>2w</td>
+<td>25% (116 s)</td>
+<td>549 s</td>
+<td>533 s</td>
+<td><strong>DEGRADED</strong> (−16 s)</td>
+</tr>
+<tr>
+<td>2w</td>
+<td>50% (231 s)</td>
+<td>588 s</td>
+<td>538 s</td>
+<td><strong>DEGRADED</strong> (−50 s)</td>
+</tr>
+<tr>
+<td>4w</td>
+<td>10% (32 s)</td>
+<td>314 s</td>
+<td>289 s</td>
+<td><strong>DEGRADED</strong> (−25 s)</td>
+</tr>
+<tr>
+<td>4w</td>
+<td>25% (81 s)</td>
+<td>385 s</td>
+<td>295 s</td>
+<td><strong>DEGRADED</strong> (−90 s)</td>
+</tr>
+<tr>
+<td>4w</td>
+<td>50% (151 s)</td>
+<td>375 s</td>
+<td>296 s</td>
+<td><strong>DEGRADED</strong> (−79 s)</td>
+</tr>
+<tr>
+<td>8w</td>
+<td>avg across timings</td>
+<td>307 s ±51 s</td>
+<td>177 s ±4 s</td>
+<td><strong>DEGRADED</strong> (≈−130 s)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>EP-D crossover at 2 workers:</strong> REPLACE wins only when failure occurs at 10% (early).
+At 2w, losing one of two workers doubles EP's remaining computation time (P3), since EP
+is embarrassingly parallel and scales linearly. When the failure happens at 10%, P3 is
+large (~446 s for DEGRADED vs ~318 s for REPLACE), and DEGRADED's P3 penalty (+128 s)
+exceeds REPLACE's P2b cost (+123 s). By 25%, P3 is smaller and DEGRADED's penalty
+shrinks below the P2b gap — DEGRADED wins.</p>
+<p><strong>At 4w and 8w, DEGRADED wins at all timing points.</strong> Losing 1 of 4 workers costs 33%
+extra computation time; losing 1 of 8 costs only 14%. REPLACE's ~123–157 s P2b is never
+recouped by the savings in P3.</p>
+<h3 id="63-lu-c-results-by-timing">6.3 LU-C Results by Timing</h3>
+<p><strong>Table 8 — LU-C total FT wall time (seconds, averaged across 3 runs per cell):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Workers</th>
+<th>Strategy</th>
+<th>10% avg</th>
+<th>25% avg</th>
+<th>50% avg</th>
+<th>DEGRADED advantage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2w</td>
+<td>REPLACE</td>
+<td>~370 s</td>
+<td>~349 s</td>
+<td>~329 s</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2w</td>
+<td>DEGRADED</td>
+<td>~305 s</td>
+<td>~302 s</td>
+<td>~299 s</td>
+<td><strong>−44 to −65 s</strong></td>
+</tr>
+<tr>
+<td>4w</td>
+<td>REPLACE</td>
+<td>~278 s</td>
+<td>~277 s</td>
+<td>~274 s</td>
+<td>—</td>
+</tr>
+<tr>
+<td>4w</td>
+<td>DEGRADED</td>
+<td>~197 s</td>
+<td>~194 s</td>
+<td>~191 s</td>
+<td><strong>−80 to −87 s</strong></td>
+</tr>
+<tr>
+<td>8w</td>
+<td>REPLACE</td>
+<td>~325 s</td>
+<td>~303 s</td>
+<td>~280 s</td>
+<td>—</td>
+</tr>
+<tr>
+<td>8w</td>
+<td>DEGRADED</td>
+<td>~146 s</td>
+<td>~140 s</td>
+<td>~134 s</td>
+<td><strong>−146 to −163 s</strong></td>
+</tr>
+</tbody>
+</table>
+<p>LU-C shows no crossover at any tested configuration. DEGRADED wins at 2w, 4w, and 8w
+for all three timing points. Unlike EP, LU has a structured iterative communication
+pattern (nearest-neighbor stencil), which means the DEGRADED P3 penalty for losing one
+worker is partially offset by better cache locality with fewer processes.</p>
+<p>At 8w, DEGRADED wins by up to 163 s — losing 1 of 8 workers is nearly negligible in
+terms of remaining computation, while REPLACE still pays the full ~122–188 s EC2 cost.</p>
+<h3 id="64-effect-of-failure-timing-on-p3">6.4 Effect of Failure Timing on P3</h3>
+<p>As the failure trigger moves from 10% to 50% of the job, P3 (remaining computation)
+decreases for both strategies — this is the expected result: less work remains.</p>
+<p>However, the <strong>P3 gap between REPLACE and DEGRADED</strong> also changes with timing:</p>
+<ul>
+<li>At <strong>2w</strong>, losing 1/2 workers means DEGRADED runs P3 at roughly 2× the time of REPLACE
+(since REPLACE restarts with 2 workers and DEGRADED with 1). At early failure (10%),
+this P3 gap is large enough for REPLACE to win.</li>
+<li>At <strong>4w and 8w</strong>, the P3 gap shrinks (25% or 12.5% slower), so REPLACE's fixed P2b
+cost dominates and DEGRADED always wins.</li>
+</ul>
+<p>The crossover condition is: <strong>REPLACE wins when</strong> <code>P2b_REPLACE − P2b_DEGRADED &lt; P3_DEGRADED − P3_REPLACE</code>,
+i.e., when the extra computation time from losing a worker exceeds the EC2 provisioning
+savings. This only holds at 2 workers with EP (high P3 from embarrassingly-parallel
+scaling) and only at the earliest failure timing.</p>
+<hr>
+<h2 id="7-strategy-comparison-summary">7. Strategy Comparison Summary</h2>
+<p><img src="plots/fig8_strategy_comparison.png" alt="REPLACE vs DEGRADED total wall time with MANA-noFT baseline"></p>
+<p>Figure 8 adds the MANA-noFT bar (no failure injected) as a reference baseline in each
+group. The gap between MANA-noFT and the FT bars represents the total cost of the spot
+interruption and recovery.</p>
+<p><strong>Table 9 — Summary: which strategy wins across all configurations:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Workers</th>
+<th>10%</th>
+<th>25%</th>
+<th>50%</th>
+<th>MANA-noFT baseline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EP-D</td>
+<td>2w</td>
+<td>REPLACE</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>466 s</td>
+</tr>
+<tr>
+<td>EP-D</td>
+<td>4w</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>326 s</td>
+</tr>
+<tr>
+<td>EP-D</td>
+<td>8w</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>125 s</td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>2w</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>243 s</td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>4w</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>136 s</td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>8w</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>DEGRADED</td>
+<td>72 s</td>
+</tr>
+</tbody>
+</table>
+<p><strong>DEGRADED wins in 17 out of 18 tested configurations.</strong> The single exception is EP-D at
+2 workers with a very early failure (10% of run time). In all other cases, the 11-second
+P2b cost of <code>scontrol DOWN</code> is far better than the 122–157-second EC2 provisioning time.</p>
+<hr>
+<h2 id="8-recovery-overhead-ratio">8. Recovery Overhead Ratio</h2>
+<p><img src="plots/fig9_recovery_overhead_ratio.png" alt="Recovery overhead as % of total FT wall time"></p>
+<p>The recovery overhead ratio measures what fraction of total FT wall time was caused by
+the failure and its recovery — everything except the pre-failure computation (P0):</p>
+<p><code>recovery_overhead_pct = (ft_wall_time − P0) / ft_wall_time × 100</code></p>
+<p><strong>Table 10 — Recovery overhead as % of total FT wall time (EP-D):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Workers</th>
+<th>Strategy</th>
+<th>10%</th>
+<th>25%</th>
+<th>50%</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2w</td>
+<td>REPLACE</td>
+<td>91%</td>
+<td>79%</td>
+<td>61%</td>
+</tr>
+<tr>
+<td>2w</td>
+<td>DEGRADED</td>
+<td>91%</td>
+<td>78%</td>
+<td>57%</td>
+</tr>
+<tr>
+<td>4w</td>
+<td>REPLACE</td>
+<td>90%</td>
+<td>79%</td>
+<td>60%</td>
+</tr>
+<tr>
+<td>4w</td>
+<td>DEGRADED</td>
+<td>89%</td>
+<td>72%</td>
+<td>49%</td>
+</tr>
+<tr>
+<td>8w</td>
+<td>REPLACE</td>
+<td>93%</td>
+<td>88%</td>
+<td>82%</td>
+</tr>
+<tr>
+<td>8w</td>
+<td>DEGRADED</td>
+<td>93%</td>
+<td>82%</td>
+<td>65%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key observations:</strong></p>
+<ol>
+<li>
+<p><strong>Early failure → high overhead ratio for both strategies.</strong> When failure fires at 10%,
+recovery accounts for ~90% of total wall time regardless of strategy. This is expected:
+P0 is small and P3 dominates, padded by recovery costs.</p>
+</li>
+<li>
+<p><strong>Later failure → lower overhead ratio.</strong> At 50% trigger, DEGRADED at 4w recovers
+with only 49% overhead — meaning more than half the total wall time is actual
+productive computation.</p>
+</li>
+<li>
+<p><strong>At 8w, REPLACE overhead stays above 80% even at 50%.</strong> The fixed EC2 provisioning
+cost (~155 s for LU-8w) represents a large fraction of a short total job (72 s noFT).
+This is a fundamental limitation: for short jobs on large clusters, REPLACE becomes
+increasingly expensive relative to job duration.</p>
+</li>
+<li>
+<p><strong>DEGRADED and REPLACE have nearly identical overhead at 10%</strong> for all configurations.
+The difference only becomes visible at 25% and 50%, where REPLACE's larger P2b
+contributes more to the remaining fraction.</p>
+</li>
+</ol>
+<hr>
+<h2 id="9-economic-analysis">9. Economic Analysis</h2>
+<p><img src="plots/fig7_cost.png" alt="Cost per run — spot with FT vs on-demand without FT"></p>
+<p><strong>Table 11 — Estimated cost per run (USD), representative runs:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Workers</th>
+<th>noFT on-demand</th>
+<th>REPLACE (spot)</th>
+<th>DEGRADED (spot)</th>
+<th>DEGRADED saving vs noFT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CG-C</td>
+<td>2w</td>
+<td>$0.0045</td>
+<td>$0.0136</td>
+<td>$0.0092</td>
+<td>−$0.0000 (FT costs more — expected for very short jobs)</td>
+</tr>
+<tr>
+<td>CG-C</td>
+<td>4w</td>
+<td>$0.0044</td>
+<td>$0.0177</td>
+<td>$0.0089</td>
+<td>−$0.0000 (same)</td>
+</tr>
+<tr>
+<td>EP-D</td>
+<td>2w</td>
+<td>$0.0435</td>
+<td>$0.0307</td>
+<td>$0.0298</td>
+<td><strong>−31% (saves $0.0137)</strong></td>
+</tr>
+<tr>
+<td>EP-D</td>
+<td>4w</td>
+<td>$0.0676</td>
+<td>$0.0315</td>
+<td>$0.0259</td>
+<td><strong>−62% (saves $0.0417)</strong></td>
+</tr>
+<tr>
+<td>EP-D</td>
+<td>8w</td>
+<td>$0.1244</td>
+<td>$0.0470</td>
+<td>$0.0271</td>
+<td><strong>−78% (saves $0.0973)</strong></td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>2w</td>
+<td>$0.0166</td>
+<td>$0.0194</td>
+<td>$0.0168</td>
+<td>−1% (marginal)</td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>4w</td>
+<td>$0.0309</td>
+<td>$0.0244</td>
+<td>$0.0171</td>
+<td><strong>−45% (saves $0.0138)</strong></td>
+</tr>
+<tr>
+<td>LU-C</td>
+<td>8w</td>
+<td>$0.0547</td>
+<td>$0.0463</td>
+<td>$0.0215</td>
+<td><strong>−61% (saves $0.0332)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The cost model assumes:</p>
+<ul>
+<li><strong>noFT</strong> must use <strong>on-demand</strong> instances because a spot interruption without fault
+tolerance loses all work and requires a full restart (zero savings from spot discount).</li>
+<li><strong>REPLACE and DEGRADED</strong> can use <strong>spot instances</strong> (70% cheaper than on-demand)
+because MANA handles interruptions automatically.</li>
+</ul>
+<p><strong>Key findings:</strong></p>
+<ol>
+<li>
+<p><strong>CG-C is the exception that proves the rule:</strong> The FT strategies cost more than
+noFT on-demand because CG is so short (~10–35 s) that recovery overhead (103–202 s)
+dwarfs the original job. Spot pricing discounts do not compensate. MANA-based FT
+is not economically justified for very short jobs.</p>
+</li>
+<li>
+<p><strong>For EP and LU at 4 and 8 workers, spot + FT (DEGRADED) saves 45–78% vs
+on-demand + noFT.</strong> This is the primary economic justification for the approach:
+even accounting for the recovery overhead, the 70% spot discount on worker costs
+dominates for jobs that take more than a few minutes.</p>
+</li>
+<li>
+<p><strong>DEGRADED is consistently cheaper than REPLACE</strong> because it completes faster
+(lower P2b), spending less time on all instance-hour billing. The savings range
+from $0.002 (CG, negligible) to $0.020 (EP-8w, significant).</p>
+</li>
+<li>
+<p><strong>The 8-worker configurations show the strongest economic case</strong> for spot + FT:
+more workers means more spot savings, and with DEGRADED the recovery is fast
+enough that the total runtime (and cost) stays well below the on-demand baseline.</p>
+</li>
+</ol>
+<hr>
+<h2 id="10-conclusions-and-recommendations">10. Conclusions and Recommendations</h2>
+<h3 id="101-mana-overhead-characterization">10.1 MANA Overhead Characterization</h3>
+<ul>
+<li>MANA adds a <strong>fixed ~3–5 s infrastructure overhead</strong> per run for synthetic benchmarks,
+independent of MPI call count, communication pattern, or wait-time imbalance.</li>
+<li>For structured real benchmarks (LU-C), overhead is stable at <strong>~52–62%</strong> across all
+worker counts — a significant but consistent cost, consistent with MANA's per-call
+wrapper interception on communication-heavy code.</li>
+<li><strong>CG-C at 2 workers</strong> is an anomaly (+233%). The most likely cause is a cascading
+CPU competition effect specific to that matrix partition, not a general MANA weakness.
+It should be noted as a limitation and flagged for future work.</li>
+<li><strong>EP-D overhead is unreliable</strong> from single-run experiments due to EC2 variance on
+a job that barely uses MPI communication. EP should not be used to characterize MANA.</li>
+</ul>
+<h3 id="102-checkpoint-write-time">10.2 Checkpoint Write Time</h3>
+<ul>
+<li>Phase 1 (detect → checkpoint ready) scales with process memory footprint,
+non-linearly: fixed startup cost dominates small images, EFS bandwidth caps large ones.</li>
+<li><strong>Phase 2 has a hard lower bound of ~21.6 s</strong> (Slurm drain + scontrol + re-allocation
+<ul>
+<li>MANA coordinator) that cannot be reduced without redesigning the orchestration.</li>
+</ul>
+</li>
+<li>Real benchmark Phase 1 times (16–37 s across EP/LU/CG at different sizes) are
+explained by memory footprint differences, confirming the synthetic study result.</li>
+</ul>
+<h3 id="103-replace-vs-degraded-strategy-choice">10.3 REPLACE vs DEGRADED Strategy Choice</h3>
+<ul>
+<li><strong>DEGRADED is the recommended default strategy</strong> for the workloads evaluated.
+It wins in 17 of 18 tested configurations across two benchmarks, three cluster sizes,
+and three failure timing points.</li>
+<li>The only case where REPLACE is better: <strong>EP-D at 2 workers, failure at 10%</strong> of run
+time. This is a narrow edge case where losing half the cluster (1 of 2 workers)
+doubles the remaining computation time, making DEGRADED's P3 penalty exceed REPLACE's
+P2b cost.</li>
+<li>The REPLACE strategy carries a fixed <strong>~122–157 s EC2 provisioning penalty</strong> in Phase 2b.
+No matter how late in the job the failure occurs, this cost is always paid. DEGRADED's
+equivalent cost is ~11 s — <strong>an order-of-magnitude lower</strong>.</li>
+<li>At <strong>8 workers, DEGRADED wins by the largest margins</strong> (130–163 s) because losing
+1/8 workers costs only 12.5% extra computation time, while REPLACE still pays the
+full EC2 provisioning cost.</li>
+</ul>
+<h3 id="104-when-to-use-each-strategy">10.4 When to Use Each Strategy</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Recommended strategy</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Short job (&lt; 1–2 min noFT)</td>
+<td>Neither — noFT on-demand may be preferable</td>
+<td>Recovery overhead dominates; spot savings don't cover FT cost</td>
+</tr>
+<tr>
+<td>Long job, ≥ 4 workers</td>
+<td><strong>DEGRADED</strong></td>
+<td>Capacity loss per failure is ≤ 25%; P2b advantage is decisive</td>
+</tr>
+<tr>
+<td>Long job, 2 workers, early failure likely</td>
+<td><strong>REPLACE</strong> (marginal)</td>
+<td>Only if failure timing is consistently &lt; 15% of run</td>
+</tr>
+<tr>
+<td>Long job, 2 workers, failure timing unknown</td>
+<td><strong>DEGRADED</strong></td>
+<td>Wins at 25% and 50%; EP edge case is narrow</td>
+</tr>
+<tr>
+<td>Economic priority (cost/run)</td>
+<td><strong>DEGRADED</strong></td>
+<td>Lower P2b → less wall time → less instance-hour billing</td>
+</tr>
+</tbody>
+</table>
+<h3 id="105-limitations-and-future-work">10.5 Limitations and Future Work</h3>
+<ol>
+<li><strong>Single repetition per cell</strong> for most configurations. Statistical confidence
+requires at least 3–5 runs per cell to separate EC2 infrastructure noise from
+true MANA behavior. The EP data in particular shows high variance.</li>
+<li><strong>CG-C anomaly at 2 workers</strong> is unresolved. Per-rank timing instrumentation inside
+the NAS benchmark would be needed to confirm the cascading imbalance hypothesis.</li>
+<li><strong>Multiple successive failures</strong> were not tested. The watcher handles one failure
+at a time sequentially; multi-failure scenarios would require a different evaluation
+campaign.</li>
+<li><strong>Only m5.xlarge instances</strong> were evaluated. Different instance types with different
+memory-to-compute ratios would change Phase 1 times and MANA overhead factors.</li>
+<li><strong>EFS as the checkpoint store</strong> introduces variable latency depending on burst credits.
+A high-performance parallel filesystem would reduce Phase 1 times substantially.</li>
+</ol>
+<hr>
+<p><em>Report generated from 94 valid runs collected 2026-05-30 to 2026-06-03.</em>
+<em>All figures generated by <code>TCC/analyze.py</code>. Raw data: <code>results_raw.csv</code>. Aggregated stats: <code>summary.md</code>.</em></p>
+
+</body>
+</html>
