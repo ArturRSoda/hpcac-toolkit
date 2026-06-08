@@ -42,3 +42,4 @@ __pycache__/
 # MANA binaries and source (not version-controlled)
 MANAcommandfiles/
 mana/
+NPB3.4.4/

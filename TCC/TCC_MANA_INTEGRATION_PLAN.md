@@ -2,7 +2,7 @@
 ## Integrating MANA Fault Tolerance into HPC@Cloud for AWS Spot Clusters
 
 Date: 2026-04-24
-Last Updated: 2026-05-27 (Phase 4 completed — all planned phases done)
+Last Updated: 2026-06-08 (Phase 5 complete — all analysis and reports done)
 
 ## 1. Project Idea (Problem and Motivation)
 This TCC proposes integrating MANA (MPI-Agnostic Network-Agnostic checkpoint/restart) into HPC@Cloud to improve fault tolerance of AWS spot-based HPC clusters.
@@ -289,8 +289,28 @@ FT benchmark from original plan replaced by EP.
 - [x] Analysis figures: `TCC/artifacts/phase4/analysis/plots/`
 - [x] Analysis reports: `analysis_report.md` (EN), `analysis_report_ptbr.md` (PT-BR)
 
-> **Note:** Phase 5 (Evaluation and Analysis) from the original plan was folded into Phase 4.
-> The original Phase 5 metrics are all covered by the Phase 4 analysis pipeline and reports.
+> **Note on original Phase 5:** the original "Evaluation and Analysis" phase was folded into Phase 4.
+> A new Phase 5 has been opened to address open questions raised after the Phase 4 pilot.
+
+### Phase 5 - Deepening the Analysis: Synthetic Studies and Failure Timing ← CURRENT PHASE
+
+#### Goal
+- Confirm causal claims about MANA overhead and checkpoint time with controlled synthetic experiments.
+- Study how recovery strategy performance varies with failure timing.
+- Improve the recovery phase visualization with Phase 0 and a finer Phase 2 split.
+
+#### Sub-items
+- **5.1** Synthetic MPI call frequency study — isolate MANA overhead driver
+- **5.2** Synthetic checkpoint image size study — isolate Phase 1 time driver
+- **5.3** Failure timing sensitivity — inject failure at 10 / 25 / 50% of MANA_noFT wall time
+- **5.4** Enhanced fig3 — add Phase 0 bar; split Phase 2 into EC2 provisioning (2a) and cluster reconfiguration (2b)
+
+#### Deliverable
+- [x] Plan: `TCC/artifacts/phase5/PHASE5_PLAN.md`
+- [x] Artifact: `TCC/artifacts/phase5/PHASE5_ARTIFACT.md`
+- [x] Analysis report (EN): `TCC/artifacts/phase5/analysis/analysis_report_phase5.md`
+- [x] Analysis report (PT-BR): `TCC/artifacts/phase5/analysis/analysis_report_phase5_ptbr.md`
+- [x] 10 analysis figures in `TCC/artifacts/phase5/analysis/plots/`
 
 ## 6. Consistency Requirements for a Strong Project
 ### A) Experimental Consistency
@@ -366,16 +386,16 @@ Evaluate fallback to temporary on-demand worker replacement.
 - [x] Execute 24-run pilot matrix and produce analysis reports.
 - [x] Produce Phase 4 artifact.
 
-### Current Status: All Phases Completed (updated 2026-05-27)
+### Current Status: All Phases Completed (updated 2026-06-08)
 
-All planned implementation phases (Phase 0 through Phase 4) are complete.
-The pilot evaluation campaign (24 runs) and analysis reports have been produced.
+All planned implementation and evaluation phases (Phase 0 through Phase 5) are complete.
+94 experimental runs collected, analyzed, and reported in both English and PT-BR.
 
 #### Remaining Work (Future / Post-TCC)
 1. Repeat each configuration ≥3 times for statistical confidence (standard deviation on all metrics).
-2. Extend to 8-worker clusters (pending AWS EIP quota increase in us-west-2).
-3. Test LU Class D and EP Class E for longer job durations where spot savings should be more pronounced.
-4. Confirm CG Class C MANA overhead at 2 workers (suspected single-run outlier at 3.13×).
-5. Investigate REPLACE_RESUME for workloads >10 min where its Phase 2 cost can be amortized.
+2. Test LU Class D and EP Class E for longer job durations to observe the crossover point where REPLACE_RESUME becomes competitive with DEGRADED_RESUME.
+3. Confirm CG Class C MANA overhead at 2 workers via per-rank profiling (cascading imbalance hypothesis).
+4. Evaluate multi-failure scenarios — DEGRADED capacity degrades with each successive failure, which was not tested.
+5. Write the formal TCC thesis document (abstract, introduction, background, methodology, results, conclusions, references).
 ## 10. Expected TCC Contribution Statement
 This project contributes a practical strategy for making spot-based HPC clusters more resilient and economically viable by combining scheduler-aware orchestration, transparent MPI checkpoint/restart (MANA), and cloud-native dynamic node replacement within HPC@Cloud.
