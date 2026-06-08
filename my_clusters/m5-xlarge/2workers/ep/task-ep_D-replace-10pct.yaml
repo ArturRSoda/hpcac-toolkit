@@ -1,0 +1,44 @@
+fault_tolerance:
+  strategy: "REPLACE_RESUME"
+  replacement_allocation_mode: "on-demand"
+  process_count: 4  # 2 workers × 2 Core/worker
+  checkpoint_dir: "/shared/checkpoints"
+  poll_interval_secs: 1
+  terminate_cluster_on_zero_workers: false
+  auto_test_failure:
+    trigger_after_secs: 46        # fire 46s after run starts
+    target_worker_index: 0        # 0 = first worker (ip-10-0-0-11)
+    warning_time_secs: 120        # 2-min spot warning simulation
+
+tasks:
+  - task_tag: "ep-D_2w_m5xl_replace-10pct"
+    setup_commands:
+      - make -C ~/downloads/NPB3.4.4/NPB3.4-MPI ep CLASS=D | tee make.txt
+      - sudo cp ~/downloads/NPB3.4.4/NPB3.4-MPI/bin/ep.D.x /shared/ep.D.x && sudo chmod 755 /shared/ep.D.x
+      - sudo pkill -9 -f dmtcp_coordinator && sudo pkill -9 -f mana_coordinator || true
+      - sudo chown ec2-user:ec2-user /shared/checkpoints && sudo chmod 775 /shared/checkpoints
+      - rm -rf /shared/checkpoints/*
+      - |
+        cat > /tmp/hpcac_run.sh <<'INNER'
+        #!/bin/bash
+        WORKERS="ip-10-0-0-11,ip-10-0-0-12"
+        export DMTCP_COORD_HOST=10.0.0.10
+        export DMTCP_COORD_PORT=7779
+        srun --overlap --immediate=5 --nodelist="$WORKERS" -N2 -n2 --label /bin/sh -c 'pkill -9 -f lower-half || true; pkill -9 -f mana_launch || true; pkill -9 -f dmtcp_launch || true; pkill -9 -f dmtcp_worker || true'
+        rm -f "$HOME/.mana-slurm-$SLURM_JOB_ID.rc"
+        echo $SLURM_JOB_ID > ~/.tmp_job_id
+        /opt/mana/bin/mana_coordinator --port 7779 --ckptdir /shared/checkpoints --exit-on-last &
+        DEST=".mana-slurm-${SLURM_JOB_ID}.rc"
+        for i in $(seq 1 30); do
+          [ -s "$HOME/$DEST" ] && break
+          sleep 1
+        done
+        RC="/shared/slurm/.mana-slurm-${SLURM_JOB_ID}.rc"
+        sudo cp -f "$HOME/$DEST" "$RC"
+        sudo chmod 644 "$RC"
+        srun --overlap --immediate=5 --nodelist="$WORKERS" -N2 -n2 --label env RC="$RC" DEST="$DEST" /bin/sh -c 'cp -f "$RC" "$HOME/$DEST"'
+        srun --overlap --mpi=pmi2 --nodelist="$WORKERS" -N2 -n4 --ntasks-per-node=2 bash -c 'cd /shared/checkpoints && /opt/mana/bin/mana_launch --timing --verbose --ckptdir /shared/checkpoints /shared/ep.D.x'
+        INNER
+      - chmod +x /tmp/hpcac_run.sh
+    run_commands:
+      - salloc -w ip-10-0-0-11,ip-10-0-0-12 -N2 -n4 -t 00:30:00 bash /tmp/hpcac_run.sh 2>&1 | tee output.txt

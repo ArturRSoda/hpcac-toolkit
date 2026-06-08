@@ -1,0 +1,15 @@
+fault_tolerance:
+  strategy: "NONE"
+  process_count: 4  # 2 workers × 2 Core/worker
+  checkpoint_dir: "/shared/checkpoints"
+  poll_interval_secs: 5
+  terminate_cluster_on_zero_workers: false
+
+tasks:
+  - task_tag: "cg-C_2w_m5xl_noFT"
+    setup_commands:
+      - make -C ~/downloads/NPB3.4.4/NPB3.4-MPI cg CLASS=C | tee make.txt
+      - sudo cp ~/downloads/NPB3.4.4/NPB3.4-MPI/bin/cg.C.x /shared/cg.C.x && sudo chmod 755 /shared/cg.C.x
+    run_commands:
+      - srun --nodelist="ip-10-0-0-11,ip-10-0-0-12" -N2 -n4 --ntasks-per-node=2 /shared/cg.C.x 2>&1 | tee output.txt
+
