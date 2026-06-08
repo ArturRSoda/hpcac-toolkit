@@ -1,0 +1,473 @@
+-=-=-=-=-=-=-=-= CLUSTER DETAILS =-=-=-=-=-=-=-=-
+Cluster Name                       : ClusterMANA_4Workers_m5-xlarge
+Provider                           : aws
+Region                             : us-west-2
+Availability Zone                  : us-west-2a
+Use Node Affinity                  : false
+Use Elastic Fabric Adapters (EFAs) : false
+Use Elastic File System (EFS)      : true
+On Instance Creation Failure       : migrate
+Provider Config                    : ArturRSoda
+Node Count                         : 5
+
+Fault Tolerance Strategy           : REPLACE_RESUME
+Replacement Allocation Mode        : on-demand
+FT Process Count                   : 8
+FT Checkpoint Dir                  : /shared/checkpoints
+FT Poll Interval (secs)            : 10
+FT Terminate on Zero Workers       : false
+
+Node Details:
+  Node 1:
+    Instance Type   : t3.large
+    Processor       : 1-Core x86_64 Intel
+    vCPUs:          : 2
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : Unlimited
+  Node 2:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 3:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 4:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 5:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+
+============================================================
+ TASK: cg-C_4w_m5xl_replace
+============================================================
+
+-- SETUP (7 commands) --
+
+[setup 1/7] $ make -C ~/downloads/NPB3.4.4/NPB3.4-MPI cg CLASS=C | tee make.txt
+make: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI'
+   =========================================
+   =      NAS Parallel Benchmarks 3.4      =
+   =      MPI/Fortran/C                    =
+   =========================================
+
+cd CG; make CLASS=C F08=def
+make[1]: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/CG'
+make[2]: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/sys'
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/sys'
+../sys/setparams cg C 
+mpif90 -O3 -o ../bin/cg.C.x cg.o cg_data.o mpinpb.o ../common/print_results.o ../common/get_active_nprocs.o ../common/randi8.o ../common/timers.o 
+make[1]: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/CG'
+make: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI'
+
+[setup 2/7] $ sudo cp ~/downloads/NPB3.4.4/NPB3.4-MPI/bin/cg.C.x /shared/cg.C.x && sudo chmod 755 /shared/cg.C.x
+
+
+[setup 3/7] $ sudo pkill -9 -f dmtcp_coordinator && sudo pkill -9 -f mana_coordinator || true
+
+
+[setup 4/7] $ sudo chown ec2-user:ec2-user /shared/checkpoints && sudo chmod 775 /shared/checkpoints
+
+
+[setup 5/7] $ rm -rf /shared/checkpoints/*
+
+
+[setup 6/7] $ cat > /tmp/hpcac_run.sh <<'INNER'
+#!/bin/bash
+WORKERS="ip-10-0-0-11,ip-10-0-0-12,ip-10-0-0-13,ip-10-0-0-14"
+export DMTCP_COORD_HOST=10.0.0.10
+export DMTCP_COORD_PORT=7779
+srun --overlap --immediate=5 --nodelist="$WORKERS" -N4 -n4 --label /bin/sh -c 'pkill -9 -f lower-half || true; pkill -9 -f mana_launch || true; pkill -9 -f dmtcp_launch || true; pkill -9 -f dmtcp_worker || true'
+rm -f "$HOME/.mana-slurm-$SLURM_JOB_ID.rc"
+echo $SLURM_JOB_ID > ~/.tmp_job_id
+/opt/mana/bin/mana_coordinator --port 7779 --ckptdir /shared/checkpoints --exit-on-last &
+DEST=".mana-slurm-${SLURM_JOB_ID}.rc"
+for i in $(seq 1 30); do
+  [ -s "$HOME/$DEST" ] && break
+  sleep 1
+done
+RC="/shared/slurm/.mana-slurm-${SLURM_JOB_ID}.rc"
+sudo cp -f "$HOME/$DEST" "$RC"
+sudo chmod 644 "$RC"
+srun --overlap --immediate=5 --nodelist="$WORKERS" -N4 -n4 --label env RC="$RC" DEST="$DEST" /bin/sh -c 'cp -f "$RC" "$HOME/$DEST"'
+srun --overlap --mpi=pmi2 --nodelist="$WORKERS" -N4 -n8 --ntasks-per-node=2 bash -c 'cd /shared/checkpoints && /opt/mana/bin/mana_launch --timing --verbose --ckptdir /shared/checkpoints /shared/cg.C.x'
+INNER
+
+
+
+[setup 7/7] $ chmod +x /tmp/hpcac_run.sh
+
+
+[auto-failure] Scheduled: will terminate worker 10.0.0.11 in 2s (warning_time=120s).
+
+-- RUN (1 command) --
+
+[run 1/1] $ salloc -w ip-10-0-0-11,ip-10-0-0-12,ip-10-0-0-13,ip-10-0-0-14 -N4 -n8 -t 00:30:00 bash /tmp/hpcac_run.sh 2>&1 | tee output.txt
+error: SSM command 'fefda4b3-0791-45ca-b250-cf20ef9243e8' failed with status: Failed
+SSM stdout:
+salloc: Granted job allocation 32
+srun: error: ip-10-0-0-14: task 3: Killed
+srun: error: ip-10-0-0-12: task 1: Killed
+srun: error: ip-10-0-0-13: task 2: Killed
+srun: error: ip-10-0-0-11: task 0: Killed
+srun: Force Terminated StepId=32.0
+*** Coordinator/job information written to /home/ec2-user/.mana-slurm-32.rc
+original argc_ptr: 0x7fffffffc60c
+original argv_ptr: 0x7fffffffdcb8
+dbg_argc_addr: 0x829fec90
+dbg_argv_ptr_addr: 0x829fec98
+dbg_env_ptr_addr: 0x829fecb0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829ff008
+dbg_argv_strings_addr: 0x829ff182
+dbg_env_strings_addr: 0x829ff1b1
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+original argc_ptr: 0x7fffffffc61c
+original argv_ptr: 0x7fffffffdcc8
+dbg_argc_addr: 0x829feca0
+dbg_argv_ptr_addr: 0x829feca8
+dbg_env_ptr_addr: 0x829fecc0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829ff010
+dbg_argv_strings_addr: 0x829ff18a
+dbg_env_strings_addr: 0x829ff1b9
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+original argc_ptr: 0x7fffffffc60c
+original argv_ptr: 0x7fffffffdcb8
+dbg_argc_addr: 0x829fec90
+dbg_argv_ptr_addr: 0x829fec98
+dbg_env_ptr_addr: 0x829fecb0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829ff008
+dbg_argv_strings_addr: 0x829ff182
+dbg_env_strings_addr: 0x829ff1b1
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+original argc_ptr: 0x7fffffffc61c
+original argv_ptr: 0x7fffffffdcc8
+dbg_argc_addr: 0x829feca0
+dbg_argv_ptr_addr: 0x829feca8
+dbg_env_ptr_addr: 0x829fecc0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829ff010
+dbg_argv_strings_addr: 0x829ff18a
+dbg_env_strings_addr: 0x829ff1b9
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+original argc_ptr: 0x7fffffffc5fc
+original argv_ptr: 0x7fffffffdca8
+dbg_argc_addr: 0x829fec80
+dbg_argv_ptr_addr: 0x829fec88
+dbg_env_ptr_addr: 0x829feca0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829feff8
+dbg_argv_strings_addr: 0x829ff17e
+dbg_env_strings_addr: 0x829ff1ad
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+original argc_ptr: 0x7fffffffc5fc
+original argv_ptr: 0x7fffffffdca8
+dbg_argc_addr: 0x829fec80
+dbg_argv_ptr_addr: 0x829fec88
+dbg_env_ptr_addr: 0x829feca0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829feff8
+dbg_argv_strings_addr: 0x829ff17e
+dbg_env_strings_addr: 0x829ff1ad
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+original argc_ptr: 0x7fffffffc61c
+original argv_ptr: 0x7fffffffdcc8
+dbg_argc_addr: 0x829feca0
+dbg_argv_ptr_addr: 0x829feca8
+dbg_env_ptr_addr: 0x829fecc0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829ff010
+dbg_argv_strings_addr: 0x829ff18a
+dbg_env_strings_addr: 0x829ff1b9
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+original argc_ptr: 0x7fffffffc61c
+original argv_ptr: 0x7fffffffdcc8
+dbg_argc_addr: 0x829feca0
+dbg_argv_ptr_addr: 0x829feca8
+dbg_env_ptr_addr: 0x829fecc0 [16-byte aligned]
+dbg_auxv_ptr_addr: 0x829ff010
+dbg_argv_strings_addr: 0x829ff18a
+dbg_env_strings_addr: 0x829ff1b9
+dbg_end_marker_addr: 0x829ffff8
+dbg_bottom_of_stack: 0x82a00000
+00:58:52: *** MANA: EVENT_INIT
+00:58:52: *** MANA: EVENT_INIT
+00:58:52: *** MANA: EVENT_INIT
+00:58:52: *** MANA: EVENT_INIT
+00:58:52: *** MANA: EVENT_INIT
+00:58:52: *** MANA: EVENT_INIT
+00:58:52: *** MANA: EVENT_INIT
+00:58:52: *** MANA: EVENT_INIT
+
+
+ NAS Parallel Benchmarks 3.4 -- CG Benchmark
+
+ Size:     150000  (class C)
+ Iterations:    75
+ Number of nonzeroes per row:       15
+ Eigenvalue shift:   110.000
+ Total number of processes:      8
+
+   iteration           ||r||                 zeta
+        1       0.25684152458809E-12   109.9994423237398
+        5       0.73349711397114E-15    28.6471670038893
+00:58:55: *** MANA: EVENT_PRESUSPEND (finish collective op's)
+              Elapsed time since INIT/RESTART: 3 seconds
+00:58:56: *** MANA: EVENT_PRESUSPEND (done)
+              Elapsed time since INIT/RESTART: 4 seconds
+00:58:56: *** MANA: EVENT_PRECHECKPOINT (drain send/recv)
+              Elapsed time since INIT/RESTART: 4 seconds
+00:58:57: *** MANA: EVENT_PRECHECKPOINT (done)
+              Elapsed time since INIT/RESTART: 5 seconds
+00:59:12: *** MANA: EVENT_RESUME
+              Elapsed time since INIT/RESTART: 20 seconds
+00:59:12: *** MANA: EVENT_RESUME (done)
+              Elapsed time since INIT/RESTART: 20 seconds
+       10       0.73571071517574E-15    28.9496695449003
+       15       0.73033004640843E-15    28.9716336228371
+       20       0.73080537355320E-15    28.9734210663747
+       25       0.73114465989435E-15    28.9735863059382
+       30       0.73315053133034E-15    28.9736033967627
+       35       0.72896232937332E-15    28.9736053266246
+       40       0.72921046240435E-15    28.9736055590700
+       45       0.73199816886206E-15    28.9736055884132
+salloc: Job allocation 32 has been revoked.
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** STEP 32.2 ON ip-10-0-0-11 CANCELLED AT 2026-05-27T00:59:26 ***
+srun: error: ip-10-0-0-14: task 7: Terminated
+srun: error: ip-10-0-0-13: task 6: Terminated
+srun: error: ip-10-0-0-12: tasks 3-5: Terminated
+srun: error: ip-10-0-0-11: tasks 0-2: Terminated
+
+SSM stderr:
+failed to run commands: exit status 143
+
+
+[recovery] Recovery complete (cycle(s): vZY0B6xcWVlJFuyE). Treating failed run command 1/1 of task 'cg-C_4w_m5xl_replace' as recovered and continuing to next command.
+[recovery] watcher restart output (cycle=vZY0B6xcWVlJFuyE):
+  Cancelling previous workload Slurm allocation: 32
+  salloc: Granted job allocation 33
+  *** Coordinator/job information written to /home/ec2-user/.mana-slurm-33.rc
+  Coordinator RC file ready: /home/ec2-user/.mana-slurm-33.rc
+  Checkpoint payload verified under /shared/checkpoints
+  --- Starting mana_restart (mpi=pmi2) ---
+  --- mana_restart exit code: 0 ---
+  --- Restart output (rank 0) ---
+         10       0.73571071517574E-15    28.9496695449003
+         15       0.73033004640843E-15    28.9716336228371
+         20       0.73080537355320E-15    28.9734210663747
+         25       0.73114465989435E-15    28.9735863059382
+         30       0.73315053133034E-15    28.9736033967627
+         35       0.72896232937332E-15    28.9736053266246
+         40       0.72921046240435E-15    28.9736055590700
+         45       0.73199816886206E-15    28.9736055884132
+         50       0.72508406402431E-15    28.9736055922485
+         55       0.72793759015979E-15    28.9736055927632
+         60       0.72308226746960E-15    28.9736055928339
+         65       0.72558602502673E-15    28.9736055928440
+         70       0.72378150618886E-15    28.9736055928455
+         75       0.72186248070828E-15    28.9736055928458
+   Benchmark completed 
+   VERIFICATION SUCCESSFUL 
+   Zeta is     0.2897360559285E+02
+   Error is    0.2857022004072E-13
+  
+  
+   CG Benchmark Completed.
+   Class           =                        C
+   Size            =                   150000
+   Iterations      =                       75
+   Time in seconds =                   248.59
+   Total processes =                        8
+   Active processes=                        8
+   Mop/s total     =                   576.64
+   Mop/s/process   =                    72.08
+   Operation type  =           floating point
+   Verification    =               SUCCESSFUL
+   Version         =                    3.4.4
+   Compile date    =              27 May 2026
+  
+   Compile options:
+      MPIFC        = mpif90
+      FLINK        = $(MPIFC)
+      FMPI_LIB     = (none)
+      FMPI_INC     = (none)
+      FFLAGS       = -O3
+      FLINKFLAGS   = $(FFLAGS)
+      RAND         = randi8
+  
+  
+   Please send feedbacks and/or the results of this run to:
+  
+   NPB Development Team 
+   Internet: npb@nas.nasa.gov
+  
+  
+  --- Restart stderr (rank 0) ---
+  01:02:45: *** MANA: EVENT_RESTART
+  01:02:46: *** MANA: EVENT_RESTART (done)
+  01:03:02: *** MANA: EVENT_EXIT
+                Elapsed time since INIT/RESTART: 16 seconds
+  salloc: Relinquishing job allocation 33
+
+-- TIMING --
+  Setup time  :     38.303 s
+  Run time    :    256.837 s
+  Total time  :    295.141 s
+============================================================
+
+[RUN_METRICS]
+task_tag=cg-C_4w_m5xl_replace
+strategy=REPLACE_RESUME
+workers=4
+worker_instance_type=m5.xlarge
+head_instance_type=t3.large
+ft_wall_time_s=256.837
+setup_time_s=38.303
+total_time_s=295.141
+auto_failure_trigger_secs=2
+status=SUCCESS
+[/RUN_METRICS]
+
+
+============================================================
+ FT RECOVERY SUMMARY
+============================================================
+  Strategy        : REPLACE_RESUME
+  Recovery Cycles : 2
+
+-- Cycle #1 (id=no_cycle_id) -- Node IP: 10.0.0.11
+
+  Event Timeline:
+    2026-05-27T00:58:52.592045385+00:00  interruption_warning               
+
+  Phase Durations:
+
+  [METRICS]
+  cycle_id=no_cycle_id
+  node_ip=10.0.0.11
+  strategy=REPLACE_RESUME
+  [/METRICS]
+
+-- Cycle #2 (id=vZY0B6xcWVlJFuyE) -- Node IP: 10.0.0.11
+
+  Event Timeline:
+    2026-05-27T00:58:54.138614334+00:00  interruption_detected              
+    2026-05-27T00:58:54.174530704+00:00  recovery_started                     (+0.0s)
+    2026-05-27T00:59:20.645497888+00:00  checkpoint_completed                 (+26.5s)
+    2026-05-27T00:59:26.111248340+00:00  node_drained                         (+5.5s)
+    2026-05-27T01:02:26.048342707+00:00  restart_dispatched                   (+179.9s)
+    2026-05-27T01:03:04.130174849+00:00  recovery_completed                   (+38.1s)
+
+  Phase Durations:
+    interruption_detected  ->  checkpoint_completed  :     26.5 s  (detection + checkpoint write)
+    checkpoint_completed   ->  restart_dispatched    :    185.4 s  (node recovery + dispatch)
+    restart_dispatched     ->  terminal event        :     38.1 s  (restart + remaining compute)
+    ----------------------------------------------------------
+    Total recovery time                               :    250.0 s
+
+  -- Restart Output --
+  Cancelling previous workload Slurm allocation: 32
+  salloc: Granted job allocation 33
+  *** Coordinator/job information written to /home/ec2-user/.mana-slurm-33.rc
+  Coordinator RC file ready: /home/ec2-user/.mana-slurm-33.rc
+  Checkpoint payload verified under /shared/checkpoints
+  --- Starting mana_restart (mpi=pmi2) ---
+  --- mana_restart exit code: 0 ---
+  --- Restart output (rank 0) ---
+         10       0.73571071517574E-15    28.9496695449003
+         15       0.73033004640843E-15    28.9716336228371
+         20       0.73080537355320E-15    28.9734210663747
+         25       0.73114465989435E-15    28.9735863059382
+         30       0.73315053133034E-15    28.9736033967627
+         35       0.72896232937332E-15    28.9736053266246
+         40       0.72921046240435E-15    28.9736055590700
+         45       0.73199816886206E-15    28.9736055884132
+         50       0.72508406402431E-15    28.9736055922485
+         55       0.72793759015979E-15    28.9736055927632
+         60       0.72308226746960E-15    28.9736055928339
+         65       0.72558602502673E-15    28.9736055928440
+         70       0.72378150618886E-15    28.9736055928455
+         75       0.72186248070828E-15    28.9736055928458
+   Benchmark completed 
+   VERIFICATION SUCCESSFUL 
+   Zeta is     0.2897360559285E+02
+   Error is    0.2857022004072E-13
+  
+  
+   CG Benchmark Completed.
+   Class           =                        C
+   Size            =                   150000
+   Iterations      =                       75
+   Time in seconds =                   248.59
+   Total processes =                        8
+   Active processes=                        8
+   Mop/s total     =                   576.64
+   Mop/s/process   =                    72.08
+   Operation type  =           floating point
+   Verification    =               SUCCESSFUL
+   Version         =                    3.4.4
+   Compile date    =              27 May 2026
+  
+   Compile options:
+      MPIFC        = mpif90
+      FLINK        = $(MPIFC)
+      FMPI_LIB     = (none)
+      FMPI_INC     = (none)
+      FFLAGS       = -O3
+      FLINKFLAGS   = $(FFLAGS)
+      RAND         = randi8
+  
+  
+   Please send feedbacks and/or the results of this run to:
+  
+   NPB Development Team 
+   Internet: npb@nas.nasa.gov
+  
+  
+  --- Restart stderr (rank 0) ---
+  01:02:45: *** MANA: EVENT_RESTART
+  01:02:46: *** MANA: EVENT_RESTART (done)
+  01:03:02: *** MANA: EVENT_EXIT
+                Elapsed time since INIT/RESTART: 16 seconds
+  salloc: Relinquishing job allocation 33
+  --------------------
+
+  [METRICS]
+  cycle_id=vZY0B6xcWVlJFuyE
+  node_ip=10.0.0.11
+  strategy=REPLACE_RESUME
+  phase1_detection_to_checkpoint_s=26.507
+  phase2_checkpoint_to_dispatch_s=185.403
+  phase3_dispatch_to_done_s=38.082
+  total_recovery_s=249.992
+  [/METRICS]
+
+============================================================
+

@@ -1,0 +1,167 @@
+-=-=-=-=-=-=-=-= CLUSTER DETAILS =-=-=-=-=-=-=-=-
+Cluster Name                       : ClusterMANA_4Workers_m5-xlarge
+Provider                           : aws
+Region                             : us-west-2
+Availability Zone                  : us-west-2a
+Use Node Affinity                  : false
+Use Elastic Fabric Adapters (EFAs) : false
+Use Elastic File System (EFS)      : true
+On Instance Creation Failure       : migrate
+Provider Config                    : ArturRSoda
+Node Count                         : 5
+
+Fault Tolerance Strategy           : NONE
+FT Process Count                   : 8
+FT Checkpoint Dir                  : /shared/checkpoints
+FT Poll Interval (secs)            : 10
+FT Terminate on Zero Workers       : false
+
+Node Details:
+  Node 1:
+    Instance Type   : t3.large
+    Processor       : 1-Core x86_64 Intel
+    vCPUs:          : 2
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : Unlimited
+  Node 2:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 3:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 4:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 5:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+
+============================================================
+ TASK: ep-D_4w_m5xl_noFT
+============================================================
+
+-- SETUP (2 commands) --
+
+[setup 1/2] $ make -C ~/downloads/NPB3.4.4/NPB3.4-MPI ep CLASS=D | tee make.txt
+make: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI'
+   =========================================
+   =      NAS Parallel Benchmarks 3.4      =
+   =      MPI/Fortran/C                    =
+   =========================================
+
+cd EP; make CLASS=D F08=def
+make[1]: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/EP'
+make[2]: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/sys'
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/sys'
+../sys/setparams ep D 
+mpif90 -c  -O3 ep_data.f90
+mpif90 -c  -O3 ep.f90
+mpif90 -O3 -o ../bin/ep.D.x ep.o ep_data.o verify.o mpinpb.o ../common/print_results.o ../common/randi8.o ../common/timers.o 
+make[1]: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/EP'
+make: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI'
+
+[setup 2/2] $ sudo cp ~/downloads/NPB3.4.4/NPB3.4-MPI/bin/ep.D.x /shared/ep.D.x && sudo chmod 755 /shared/ep.D.x
+
+
+-- RUN (1 command) --
+
+[run 1/1] $ srun --nodelist="ip-10-0-0-11,ip-10-0-0-12,ip-10-0-0-13,ip-10-0-0-14" -N4 -n8 --ntasks-per-node=2 /shared/ep.D.x 2>&1 | tee output.txt
+
+ NAS Parallel Benchmarks 3.4 -- EP Benchmark
+
+ Number of random numbers generated:    137438953472  (class D)
+ Total number of processes:                        8
+
+EP Benchmark Results:
+
+CPU Time =   165.307
+N = 2^   36
+No. Gaussian Pairs =   53972171957.
+Sums =     4.306350280815350D+10    4.306347571852914D+10
+Counts:
+  0   25154622775.
+  1   24017899906.
+  2    4508609839.
+  3     284201296.
+  4       6776403.
+  5         61541.
+  6           197.
+  7             0.
+  8             0.
+  9             0.
+
+
+ EP Benchmark Completed.
+ Class           =                        D
+ Size            =             137438953472
+ Iterations      =                        0
+ Time in seconds =                   165.31
+ Total processes =                        8
+ Active processes=                        8
+ Mop/s total     =                   831.42
+ Mop/s/process   =                   103.93
+ Operation type  = Random numbers generated
+ Verification    =               SUCCESSFUL
+ Version         =                    3.4.4
+ Compile date    =              26 May 2026
+
+ Compile options:
+    MPIFC        = mpif90
+    FLINK        = $(MPIFC)
+    FMPI_LIB     = (none)
+    FMPI_INC     = (none)
+    FFLAGS       = -O3
+    FLINKFLAGS   = $(FFLAGS)
+    RAND         = randi8
+
+
+ Please send feedbacks and/or the results of this run to:
+
+ NPB Development Team 
+ Internet: npb@nas.nasa.gov
+
+
+
+-- TIMING --
+  Setup time  :     10.999 s
+  Run time    :    166.959 s
+  Total time  :    177.958 s
+============================================================
+
+[RUN_METRICS]
+task_tag=ep-D_4w_m5xl_noFT
+strategy=NONE
+workers=4
+worker_instance_type=m5.xlarge
+head_instance_type=t3.large
+ft_wall_time_s=166.959
+setup_time_s=10.999
+total_time_s=177.958
+status=SUCCESS
+[/RUN_METRICS]
+

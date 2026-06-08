@@ -1,0 +1,161 @@
+-=-=-=-=-=-=-=-= CLUSTER DETAILS =-=-=-=-=-=-=-=-
+Cluster Name                       : ClusterMANA_8Workers_m5-xlarge
+Provider                           : aws
+Region                             : us-west-2
+Availability Zone                  : us-west-2a
+Use Node Affinity                  : false
+Use Elastic Fabric Adapters (EFAs) : false
+Use Elastic File System (EFS)      : true
+On Instance Creation Failure       : migrate
+Provider Config                    : ArturRSoda
+Node Count                         : 9
+
+Fault Tolerance Strategy           : REPLACE_RESUME
+Replacement Allocation Mode        : on-demand
+FT Process Count                   : 16
+FT Checkpoint Dir                  : /shared/checkpoints
+FT Poll Interval (secs)            : 5
+FT Terminate on Zero Workers       : false
+
+Node Details:
+  Node 1:
+    Instance Type   : t3.large
+    Processor       : 1-Core x86_64 Intel
+    vCPUs:          : 2
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : Unlimited
+  Node 2:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 3:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 4:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 5:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 6:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 7:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 8:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+  Node 9:
+    Instance Type   : m5.xlarge
+    Processor       : 2-Core x86_64 Intel
+    vCPUs:          : 4
+    GPUs:           : N/A
+    Image ID        : ami-05eca8f13c2934abf
+    Allocation Mode : on-demand
+    Burstable Mode  : N/A
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+
+============================================================
+ TASK: cg-C_8w_m5xl_replace
+============================================================
+
+-- SETUP (7 commands) --
+
+[setup 1/7] $ make -C ~/downloads/NPB3.4.4/NPB3.4-MPI cg CLASS=C | tee make.txt
+make: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI'
+   =========================================
+   =      NAS Parallel Benchmarks 3.4      =
+   =      MPI/Fortran/C                    =
+   =========================================
+
+cd CG; make CLASS=C F08=def
+make[1]: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/CG'
+make[2]: Entering directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/sys'
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/sys'
+../sys/setparams cg C 
+mpif90 -O3 -o ../bin/cg.C.x cg.o cg_data.o mpinpb.o ../common/print_results.o ../common/get_active_nprocs.o ../common/randi8.o ../common/timers.o 
+make[1]: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI/CG'
+make: Leaving directory '/home/ec2-user/downloads/NPB3.4.4/NPB3.4-MPI'
+
+[setup 2/7] $ sudo cp ~/downloads/NPB3.4.4/NPB3.4-MPI/bin/cg.C.x /shared/cg.C.x && sudo chmod 755 /shared/cg.C.x
+
+
+[setup 3/7] $ sudo pkill -9 -f dmtcp_coordinator && sudo pkill -9 -f mana_coordinator || true
+
+
+[setup 4/7] $ sudo chown ec2-user:ec2-user /shared/checkpoints && sudo chmod 775 /shared/checkpoints
+
+
+[setup 5/7] $ rm -rf /shared/checkpoints/*
+
+
+[setup 6/7] $ cat > /tmp/hpcac_run.sh <<'INNER'
+#!/bin/bash
+WORKERS="ip-10-0-0-11,ip-10-0-0-12,ip-10-0-0-13,ip-10-0-0-14,ip-10-0-0-15,ip-10-0-0-16,ip-10-0-0-17,ip-10-0-0-18"
+export DMTCP_COORD_HOST=10.0.0.10
+export DMTCP_COORD_PORT=7779
+srun --overlap --immediate=5 --nodelist="$WORKERS" -N8 -n8 --label /bin/sh -c 'pkill -9 -f lower-half || true; pkill -9 -f mana_launch || true; pkill -9 -f dmtcp_launch || true; pkill -9 -f dmtcp_worker || true'
+rm -f "$HOME/.mana-slurm-$SLURM_JOB_ID.rc"
+echo $SLURM_JOB_ID > ~/.tmp_job_id
+/opt/mana/bin/mana_coordinator --port 7779 --ckptdir /shared/checkpoints --exit-on-last &
+DEST=".mana-slurm-${SLURM_JOB_ID}.rc"
+for i in $(seq 1 30); do
+  [ -s "$HOME/$DEST" ] && break
+  sleep 1
+done
+RC="/shared/slurm/.mana-slurm-${SLURM_JOB_ID}.rc"
+sudo cp -f "$HOME/$DEST" "$RC"
+sudo chmod 644 "$RC"
+srun --overlap --immediate=5 --nodelist="$WORKERS" -N8 -n8 --label env RC="$RC" DEST="$DEST" /bin/sh -c 'cp -f "$RC" "$HOME/$DEST"'
+srun --overlap --mpi=pmi2 --nodelist="$WORKERS" -N8 -n16 --ntasks-per-node=2 bash -c 'cd /shared/checkpoints && /opt/mana/bin/mana_launch --timing --verbose --ckptdir /shared/checkpoints /shared/cg.C.x'
+INNER
+
+
+
+[setup 7/7] $ chmod +x /tmp/hpcac_run.sh
+
+
+[auto-failure] Scheduled: will terminate worker 10.0.0.11 in 3s (warning_time=120s).
+
+-- RUN (1 command) --
+
+[run 1/1] $ salloc -w ip-10-0-0-11,ip-10-0-0-12,ip-10-0-0-13,ip-10-0-0-14,ip-10-0-0-15,ip-10-0-0-16,ip-10-0-0-17,ip-10-0-0-18 -N8 -n16 -t 00:30:00 bash /tmp/hpcac_run.sh 2>&1 | tee output.txt
