@@ -154,18 +154,47 @@ def parse_npb_last_result(text: str) -> dict:
 
 def parse_task_tag(tag: str) -> dict:
     """
-    Parse a task_tag like 'lu-C_4w_m5xl_replace' into components.
-    Returns dict with: benchmark, class, config_workers, strategy_suffix.
+    Parse a task_tag into components.
+    Handles NPB tags like 'lu-C_4w_m5xl_replace-25pct' and
+    synthetic tags like 'synth_calls-l2_2w_m5xl_noFT',
+    'synth_ckpt-200mb_2w_m5xl_degraded'.
+    Returns dict with benchmark, class, config_workers, strategy_suffix,
+    timing_pct, synth_level, synth_memory_mb.
     """
+    base = {
+        "benchmark": tag, "class": "?", "config_workers": 0,
+        "strategy_suffix": "?", "timing_pct": None,
+        "synth_level": None, "synth_memory_mb": None,
+    }
+
+    # Synth checkpoint: synth_ckpt-{N}mb_{W}w_{instance}_{strategy}
+    m = re.match(r"^synth_ckpt-(\d+)mb_(\d+)w_[^_]+_(.+)$", tag)
+    if m:
+        return {**base, "benchmark": "SYNTH_CKPT", "class": "-",
+                "config_workers": int(m.group(2)), "strategy_suffix": m.group(3),
+                "synth_memory_mb": int(m.group(1))}
+
+    # Synth level-based: synth_{type}-l{N}_{W}w_{instance}_{strategy}
+    m = re.match(r"^synth_([a-z0-9]+(?:_[a-z0-9]+)?)-l(\d+)_(\d+)w_[^_]+_(.+)$", tag)
+    if m:
+        bench = "SYNTH_" + m.group(1).upper().replace("_", "")
+        return {**base, "benchmark": bench, "class": "-",
+                "config_workers": int(m.group(3)), "strategy_suffix": m.group(4),
+                "synth_level": int(m.group(2))}
+
+    # Standard NPB: {bench}-{class}_{N}w_{instance}_{strategy}
     m = re.match(r"^([a-zA-Z]+)-([A-Z])_(\d+)w_[^_]+_(.+)$", tag)
     if m:
-        return {
-            "benchmark":       m.group(1).upper(),
-            "class":           m.group(2),
-            "config_workers":  int(m.group(3)),
-            "strategy_suffix": m.group(4),
-        }
-    return {"benchmark": tag, "class": "?", "config_workers": 0, "strategy_suffix": "?"}
+        suffix = m.group(4)
+        pct_m = re.search(r"-(\d+)pct$", suffix)
+        return {**base,
+                "benchmark":       m.group(1).upper(),
+                "class":           m.group(2),
+                "config_workers":  int(m.group(3)),
+                "strategy_suffix": suffix,
+                "timing_pct":      int(pct_m.group(1)) if pct_m else None}
+
+    return base
 
 
 def resolve_strategy_key(strategy_field: str, strategy_suffix: str) -> str:
@@ -243,6 +272,11 @@ def parse_result_file(filepath: Path) -> list[dict]:
     # NPB results — use last successful result in file
     npb = parse_npb_last_result(text)
 
+    def _f(d, k):
+        v = d.get(k)
+        try: return float(v) if v is not None else None
+        except (ValueError, TypeError): return None
+
     for rm in run_metrics_list:
         # Discard failed runs
         if rm.get("status") != "SUCCESS":
@@ -260,38 +294,27 @@ def parse_result_file(filepath: Path) -> list[dict]:
         if verification and verification.upper() != "SUCCESSFUL":
             continue
 
-        # Aggregate FT phase metrics across all valid cycles
-        # (discard no_cycle_id entries — those are warning-only cycles)
-        valid_cycles = [
-            v for k, v in ft_metrics_by_cycle.items()
-            if k != "no_cycle_id"
-            and "phase1_detection_to_checkpoint_s" in v
-        ]
-        phase1 = phase2 = phase3 = recovery_total = None
-        if valid_cycles:
-            def safe_float(d, k):
-                try: return float(d.get(k, ""))
-                except (ValueError, TypeError): return None
-
-            p1s = [safe_float(c, "phase1_detection_to_checkpoint_s") for c in valid_cycles]
-            p2s = [safe_float(c, "phase2_checkpoint_to_dispatch_s")  for c in valid_cycles]
-            p3s = [safe_float(c, "phase3_dispatch_to_done_s")         for c in valid_cycles]
-            rs  = [safe_float(c, "total_recovery_s")                  for c in valid_cycles]
-
-            def mean_or_none(lst):
-                vals = [x for x in lst if x is not None]
-                return sum(vals) / len(vals) if vals else None
-
-            phase1         = mean_or_none(p1s)
-            phase2         = mean_or_none(p2s)
-            phase3         = mean_or_none(p3s)
-            recovery_total = mean_or_none(rs)
-
-        run_cost, run_cost_od, total_cost = compute_cost({**rm})
+        # Recovery cycle count
+        recovery_cycles = len(ft_metrics_by_cycle)
 
         # auto_failure_trigger_secs — present only for FT runs with auto trigger
         raw_trigger = rm.get("auto_failure_trigger_secs")
         auto_trigger_secs = int(raw_trigger) if raw_trigger is not None else None
+
+        # Phase timing — read directly from [RUN_METRICS]
+        phase0_s  = float(auto_trigger_secs) if auto_trigger_secs is not None else None
+        phase1_s  = _f(rm, "phase1_s")
+        phase2_s  = _f(rm, "phase2_s")
+        phase2a_s = _f(rm, "phase2a_s")
+        phase2b_s = _f(rm, "phase2b_s")
+        phase2c_s = _f(rm, "phase2c_s")
+        phase3_s  = _f(rm, "phase3_s")
+        recovery_total_s = (
+            phase1_s + phase2_s + phase3_s
+            if None not in (phase1_s, phase2_s, phase3_s) else None
+        )
+
+        run_cost, run_cost_od, total_cost = compute_cost({**rm})
 
         record = {
             # Identity
@@ -301,6 +324,9 @@ def parse_result_file(filepath: Path) -> list[dict]:
             "class":                     tag_parts.get("class", "?"),
             "config_workers":            tag_parts.get("config_workers", 0),
             "strategy":                  strategy_key,
+            "timing_pct":                tag_parts.get("timing_pct"),
+            "synth_level":               tag_parts.get("synth_level"),
+            "synth_memory_mb":           tag_parts.get("synth_memory_mb"),
             # Hardware
             "worker_instance_type":      rm.get("worker_instance_type", ""),
             "head_instance_type":        rm.get("head_instance_type", ""),
@@ -318,11 +344,15 @@ def parse_result_file(filepath: Path) -> list[dict]:
             "active_procs":         int(npb["active_procs"])   if npb.get("active_procs") else None,
             "verification":         verification or "N/A",
             # FT recovery metrics (None for non-FT runs)
-            "recovery_cycles":      len(valid_cycles) if valid_cycles else 0,
-            "phase1_s":             phase1,
-            "phase2_s":             phase2,
-            "phase3_s":             phase3,
-            "recovery_total_s":     recovery_total,
+            "recovery_cycles":      recovery_cycles,
+            "phase0_s":             phase0_s,
+            "phase1_s":             phase1_s,
+            "phase2_s":             phase2_s,
+            "phase2a_s":            phase2a_s,
+            "phase2b_s":            phase2b_s,
+            "phase2c_s":            phase2c_s,
+            "phase3_s":             phase3_s,
+            "recovery_total_s":     recovery_total_s,
             # Cost  (spot = workers on spot + head on-demand; od = all on-demand)
             "run_cost_usd":         run_cost,
             "run_cost_ondemand_usd": run_cost_od,
@@ -373,7 +403,9 @@ def save_summary_markdown(df: pd.DataFrame, out_dir: Path):
     """
     numeric_cols = [
         "ft_wall_time_s", "mops_total", "mops_per_proc",
-        "phase1_s", "phase2_s", "phase3_s", "recovery_total_s",
+        "phase0_s", "phase1_s", "phase2_s",
+        "phase2a_s", "phase2b_s", "phase2c_s",
+        "phase3_s", "recovery_total_s",
         "run_cost_usd", "auto_failure_trigger_secs",
     ]
     group_cols = ["benchmark", "class", "config_workers", "strategy"]
@@ -406,8 +438,8 @@ def save_summary_markdown(df: pd.DataFrame, out_dir: Path):
             sub = sub.sort_values(["config_workers", "_sort"])
 
             header_cols = ["Workers", "Strategy", "N", "Trigger (s)",
-                           "FT Wall Time (s)", "Mop/s total",
-                           "Phase1 (s)", "Phase2 (s)", "Phase3 (s)",
+                           "FT Wall (s)", "Mop/s total",
+                           "Ph0 (s)", "Ph1 (s)", "Ph2a (s)", "Ph2b (s)", "Ph2c (s)", "Ph3 (s)",
                            "Recovery (s)", "Run Cost (spot $)"]
             lines.append("| " + " | ".join(header_cols) + " |\n")
             lines.append("| " + " | ".join(["---"] * len(header_cols)) + " |\n")
@@ -423,7 +455,6 @@ def save_summary_markdown(df: pd.DataFrame, out_dir: Path):
                     return f"{m:.{decimals}f} ±{s:.{decimals}f}"
 
                 n = int(row.get("ft_wall_time_s_count", 1))
-                # Trigger: show value if consistent, flag if it varied across runs
                 trigger_mean = row.get("auto_failure_trigger_secs_mean")
                 trigger_std  = row.get("auto_failure_trigger_secs_std")
                 if pd.isna(trigger_mean) or trigger_mean is None:
@@ -440,8 +471,11 @@ def save_summary_markdown(df: pd.DataFrame, out_dir: Path):
                     trigger_cell,
                     fmt("ft_wall_time_s_mean", "ft_wall_time_s_std", decimals=1),
                     fmt("mops_total_mean",     "mops_total_std",     decimals=1),
+                    fmt("phase0_s_mean",       "phase0_s_std",       decimals=1),
                     fmt("phase1_s_mean",       "phase1_s_std",       decimals=1),
-                    fmt("phase2_s_mean",       "phase2_s_std",       decimals=1),
+                    fmt("phase2a_s_mean",      "phase2a_s_std",      decimals=1),
+                    fmt("phase2b_s_mean",      "phase2b_s_std",      decimals=1),
+                    fmt("phase2c_s_mean",      "phase2c_s_std",      decimals=1),
                     fmt("phase3_s_mean",       "phase3_s_std",       decimals=1),
                     fmt("recovery_total_s_mean","recovery_total_s_std", decimals=1),
                     fmt("run_cost_usd_mean",   "run_cost_usd_std",   decimals=4),
@@ -465,265 +499,571 @@ def _label(s):
 def _color(s):
     return STRATEGY_COLOR.get(s, "#888888")
 
-def _grouped_bar(ax, data_by_group, group_labels, series_keys,
-                 series_labels, series_colors,
-                 errors_by_group=None, ylabel="", title=""):
-    """
-    Draw a grouped bar chart.
-    data_by_group:   dict { group_label -> { series_key -> value } }
-    errors_by_group: dict { group_label -> { series_key -> std } } or None
-    """
-    n_groups  = len(group_labels)
-    n_series  = len(series_keys)
-    if n_series == 0:
-        return
-    bar_width = 0.7 / n_series
-    x         = np.arange(n_groups)
-
-    for i, (sk, sl, sc) in enumerate(zip(series_keys, series_labels, series_colors)):
-        vals  = [data_by_group.get(g, {}).get(sk, np.nan) for g in group_labels]
-        yerrs = None
-        if errors_by_group:
-            yerrs = [errors_by_group.get(g, {}).get(sk, 0) or 0 for g in group_labels]
-        offset = (i - n_series / 2 + 0.5) * bar_width
-        ax.bar(x + offset, vals, bar_width, label=sl, color=sc,
-               yerr=yerrs, capsize=3, error_kw={"elinewidth": 1})
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(group_labels)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
-    ax.legend(fontsize=8)
-    ax.yaxis.set_minor_locator(mticker.AutoMinorLocator())
-    ax.grid(axis="y", linestyle="--", alpha=0.4)
-
+PHASE_SEGS = ["phase1_s", "phase2a_s", "phase2b_s", "phase2c_s", "phase3_s"]
+PHASE_COLORS_SEG = {
+    "phase1_s":  "#5B9BD5",
+    "phase2a_s": "#FFD966",
+    "phase2b_s": "#ED7D31",
+    "phase2c_s": "#F4B183",
+    "phase3_s":  "#70AD47",
+}
+PHASE_LABELS_SEG = {
+    "phase1_s":  "Phase 1 — detect → checkpoint",
+    "phase2a_s": "Phase 2a — drain + cancel",
+    "phase2b_s": "Phase 2b — node reconfig (EC2 / scontrol)",
+    "phase2c_s": "Phase 2c — restart dispatch",
+    "phase3_s":  "Phase 3 — remaining computation",
+}
 
 # ── Plots ────────────────────────────────────────────────────────────────────
 
-def plot_wall_time(df: pd.DataFrame, out_dir: Path):
-    """Fig 1: FT Wall Time by workers, grouped by strategy — one subplot per benchmark."""
-    benchmarks = sorted(df["benchmark"].unique())
-    fig, axes = plt.subplots(1, len(benchmarks), figsize=(6 * len(benchmarks), 5), squeeze=False)
-    fig.suptitle("FT Wall Time — LU/EP/CG Class C (m5.xlarge, 2 proc/node)", fontsize=12)
-
-    for ax, bench in zip(axes[0], benchmarks):
-        sub = df[df["benchmark"] == bench]
-        worker_counts = sorted(sub["config_workers"].unique())
-        strategies = sorted(sub["strategy"].unique(), key=_strat_order)
-
-        data, errs = defaultdict(dict), defaultdict(dict)
-        for w in worker_counts:
-            for s in strategies:
-                vals = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]["ft_wall_time_s"]
-                if len(vals):
-                    data[f"{w}w"][s] = vals.mean()
-                    errs[f"{w}w"][s] = vals.std() if len(vals) > 1 else 0
-
-        group_labels = [f"{w}w" for w in worker_counts]
-        _grouped_bar(
-            ax, data, group_labels,
-            strategies, [_label(s) for s in strategies], [_color(s) for s in strategies],
-            errors_by_group=errs,
-            ylabel="Wall Time (s)", title=bench,
-        )
-
-    plt.tight_layout()
-    path = out_dir / "fig1_wall_time.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"  Saved: {path}")
-
-
 def plot_mana_overhead(df: pd.DataFrame, out_dir: Path):
     """
-    Fig 2: Total overhead relative to noFT (raw MPI) baseline.
-    All 4 strategies shown as bars — noFT bar = 1.0× (the reference).
-    Answers: "How much total overhead does each FT approach add vs running
-    without any fault tolerance?"
-      - MANA noFT bar  → pure MANA interposition cost (no failures)
-      - REPLACE bar    → MANA cost + time to reprovision a new node
-      - DEGRADED bar   → MANA cost + faster degraded restart
+    Fig 1: noFT vs MANA-noFT elapsed time for CG / EP / LU.
+    Each benchmark gets one panel; bars are grouped by worker count.
+    Annotates each MANA bar with the overhead percentage vs noFT.
     """
-    benchmarks = sorted(df["benchmark"].unique())
-    fig, axes = plt.subplots(1, len(benchmarks), figsize=(6 * len(benchmarks), 5), squeeze=False)
-    fig.suptitle("Total Overhead vs noFT baseline  (1.0 = same speed as raw MPI)", fontsize=12)
-
-    for ax, bench in zip(axes[0], benchmarks):
-        sub = df[df["benchmark"] == bench]
-        worker_counts = sorted(sub["config_workers"].unique())
-        strategies = [s for s in STRATEGY_ORDER if s in sub["strategy"].values]
-
-        data, errs = defaultdict(dict), defaultdict(dict)
-        for w in worker_counts:
-            noft_vals = sub[
-                (sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)
-            ]["ft_wall_time_s"]
-            baseline = noft_vals.mean() if len(noft_vals) else None
-            if baseline is None:
-                continue
-            for s in strategies:
-                vals = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]["ft_wall_time_s"]
-                if len(vals):
-                    data[f"{w}w"][s] = vals.mean() / baseline
-                    errs[f"{w}w"][s] = (vals.std() / baseline) if len(vals) > 1 else 0
-
-        group_labels = [f"{w}w" for w in worker_counts if f"{w}w" in data]
-        if not group_labels:
-            ax.set_title(f"{bench} (no data)")
-            continue
-        _grouped_bar(
-            ax, data, group_labels,
-            strategies, [_label(s) for s in strategies], [_color(s) for s in strategies],
-            errors_by_group=errs,
-            ylabel="Overhead factor (× noFT)", title=bench,
-        )
-        ax.yaxis.set_minor_locator(mticker.AutoMinorLocator())
-
-    plt.tight_layout()
-    path = out_dir / "fig2_mana_overhead.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"  Saved: {path}")
-
-
-def plot_recovery_phases(df: pd.DataFrame, out_dir: Path):
-    """Fig 3: Stacked bar of Phase1/Phase2/Phase3 for FT runs."""
-    ft_df = df[df["strategy"].isin([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED])].copy()
-    if ft_df.empty:
-        print("  Skipping fig3 (no FT runs)")
+    npb = df[df["benchmark"].isin(["CG", "EP", "LU"]) &
+             df["strategy"].isin([STRATEGY_KEY_NONE, STRATEGY_KEY_MANA_NONE])].copy()
+    if npb.empty:
+        print("  Skipping fig1 (no baseline data)")
         return
 
-    benchmarks = sorted(ft_df["benchmark"].unique())
-    fig, axes = plt.subplots(1, len(benchmarks), figsize=(6 * len(benchmarks), 5), squeeze=False)
-    fig.suptitle("Recovery Phase Breakdown (FT runs)", fontsize=12)
-    phase_colors = {"Phase 1\n(detect→ckpt)": "#5B9BD5",
-                    "Phase 2\n(ckpt→dispatch)": "#ED7D31",
-                    "Phase 3\n(dispatch→done)": "#70AD47"}
+    bench_class = {"CG": "C", "EP": "D", "LU": "C"}
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig.suptitle("MANA overhead — elapsed time without failures\n"
+                 "(m5.xlarge workers, 2 processes per node)", fontsize=12)
 
-    for ax, bench in zip(axes[0], benchmarks):
-        sub = ft_df[ft_df["benchmark"] == bench]
+    for ax, bench in zip(axes, ["CG", "EP", "LU"]):
+        sub = npb[npb["benchmark"] == bench]
         worker_counts = sorted(sub["config_workers"].unique())
-        strategies    = sorted(sub["strategy"].unique(), key=_strat_order)
+        x = np.arange(len(worker_counts))
+        bar_w = 0.35
 
-        labels = []
-        p1s, p2s, p3s = [], [], []
-
+        noft_vals, mana_vals = [], []
         for w in worker_counts:
-            for s in strategies:
-                vals = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
-                if len(vals):
-                    labels.append(f"{w}w\n{_label(s)}")
-                    p1s.append(vals["phase1_s"].mean())
-                    p2s.append(vals["phase2_s"].mean())
-                    p3s.append(vals["phase3_s"].mean())
+            noft = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]["ft_wall_time_s"]
+            mana = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]["ft_wall_time_s"]
+            noft_vals.append(noft.mean() if len(noft) else np.nan)
+            mana_vals.append(mana.mean() if len(mana) else np.nan)
 
-        x = np.arange(len(labels))
-        bar_width = 0.5
-        cols = list(phase_colors.values())
-        b1 = ax.bar(x, p1s, bar_width, label="Phase 1\n(detect→ckpt)",   color=cols[0])
-        b2 = ax.bar(x, p2s, bar_width, bottom=p1s, label="Phase 2\n(ckpt→dispatch)", color=cols[1])
-        b3 = ax.bar(x, p3s, bar_width,
-                    bottom=[a + b for a, b in zip(p1s, p2s)],
-                    label="Phase 3\n(dispatch→done)", color=cols[2])
+        ax.bar(x - bar_w / 2, noft_vals, bar_w,
+               label="noFT (native MPI)", color=STRATEGY_COLOR[STRATEGY_KEY_NONE])
+        ax.bar(x + bar_w / 2, mana_vals, bar_w,
+               label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE])
+
+        for i, (noft, mana) in enumerate(zip(noft_vals, mana_vals)):
+            if not (np.isnan(noft) or np.isnan(mana)) and noft > 0:
+                pct = (mana - noft) / noft * 100
+                ax.annotate(f"+{pct:.0f}%",
+                            xy=(x[i] + bar_w / 2, mana),
+                            xytext=(0, 4), textcoords="offset points",
+                            ha="center", fontsize=8, color="#1a6b1a", fontweight="bold")
 
         ax.set_xticks(x)
-        ax.set_xticklabels(labels, fontsize=8)
-        ax.set_ylabel("Time (s)")
-        ax.set_title(bench)
-        ax.legend(fontsize=7)
-        ax.grid(axis="y", linestyle="--", alpha=0.4)
-
-    plt.tight_layout()
-    path = out_dir / "fig3_recovery_phases.png"
-    plt.savefig(path, dpi=150)
-    plt.close()
-    print(f"  Saved: {path}")
-
-
-def plot_scalability(df: pd.DataFrame, out_dir: Path):
-    """Fig 4: Scalability — wall time vs worker count, one line per strategy."""
-    benchmarks = sorted(df["benchmark"].unique())
-    fig, axes = plt.subplots(1, len(benchmarks), figsize=(6 * len(benchmarks), 5), squeeze=False)
-    fig.suptitle("Scalability: Wall Time vs Worker Count", fontsize=12)
-
-    for ax, bench in zip(axes[0], benchmarks):
-        sub = df[df["benchmark"] == bench]
-        strategies = sorted(sub["strategy"].unique(), key=_strat_order)
-        worker_counts = sorted(sub["config_workers"].unique())
-
-        for s in strategies:
-            xs, ys, yerrs = [], [], []
-            for w in worker_counts:
-                vals = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]["ft_wall_time_s"]
-                if len(vals):
-                    xs.append(w)
-                    ys.append(vals.mean())
-                    yerrs.append(vals.std() if len(vals) > 1 else 0)
-            if xs:
-                ax.errorbar(xs, ys, yerr=yerrs, label=_label(s),
-                            color=_color(s), marker="o", capsize=4,
-                            linewidth=1.5, markersize=5)
-
-        ax.set_xlabel("Workers")
-        ax.set_ylabel("Wall Time (s)")
-        ax.set_title(bench)
-        ax.set_xticks(worker_counts)
+        ax.set_xticklabels([f"{w}w" for w in worker_counts])
+        ax.set_xlabel("Worker count")
+        ax.set_ylabel("Elapsed time (s)")
+        ax.set_title(f"{bench}-{bench_class[bench]} Class")
         ax.legend(fontsize=8)
-        ax.grid(linestyle="--", alpha=0.4)
+        ax.grid(axis="y", linestyle="--", alpha=0.4)
+        ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    path = out_dir / "fig4_scalability.png"
+    path = out_dir / "fig1_mana_overhead.png"
     plt.savefig(path, dpi=150)
     plt.close()
     print(f"  Saved: {path}")
 
 
-def plot_cost(df: pd.DataFrame, out_dir: Path):
+def plot_synth_calls(df: pd.DataFrame, out_dir: Path):
     """
-    Fig 5: Cost per run — the core economic argument.
-
-    noFT (native):  all nodes on-demand (no FT → can't afford spot interruptions)
-    REPLACE/DEGRADED: workers on spot + head on-demand (FT enables cheaper workers)
-
-    MANA_noFT is excluded — it's not a realistic deployment (MANA overhead with
-    no benefit), and the comparison of interest is on-demand-noFT vs spot-FT.
+    Fig 2: Synthetic MPI call frequency study.
+    Shows noFT vs MANA-noFT elapsed time at each call level for
+    synth_calls (MPI_Allreduce) and synth_p2p (MPI_Send/Recv).
+    Finding: both bars stay the same height → call count is not the overhead driver.
     """
-    cost_strategies = [STRATEGY_KEY_NONE, STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]
+    synth_df = df[df["benchmark"].isin(["SYNTH_CALLS", "SYNTH_P2P"]) &
+                  df["synth_level"].notna()].copy()
+    if synth_df.empty:
+        print("  Skipping fig2 (no synth_calls / synth_p2p data)")
+        return
 
-    benchmarks = sorted(df["benchmark"].unique())
-    fig, axes = plt.subplots(1, len(benchmarks), figsize=(6 * len(benchmarks), 5), squeeze=False)
-    # Short two-line title to avoid clipping
-    fig.suptitle("Cost per Run\nnoFT: on-demand workers  |  FT: spot workers", fontsize=11)
+    call_counts = {0: "0", 1: "800", 2: "3,200", 3: "12,800", 4: "51,200"}
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=True)
+    fig.suptitle("Synthetic MPI call frequency study — elapsed time at each call level\n"
+                 "Finding: MANA overhead stays flat regardless of call count",
+                 fontsize=11)
 
-    for ax, bench in zip(axes[0], benchmarks):
-        sub = df[df["benchmark"] == bench]
-        worker_counts = sorted(sub["config_workers"].unique())
-        strategies = [s for s in cost_strategies if s in sub["strategy"].values]
-        if not strategies:
-            ax.set_title(f"{bench} (no cost data)")
-            ax.axis("off")
-            continue
+    bench_labels = {"SYNTH_CALLS": "synth_calls  (MPI_Allreduce collectives)",
+                    "SYNTH_P2P":   "synth_p2p  (MPI_Send / MPI_Recv point-to-point)"}
 
-        data, errs = defaultdict(dict), defaultdict(dict)
-        for w in worker_counts:
-            for s in strategies:
-                # noFT uses on-demand cost; FT strategies use spot-worker cost
-                col = "run_cost_ondemand_usd" if s == STRATEGY_KEY_NONE else "run_cost_usd"
-                vals = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)][col]
-                if len(vals):
-                    data[f"{w}w"][s] = vals.mean()
-                    errs[f"{w}w"][s] = vals.std() if len(vals) > 1 else 0
+    for ax, bench in zip(axes, ["SYNTH_CALLS", "SYNTH_P2P"]):
+        sub = synth_df[synth_df["benchmark"] == bench]
+        levels = sorted(sub["synth_level"].dropna().unique().astype(int))
+        x = np.arange(len(levels))
+        bar_w = 0.35
 
-        group_labels = [f"{w}w" for w in worker_counts if f"{w}w" in data]
-        _grouped_bar(
-            ax, data, group_labels,
-            strategies, [_label(s) for s in strategies], [_color(s) for s in strategies],
-            errors_by_group=errs,
-            ylabel="Cost (USD)", title=bench,
-        )
+        noft_vals, mana_vals = [], []
+        for lvl in levels:
+            noft = sub[(sub["synth_level"] == lvl) & (sub["strategy"] == STRATEGY_KEY_NONE)]["ft_wall_time_s"]
+            mana = sub[(sub["synth_level"] == lvl) & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]["ft_wall_time_s"]
+            noft_vals.append(noft.mean() if len(noft) else np.nan)
+            mana_vals.append(mana.mean() if len(mana) else np.nan)
+
+        ax.bar(x - bar_w / 2, noft_vals, bar_w,
+               label="noFT", color=STRATEGY_COLOR[STRATEGY_KEY_NONE])
+        ax.bar(x + bar_w / 2, mana_vals, bar_w,
+               label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE])
+
+        # Annotate overhead on each MANA bar
+        for i, (noft, mana) in enumerate(zip(noft_vals, mana_vals)):
+            if not (np.isnan(noft) or np.isnan(mana)):
+                diff = mana - noft
+                sign = "+" if diff >= 0 else ""
+                ax.annotate(f"{sign}{diff:.1f}s",
+                            xy=(x[i] + bar_w / 2, mana),
+                            xytext=(0, 4), textcoords="offset points",
+                            ha="center", fontsize=7, color="#555")
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"L{lvl}\n({call_counts.get(lvl,'?')} calls)" for lvl in levels],
+                           fontsize=8)
+        ax.set_xlabel("Call level")
+        ax.set_ylabel("Elapsed time (s)")
+        ax.set_title(bench_labels[bench])
+        ax.legend(fontsize=8)
+        ax.grid(axis="y", linestyle="--", alpha=0.4)
+        ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    path = out_dir / "fig5_cost.png"
+    path = out_dir / "fig2_synth_calls.png"
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def plot_synth_imbalanced(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 2b: Communication imbalance study (synth_imbalanced).
+    Shows noFT vs MANA-noFT wall time at each sender-delay level.
+    Finding: MANA overhead stays flat even as communication imbalance grows.
+    """
+    imb_df = df[
+        (df["benchmark"] == "SYNTH_IMBALANCED") &
+        df["synth_level"].notna()
+    ].copy()
+    if imb_df.empty:
+        print("  Skipping fig2b (no synth_imbalanced data)")
+        return
+
+    delay_labels = {0: "0 µs\n(L0)", 1: "100 µs\n(L1)", 2: "1 ms\n(L2)",
+                    3: "5 ms\n(L3)", 4: "20 ms\n(L4)"}
+
+    levels = sorted(imb_df["synth_level"].dropna().unique().astype(int))
+    x = np.arange(len(levels))
+    bar_w = 0.35
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    fig.suptitle("Communication imbalance study (synth_imbalanced)\n"
+                 "MPI_Irecv + MPI_Wait with controlled sender delay — MANA overhead stays flat",
+                 fontsize=11)
+
+    noft_vals, mana_vals = [], []
+    for lvl in levels:
+        noft = imb_df[(imb_df["synth_level"] == lvl) &
+                      (imb_df["strategy"] == STRATEGY_KEY_NONE)]["ft_wall_time_s"]
+        mana = imb_df[(imb_df["synth_level"] == lvl) &
+                      (imb_df["strategy"] == STRATEGY_KEY_MANA_NONE)]["ft_wall_time_s"]
+        noft_vals.append(noft.mean() if len(noft) else np.nan)
+        mana_vals.append(mana.mean() if len(mana) else np.nan)
+
+    ax.bar(x - bar_w / 2, noft_vals, bar_w,
+           label="noFT (native)", color=STRATEGY_COLOR[STRATEGY_KEY_NONE])
+    ax.bar(x + bar_w / 2, mana_vals, bar_w,
+           label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE])
+
+    for i, (noft, mana) in enumerate(zip(noft_vals, mana_vals)):
+        if not (np.isnan(noft) or np.isnan(mana)):
+            diff = mana - noft
+            sign = "+" if diff >= 0 else ""
+            ax.annotate(f"{sign}{diff:.1f}s",
+                        xy=(x[i] + bar_w / 2, mana),
+                        xytext=(0, 4), textcoords="offset points",
+                        ha="center", fontsize=8, color="#555")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([delay_labels.get(lvl, str(lvl)) for lvl in levels], fontsize=8)
+    ax.set_xlabel("Sender delay per exchange")
+    ax.set_ylabel("Elapsed time (s)")
+    ax.legend(fontsize=9)
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    path = out_dir / "fig2b_synth_imbalanced.png"
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def plot_checkpoint_size(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 3: Phase 1 time vs checkpoint image size (memory per process).
+    Scatter + linear fit; shows how checkpoint write time scales with data volume.
+    """
+    ckpt_df = df[
+        (df["benchmark"] == "SYNTH_CKPT") &
+        (df["strategy"] == STRATEGY_KEY_DEGRADED) &
+        df["synth_memory_mb"].notna() &
+        df["phase1_s"].notna()
+    ].copy()
+    if ckpt_df.empty:
+        print("  Skipping fig3 (no synth_ckpt data)")
+        return
+
+    ckpt_df = ckpt_df.sort_values("synth_memory_mb")
+    xs = ckpt_df["synth_memory_mb"].values.astype(float)
+    ys = ckpt_df["phase1_s"].values.astype(float)
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.scatter(xs, ys, color="#5B9BD5", s=90, zorder=5, label="measured Phase 1 time")
+
+    if len(xs) >= 2:
+        coeffs = np.polyfit(xs, ys, 1)
+        x_fit  = np.linspace(0, xs.max() * 1.05, 300)
+        y_fit  = np.polyval(coeffs, x_fit)
+        ax.plot(x_fit, y_fit, color="#ED7D31", linewidth=1.5, linestyle="--",
+                label=f"linear fit  slope = {coeffs[0]*1000:.2f} ms / MB  "
+                      f"(intercept = {coeffs[1]:.1f} s)")
+
+    for x_pt, y_pt in zip(xs, ys):
+        ax.annotate(f"{int(x_pt)} MB", (x_pt, y_pt),
+                    textcoords="offset points", xytext=(8, 3), fontsize=9)
+
+    ax.set_xlabel("Memory allocated per MPI process (MB)")
+    ax.set_ylabel("Phase 1 time (s)  —  failure detected → checkpoint written to EFS")
+    ax.set_title("Synthetic checkpoint size study\n"
+                 "Phase 1 time scales with checkpoint image size")
+    ax.legend(fontsize=9)
+    ax.grid(linestyle="--", alpha=0.4)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    path = out_dir / "fig3_synth_ckpt.png"
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def _fv(row, key):
+    """Safely extract a float from a DataFrame row, returning 0.0 on missing/NaN."""
+    v = row.get(key)
+    if v is None:
+        return 0.0
+    try:
+        f = float(v)
+        return f if not pd.isna(f) else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _draw_phase_bars(ax, px, p0_a, p1_a, slurm_a, p2b_a, p3_a,
+                     strat_for_bar, show_legend):
+    """
+    Draw 5-segment stacked bars on ax and annotate totals.
+    Segments (bottom to top):
+      P0    (teal)   — pre-failure computation
+      P1    (blue)   — checkpoint write
+      Slurm (yellow) — P2a + P2c: Slurm drain/cancel + re-alloc + MANA coordinator setup
+      P2b   (orange) — node reconfig (EC2 provisioning or scontrol DOWN)
+      P3    (green)  — remaining computation after restart
+    """
+    COLOR_P0    = "#4BACC6"
+    COLOR_P1    = "#5B9BD5"
+    COLOR_SLURM = "#FFD966"
+    COLOR_P2B   = "#ED7D31"
+    COLOR_P3    = "#70AD47"
+
+    lbl = lambda s, t: t if show_legend else "_"
+    b0 = np.zeros(len(px))
+    ax.bar(px, p0_a,    0.32, bottom=b0,                       color=COLOR_P0,    label=lbl(True, "P0 — pre-failure compute"))
+    b1 = b0 + p0_a
+    ax.bar(px, p1_a,    0.32, bottom=b1,                       color=COLOR_P1,    label=lbl(True, "P1 — checkpoint write"))
+    b2 = b1 + p1_a
+    ax.bar(px, slurm_a, 0.32, bottom=b2,                       color=COLOR_SLURM, label=lbl(True, "Slurm + MANA overhead\n(drain/cancel + re-alloc + coordinator)"))
+    b3 = b2 + slurm_a
+    ax.bar(px, p2b_a,   0.32, bottom=b3,                       color=COLOR_P2B,   label=lbl(True, "P2b — node reconfig\n(EC2 provisioning or scontrol DOWN)"))
+    b4 = b3 + p2b_a
+    ax.bar(px, p3_a,    0.32, bottom=b4,                       color=COLOR_P3,    label=lbl(True, "P3 — remaining computation"))
+
+    totals = b4 + p3_a
+    for pos, total in zip(px, totals):
+        # Annotate inside the bar near the top so adjacent shorter bars never obscure it
+        y_txt = max(total * 0.96, total - 3)
+        ax.text(pos, y_txt, f"{total:.0f}s",
+                ha="center", va="top", fontsize=6.5,
+                bbox=dict(boxstyle="round,pad=0.1", facecolor="white",
+                          alpha=0.75, edgecolor="none"))
+
+    # REP / DEG labels — placed at 25 % of the bar height so they sit clearly inside P0/P1
+    for pos, s, total in zip(px, strat_for_bar, totals):
+        short = "REP" if s == STRATEGY_KEY_REPLACE else "DEG"
+        dark  = "#1a5276" if s == STRATEGY_KEY_REPLACE else "#0e3b0e"
+        ax.text(pos, max(total * 0.12, 3), short,
+                ha="center", va="center", fontsize=6.5, color=dark, fontweight="bold")
+
+
+def plot_timing_phases(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 4: Total FT wall time by failure timing — REPLACE vs DEGRADED.
+
+    2×3 grid: benchmarks (EP, LU) × worker counts (2w, 4w, 8w).
+    Each panel: 3 timing groups (failure at 10% / 25% / 50% of noFT run time).
+    Each group: 2 bars side by side — REPLACE (REP) and DEGRADED (DEG).
+
+    5 stacked segments (bottom to top):
+      P0 (teal)    — pre-failure computation: equal for both bars in each group
+      P1 (blue)    — checkpoint write
+      Slurm/MANA (yellow) — P2a+P2c: drain/cancel + re-alloc + coordinator setup
+      P2b (orange) — node reconfig: REPLACE ~125 s EC2 vs DEGRADED ~11 s scontrol
+      P3 (green)   — remaining computation after restart
+    """
+    timing_df = df[
+        df["benchmark"].isin(["EP", "LU"]) &
+        df["strategy"].isin([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
+        df["timing_pct"].notna()
+    ].copy()
+    if timing_df.empty:
+        print("  Skipping fig4 (no timing sensitivity data)")
+        return
+
+    benchmarks    = [b for b in ["EP", "LU"] if b in timing_df["benchmark"].unique()]
+    worker_counts = sorted(timing_df["config_workers"].unique())
+    pcts          = [10, 25, 50]
+
+    bar_w     = 0.32
+    bar_gap   = 0.06
+    group_gap = 0.55
+
+    fig, axes = plt.subplots(
+        len(benchmarks), len(worker_counts),
+        figsize=(5.5 * len(worker_counts), 5.5 * len(benchmarks)),
+        squeeze=False,
+    )
+    fig.suptitle(
+        "Total FT wall time breakdown by failure timing — REPLACE vs DEGRADED\n"
+        "Teal=P0 (pre-failure)  ·  Blue=P1 (checkpoint write)  ·  Yellow=Slurm+MANA overhead"
+        "  ·  Orange=P2b (node reconfig)  ·  Green=P3 (remaining work)",
+        fontsize=9,
+    )
+
+    for ri, bench in enumerate(benchmarks):
+        for ci, workers in enumerate(worker_counts):
+            ax = axes[ri][ci]
+            sub = timing_df[
+                (timing_df["benchmark"] == bench) &
+                (timing_df["config_workers"] == workers)
+            ]
+
+            positions, group_ticks, group_xlbls = [], [], []
+            p0_v, p1_v, slurm_v, p2b_v, p3_v   = [], [], [], [], []
+            strat_for_bar = []
+
+            base_x = 0.0
+            for pct in pcts:
+                has_any = False
+                for bi, s in enumerate([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]):
+                    row = sub[(sub["strategy"] == s) & (sub["timing_pct"] == pct)]
+                    if row.empty:
+                        continue
+                    has_any = True
+                    r   = row.iloc[0]
+                    positions.append(base_x + bi * (bar_w + bar_gap))
+                    strat_for_bar.append(s)
+                    p0_v.append(_fv(r, "phase0_s"))
+                    p1_v.append(_fv(r, "phase1_s"))
+                    slurm_v.append(_fv(r, "phase2a_s") + _fv(r, "phase2c_s"))
+                    p2b_v.append(_fv(r, "phase2b_s"))
+                    p3_v.append(_fv(r, "phase3_s"))
+                if has_any:
+                    group_ticks.append(base_x + (bar_w + bar_gap) / 2)
+                    group_xlbls.append(f"Failure\nat {pct}%")
+                base_x += 2 * (bar_w + bar_gap) + group_gap
+
+            if not positions:
+                ax.set_visible(False)
+                continue
+
+            show_legend = ri == 0 and ci == len(worker_counts) - 1
+            _draw_phase_bars(
+                ax, np.array(positions),
+                np.array(p0_v), np.array(p1_v), np.array(slurm_v),
+                np.array(p2b_v), np.array(p3_v),
+                strat_for_bar, show_legend,
+            )
+
+            bench_cls = "D" if bench == "EP" else "C"
+            ax.set_title(f"{bench}-{bench_cls}  ·  {workers} workers", fontsize=10)
+            ax.set_xticks(group_ticks)
+            ax.set_xticklabels(group_xlbls, fontsize=8)
+            ax.set_ylabel("Wall time (s)", fontsize=8)
+            ax.set_ylim(bottom=0)
+            ax.grid(axis="y", linestyle="--", alpha=0.4)
+            if show_legend:
+                ax.legend(fontsize=7.5, loc="upper right", framealpha=0.9)
+
+    plt.tight_layout()
+    path = out_dir / "fig4_timing_phases.png"
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def plot_cg_short_job(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 5: CG short-job FT wall time — REPLACE vs DEGRADED across worker counts.
+
+    CG-C is a very short benchmark (~3-5 s without FT), so it has no timing variants.
+    This figure shows the FT wall time breakdown at 2w / 4w / 8w using the same
+    5-segment scheme as fig4. The key point: for short jobs, recovery overhead
+    (especially P2b) dominates total run time; P0 is nearly invisible.
+    """
+    cg_df = df[
+        (df["benchmark"] == "CG") &
+        df["strategy"].isin([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
+        df["timing_pct"].isna()
+    ].copy()
+    if cg_df.empty:
+        print("  Skipping fig5 (no CG FT runs)")
+        return
+
+    worker_counts = sorted(cg_df["config_workers"].unique())
+    bar_w = 0.32
+    bar_gap = 0.06
+    group_gap = 0.55
+
+    fig, ax = plt.subplots(figsize=(3.5 * len(worker_counts), 5))
+    fig.suptitle(
+        "CG-C short benchmark — total FT wall time (REPLACE vs DEGRADED)\n"
+        "For short jobs, recovery overhead dominates; P0 (pre-failure compute) is nearly zero",
+        fontsize=10,
+    )
+
+    positions, group_ticks, group_xlbls = [], [], []
+    p0_v, p1_v, slurm_v, p2b_v, p3_v   = [], [], [], [], []
+    strat_for_bar = []
+
+    base_x = 0.0
+    for w in worker_counts:
+        has_any = False
+        for bi, s in enumerate([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]):
+            row = cg_df[(cg_df["config_workers"] == w) & (cg_df["strategy"] == s)]
+            if row.empty:
+                continue
+            has_any = True
+            r = row.iloc[0]
+            positions.append(base_x + bi * (bar_w + bar_gap))
+            strat_for_bar.append(s)
+            p0_v.append(_fv(r, "phase0_s"))
+            p1_v.append(_fv(r, "phase1_s"))
+            slurm_v.append(_fv(r, "phase2a_s") + _fv(r, "phase2c_s"))
+            p2b_v.append(_fv(r, "phase2b_s"))
+            p3_v.append(_fv(r, "phase3_s"))
+        if has_any:
+            group_ticks.append(base_x + (bar_w + bar_gap) / 2)
+            group_xlbls.append(f"{w} workers")
+        base_x += 2 * (bar_w + bar_gap) + group_gap
+
+    if not positions:
+        plt.close()
+        return
+
+    _draw_phase_bars(
+        ax, np.array(positions),
+        np.array(p0_v), np.array(p1_v), np.array(slurm_v),
+        np.array(p2b_v), np.array(p3_v),
+        strat_for_bar, show_legend=True,
+    )
+
+    ax.set_xticks(group_ticks)
+    ax.set_xticklabels(group_xlbls, fontsize=9)
+    ax.set_ylabel("Wall time (s)", fontsize=9)
+    ax.set_ylim(bottom=0)
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    ax.legend(fontsize=8, loc="upper right", framealpha=0.9)
+
+    plt.tight_layout()
+    path = out_dir / "fig5_cg_short_job.png"
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def plot_mana_scalability(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 6: Strong scaling — wall time vs worker count for noFT and MANA-noFT.
+    One panel per benchmark. Shows whether wall time decreases as expected with
+    more workers, and whether MANA adds measurable overhead at any scale.
+    """
+    npb = df[
+        df["benchmark"].isin(["CG", "EP", "LU"]) &
+        df["strategy"].isin([STRATEGY_KEY_NONE, STRATEGY_KEY_MANA_NONE])
+    ].copy()
+    if npb.empty:
+        print("  Skipping fig6 (no baseline data)")
+        return
+
+    bench_class = {"CG": "C", "EP": "D", "LU": "C"}
+    benchmarks  = [b for b in ["CG", "EP", "LU"] if b in npb["benchmark"].unique()]
+
+    fig, axes = plt.subplots(1, len(benchmarks), figsize=(5 * len(benchmarks), 4.5))
+    if len(benchmarks) == 1:
+        axes = [axes]
+    fig.suptitle(
+        "Strong scaling — wall time vs worker count  (no failures)\n"
+        "Solid = native MPI (noFT)   ·   Dashed = with MANA checkpoint layer (MANA-noFT)",
+        fontsize=11,
+    )
+
+    strat_lines = [
+        (STRATEGY_KEY_NONE,      {"ls": "-",  "marker": "o"}),
+        (STRATEGY_KEY_MANA_NONE, {"ls": "--", "marker": "s"}),
+    ]
+
+    for ax, bench in zip(axes, benchmarks):
+        sub = npb[npb["benchmark"] == bench]
+        workers_sorted = sorted(sub["config_workers"].unique())
+
+        for s, style in strat_lines:
+            xs, ys = [], []
+            for w in workers_sorted:
+                row = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
+                if row.empty:
+                    continue
+                xs.append(w)
+                ys.append(float(row["ft_wall_time_s"].iloc[0]))
+            if not xs:
+                continue
+            ax.plot(xs, ys, color=_color(s), linewidth=2, markersize=8,
+                    linestyle=style["ls"], marker=style["marker"], label=_label(s))
+            for x, y in zip(xs, ys):
+                ax.annotate(f"{y:.1f}s", (x, y),
+                            textcoords="offset points", xytext=(0, 8),
+                            ha="center", fontsize=8.5)
+
+        ax.set_title(f"{bench}-{bench_class[bench]}", fontsize=11)
+        ax.set_xlabel("Worker count", fontsize=9)
+        ax.set_ylabel("Wall time (s)", fontsize=9)
+        ax.set_xticks(workers_sorted)
+        ax.set_xticklabels([str(w) for w in workers_sorted])
+        ax.legend(fontsize=8.5)
+        ax.grid(linestyle="--", alpha=0.4)
+        ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    path = out_dir / "fig6_mana_scalability.png"
     plt.savefig(path, dpi=150)
     plt.close()
     print(f"  Saved: {path}")
@@ -731,60 +1071,284 @@ def plot_cost(df: pd.DataFrame, out_dir: Path):
 
 def plot_strategy_comparison(df: pd.DataFrame, out_dir: Path):
     """
-    Fig 6: Recovery strategy overhead relative to MANA noFT baseline.
-    Shows MANA_noFT (= 1.0× reference bar), REPLACE, and DEGRADED.
-    Answers: "For someone already using MANA, how much extra wall time
-    does each recovery strategy cost when a failure occurs?"
-      - MANA noFT bar  → 1.0× (baseline: MANA running without failures)
-      - REPLACE bar    → e.g. 1.6× means 60% extra time due to node reprovisioning
-      - DEGRADED bar   → e.g. 1.25× means 25% extra time due to degraded restart
-    Only MANA-aware strategies are shown — noFT is excluded because it
-    cannot recover from failures at all.
+    Fig 8: Total FT wall time — MANA-noFT reference + REPLACE + DEGRADED.
+
+    2×3 grid (EP/LU × 2w/4w/8w). Each panel has 3 timing groups (10/25/50%).
+    Each group shows 3 bars: MANA-noFT (ideal baseline, no failure), REPLACE, DEGRADED.
+    The gap between MANA-noFT and the FT bars shows the cost of the spot interruption.
     """
-    # Need at least MANA_noFT + one FT strategy
-    mana_strategies = [STRATEGY_KEY_MANA_NONE, STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]
-    sub_mana = df[df["strategy"].isin(mana_strategies)]
-    if sub_mana.empty:
-        print("  Skipping fig6 (no MANA strategy runs)")
+    ft_df = df[
+        df["benchmark"].isin(["EP", "LU"]) &
+        df["strategy"].isin([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
+        df["timing_pct"].notna()
+    ].copy()
+    if ft_df.empty:
+        print("  Skipping fig8 (no timing data)")
         return
 
-    benchmarks = sorted(df["benchmark"].unique())
-    fig, axes = plt.subplots(1, len(benchmarks), figsize=(6 * len(benchmarks), 5), squeeze=False)
-    fig.suptitle("Recovery Overhead vs MANA noFT  (1.0 = no failure occurred)", fontsize=12)
+    mana_df = df[
+        df["benchmark"].isin(["EP", "LU"]) &
+        (df["strategy"] == STRATEGY_KEY_MANA_NONE)
+    ].copy()
 
-    for ax, bench in zip(axes[0], benchmarks):
-        sub_all = df[df["benchmark"] == bench]
-        worker_counts = sorted(sub_all["config_workers"].unique())
-        strategies = [s for s in mana_strategies if s in sub_all["strategy"].values]
+    benchmarks    = [b for b in ["EP", "LU"] if b in ft_df["benchmark"].unique()]
+    worker_counts = sorted(ft_df["config_workers"].unique())
+    pcts          = [10, 25, 50]
+    bar_w, bar_gap, group_gap = 0.25, 0.04, 0.5
 
-        data, errs = defaultdict(dict), defaultdict(dict)
-        for w in worker_counts:
-            baseline_vals = sub_all[
-                (sub_all["config_workers"] == w) & (sub_all["strategy"] == STRATEGY_KEY_MANA_NONE)
-            ]["ft_wall_time_s"]
-            baseline = baseline_vals.mean() if len(baseline_vals) else None
-            if baseline is None:
+    fig, axes = plt.subplots(
+        len(benchmarks), len(worker_counts),
+        figsize=(5.5 * len(worker_counts), 5 * len(benchmarks)),
+        squeeze=False,
+    )
+    fig.suptitle(
+        "Total FT wall time — MANA-noFT (no failure) vs REPLACE vs DEGRADED  (lower = better)\n"
+        "The gap between MANA-noFT and the FT bars shows the cost of the spot interruption",
+        fontsize=10,
+    )
+
+    seen_labels: set = set()
+
+    for ri, bench in enumerate(benchmarks):
+        for ci, workers in enumerate(worker_counts):
+            ax = axes[ri][ci]
+            ft_sub = ft_df[
+                (ft_df["benchmark"] == bench) & (ft_df["config_workers"] == workers)
+            ]
+            mana_sub = mana_df[
+                (mana_df["benchmark"] == bench) & (mana_df["config_workers"] == workers)
+            ]
+            t_mana = float(mana_sub["ft_wall_time_s"].iloc[0]) if not mana_sub.empty else None
+
+            positions, group_ticks, group_xlbls = [], [], []
+            totals, strat_for_bar = [], []
+
+            base_x = 0.0
+            for pct in pcts:
+                rep_row = ft_sub[(ft_sub["strategy"] == STRATEGY_KEY_REPLACE) & (ft_sub["timing_pct"] == pct)]
+                deg_row = ft_sub[(ft_sub["strategy"] == STRATEGY_KEY_DEGRADED) & (ft_sub["timing_pct"] == pct)]
+
+                entries = [
+                    (STRATEGY_KEY_MANA_NONE, t_mana),
+                    (STRATEGY_KEY_REPLACE,   float(rep_row["ft_wall_time_s"].iloc[0]) if not rep_row.empty else None),
+                    (STRATEGY_KEY_DEGRADED,  float(deg_row["ft_wall_time_s"].iloc[0]) if not deg_row.empty else None),
+                ]
+                has_any = any(t is not None for _, t in entries)
+                for bi, (s, t) in enumerate(entries):
+                    if t is None:
+                        continue
+                    positions.append(base_x + bi * (bar_w + bar_gap))
+                    strat_for_bar.append(s)
+                    totals.append(t)
+
+                if has_any:
+                    group_ticks.append(base_x + bar_w + bar_gap + bar_w / 2)
+                    group_xlbls.append(f"Failure\nat {pct}%")
+                base_x += 3 * (bar_w + bar_gap) + group_gap
+
+            if not positions:
+                ax.set_visible(False)
                 continue
-            for s in strategies:
-                vals = sub_all[(sub_all["config_workers"] == w) & (sub_all["strategy"] == s)]["ft_wall_time_s"]
-                if len(vals):
-                    data[f"{w}w"][s] = vals.mean() / baseline
-                    errs[f"{w}w"][s] = (vals.std() / baseline) if len(vals) > 1 else 0
 
-        group_labels = [f"{w}w" for w in worker_counts if f"{w}w" in data]
-        if not group_labels:
-            ax.set_title(f"{bench} (no data)")
-            continue
-        _grouped_bar(
-            ax, data, group_labels,
-            strategies, [_label(s) for s in strategies], [_color(s) for s in strategies],
-            errors_by_group=errs,
-            ylabel="Overhead factor (× MANA noFT)", title=bench,
-        )
-        ax.yaxis.set_minor_locator(mticker.AutoMinorLocator())
+            for pos, s, total in zip(positions, strat_for_bar, totals):
+                lbl = _label(s) if s not in seen_labels else "_"
+                seen_labels.add(s)
+                ax.bar(pos, total, bar_w, color=_color(s), label=lbl)
+                ax.text(pos, total + 1, f"{total:.0f}s",
+                        ha="center", va="bottom", fontsize=6, rotation=45)
+
+            bench_cls = "D" if bench == "EP" else "C"
+            ax.set_title(f"{bench}-{bench_cls}  ·  {workers} workers", fontsize=10)
+            ax.set_xticks(group_ticks)
+            ax.set_xticklabels(group_xlbls, fontsize=8)
+            ax.set_ylabel("Wall time (s)", fontsize=8)
+            ax.set_ylim(bottom=0)
+            ax.grid(axis="y", linestyle="--", alpha=0.4)
+
+    handles, labels = [], []
+    for ax in axes.flat:
+        for h, l in zip(*ax.get_legend_handles_labels()):
+            if l not in labels:
+                handles.append(h)
+                labels.append(l)
+    if handles:
+        fig.legend(handles, labels, fontsize=8.5, loc="upper right",
+                   bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
+
+    plt.tight_layout(rect=[0, 0, 0.88, 1])
+    path = out_dir / "fig8_strategy_comparison.png"
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def plot_recovery_overhead_ratio(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 9: Recovery overhead as % of total FT wall time — REPLACE vs DEGRADED.
+
+    recovery_overhead_pct = (ft_wall_time_s - phase0_s) / ft_wall_time_s * 100
+
+    Answers: "what fraction of my total job time was forced by the failure?"
+    Later failure → smaller fraction (more useful work done before/after).
+    REPLACE always higher because P2b (~125 s) is large relative to P3.
+    """
+    timing_df = df[
+        df["benchmark"].isin(["EP", "LU"]) &
+        df["strategy"].isin([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
+        df["timing_pct"].notna()
+    ].copy()
+    if timing_df.empty:
+        print("  Skipping fig9 (no timing data)")
+        return
+
+    benchmarks    = [b for b in ["EP", "LU"] if b in timing_df["benchmark"].unique()]
+    worker_counts = sorted(timing_df["config_workers"].unique())
+    pcts          = [10, 25, 50]
+
+    fig, axes = plt.subplots(
+        len(benchmarks), len(worker_counts),
+        figsize=(5 * len(worker_counts), 4.5 * len(benchmarks)),
+        squeeze=False,
+    )
+    fig.suptitle(
+        "Recovery overhead as % of total FT wall time — REPLACE vs DEGRADED\n"
+        "= (ft_wall_time − pre-failure compute) / ft_wall_time × 100\n"
+        "Lower % means the failure had less relative impact on the total job",
+        fontsize=10,
+    )
+
+    COLOR_REP = STRATEGY_COLOR[STRATEGY_KEY_REPLACE]
+    COLOR_DEG = STRATEGY_COLOR[STRATEGY_KEY_DEGRADED]
+
+    for ri, bench in enumerate(benchmarks):
+        for ci, workers in enumerate(worker_counts):
+            ax = axes[ri][ci]
+            sub = timing_df[
+                (timing_df["benchmark"] == bench) &
+                (timing_df["config_workers"] == workers)
+            ]
+
+            xs, rep_ys, deg_ys = [], [], []
+            for pct in pcts:
+                rep_row = sub[(sub["strategy"] == STRATEGY_KEY_REPLACE) & (sub["timing_pct"] == pct)]
+                deg_row = sub[(sub["strategy"] == STRATEGY_KEY_DEGRADED) & (sub["timing_pct"] == pct)]
+                if rep_row.empty or deg_row.empty:
+                    continue
+                xs.append(pct)
+                for row, lst in [(rep_row, rep_ys), (deg_row, deg_ys)]:
+                    r      = row.iloc[0]
+                    total  = float(r.get("ft_wall_time_s") or 1)
+                    p0     = _fv(r, "phase0_s")
+                    ratio  = (total - p0) / total * 100 if total > 0 else 0
+                    lst.append(ratio)
+
+            if not xs:
+                ax.set_visible(False)
+                continue
+
+            show_legend = ri == 0 and ci == len(worker_counts) - 1
+            ax.plot(xs, rep_ys, marker="o", color=COLOR_REP, linewidth=2,
+                    markersize=8, label="REPLACE" if show_legend else "_")
+            ax.plot(xs, deg_ys, marker="s", color=COLOR_DEG, linewidth=2,
+                    markersize=8, label="DEGRADED" if show_legend else "_")
+
+            for x, y in zip(xs, rep_ys):
+                ax.annotate(f"{y:.0f}%", (x, y),
+                            textcoords="offset points", xytext=(0, 8),
+                            ha="center", fontsize=8, color=COLOR_REP)
+            for x, y in zip(xs, deg_ys):
+                ax.annotate(f"{y:.0f}%", (x, y),
+                            textcoords="offset points", xytext=(0, -14),
+                            ha="center", fontsize=8, color=COLOR_DEG)
+
+            bench_cls = "D" if bench == "EP" else "C"
+            ax.set_title(f"{bench}-{bench_cls}  ·  {workers} workers", fontsize=10)
+            ax.set_xticks(pcts)
+            ax.set_xticklabels([f"{p}%" for p in pcts])
+            ax.set_xlabel("Failure timing (% of noFT run)", fontsize=8)
+            ax.set_ylabel("Recovery overhead (%)", fontsize=8)
+            ax.set_ylim(0, 105)
+            ax.grid(linestyle="--", alpha=0.4)
+            if show_legend:
+                ax.legend(fontsize=9, loc="upper right", framealpha=0.9)
 
     plt.tight_layout()
-    path = out_dir / "fig6_replace_vs_degraded.png"
+    path = out_dir / "fig9_recovery_overhead_ratio.png"
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def plot_cost(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 7: Economic comparison — cost per run.
+    noFT must use on-demand instances (cannot risk spot interruption without FT).
+    REPLACE and DEGRADED use spot workers (FT handles interruptions).
+    Uses CG base-trigger runs and EP/LU 25pct representative runs.
+    """
+    # Use representative runs: CG base trigger, EP/LU 25pct
+    def is_rep_or_baseline(row):
+        if row["strategy"] in (STRATEGY_KEY_NONE, STRATEGY_KEY_MANA_NONE):
+            return True
+        if row["benchmark"] == "CG":
+            return pd.isna(row["timing_pct"])
+        return row["timing_pct"] == 25
+
+    rep = df[
+        df["benchmark"].isin(["CG", "EP", "LU"]) &
+        df["strategy"].isin([STRATEGY_KEY_NONE, STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
+        df.apply(is_rep_or_baseline, axis=1)
+    ].copy()
+
+    if rep.empty:
+        print("  Skipping fig7 (no cost data)")
+        return
+
+    bench_class = {"CG": "C", "EP": "D", "LU": "C"}
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig.suptitle("Cost per run — spot workers with FT vs on-demand workers without FT\n"
+                 "(noFT requires on-demand to avoid losing work on spot interruption)",
+                 fontsize=11)
+
+    strats = [STRATEGY_KEY_NONE, STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]
+    bar_w  = 0.22
+
+    for ax, bench in zip(axes, ["CG", "EP", "LU"]):
+        sub = rep[rep["benchmark"] == bench]
+        worker_counts = sorted(sub["config_workers"].unique())
+        x = np.arange(len(worker_counts))
+
+        for i, s in enumerate(strats):
+            vals = []
+            for w in worker_counts:
+                srow = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
+                if srow.empty:
+                    vals.append(np.nan)
+                    continue
+                col = "run_cost_ondemand_usd" if s == STRATEGY_KEY_NONE else "run_cost_usd"
+                vals.append(float(srow[col].iloc[0]))
+
+            offset = (i - 1) * (bar_w + 0.02)
+            bars = ax.bar(x + offset, vals, bar_w,
+                          label=_label(s), color=_color(s))
+            for bar, val in zip(bars, vals):
+                if not np.isnan(val):
+                    ax.annotate(f"${val:.3f}",
+                                xy=(bar.get_x() + bar.get_width() / 2, val),
+                                xytext=(0, 3), textcoords="offset points",
+                                ha="center", fontsize=6.5, rotation=45)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"{w}w" for w in worker_counts])
+        ax.set_xlabel("Worker count")
+        ax.set_ylabel("Estimated cost per run (USD)")
+        ax.set_title(f"{bench}-{bench_class[bench]}")
+        ax.legend(fontsize=8)
+        ax.grid(axis="y", linestyle="--", alpha=0.4)
+        ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    path = out_dir / "fig7_cost.png"
     plt.savefig(path, dpi=150)
     plt.close()
     print(f"  Saved: {path}")
@@ -799,8 +1363,8 @@ def main():
         help="Root directory to scan for result .txt files (default: results/)",
     )
     parser.add_argument(
-        "--output-dir", default="TCC/artifacts/phase4/analysis",
-        help="Directory for CSV, summary, and plots (default: TCC/artifacts/phase4/analysis)",
+        "--output-dir", default="TCC/artifacts/phase5/analysis",
+        help="Directory for CSV, summary, and plots (default: TCC/artifacts/phase5/analysis)",
     )
     args = parser.parse_args()
 
@@ -826,12 +1390,16 @@ def main():
     save_summary_markdown(df, out_dir)
 
     print("Generating plots...")
-    plot_wall_time(df, plots_dir)
-    plot_mana_overhead(df, plots_dir)
-    plot_recovery_phases(df, plots_dir)
-    plot_scalability(df, plots_dir)
-    plot_cost(df, plots_dir)
-    plot_strategy_comparison(df, plots_dir)
+    plot_mana_overhead(df, plots_dir)      # fig1: noFT vs MANA-noFT
+    plot_synth_calls(df, plots_dir)        # fig2: synth call frequency study
+    plot_synth_imbalanced(df, plots_dir)   # fig2b: communication imbalance study
+    plot_checkpoint_size(df, plots_dir)    # fig3: checkpoint size vs phase1 time
+    plot_timing_phases(df, plots_dir)         # fig4: full wall-time timeline by failure timing
+    plot_cg_short_job(df, plots_dir)         # fig5: CG short-job FT wall time
+    plot_mana_scalability(df, plots_dir)     # fig6: MANA overhead % vs worker count
+    plot_cost(df, plots_dir)                 # fig7: spot+FT vs on-demand cost
+    plot_strategy_comparison(df, plots_dir)  # fig8: REPLACE vs DEGRADED total time (winner)
+    plot_recovery_overhead_ratio(df, plots_dir)  # fig9: recovery overhead % by timing
 
     print(f"\nDone. Outputs in: {out_dir.resolve()}")
 
