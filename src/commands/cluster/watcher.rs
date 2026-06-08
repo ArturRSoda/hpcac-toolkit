@@ -811,6 +811,25 @@ exit 1"#,
         )
         .await?;
 
+    if let Err(e) = InterruptionEvent::new(
+        &cluster.id,
+        &node.id,
+        node_private_ip,
+        "node_became_idle",
+        Some(&format!("cycle_id={}", recovery_cycle_id)),
+    )
+    .insert(pool)
+    .await
+    {
+        watcher_warn(
+            progress,
+            &format!(
+                "[watcher][cycle={}] failed to persist node_became_idle event: {}",
+                recovery_cycle_id, e
+            ),
+        );
+    }
+
     let worker_hosts: Vec<String> = all_nodes
         .iter()
         .filter(|n| n.role == "worker")
@@ -969,6 +988,25 @@ async fn handle_policy_degraded_resume(
             Duration::from_secs(5),
         )
         .await?;
+
+    if let Err(e) = InterruptionEvent::new(
+        &cluster.id,
+        &node.id,
+        node_private_ip,
+        "node_became_idle",
+        Some(&format!("cycle_id={} | node marked DOWN for degraded resume", recovery_cycle_id)),
+    )
+    .insert(pool)
+    .await
+    {
+        watcher_warn(
+            progress,
+            &format!(
+                "[watcher][cycle={}] failed to persist node_became_idle event: {}",
+                recovery_cycle_id, e
+            ),
+        );
+    }
 
     let worker_hosts: Vec<String> = all_nodes
         .iter()
@@ -1423,8 +1461,8 @@ async fn respawn_worker_with_retry(
 /// success — we need the instance fully gone so AWS releases the static private IP / NIC
 /// before we attempt to respawn a replacement at the same address.
 ///
-/// Every 60 s we send another `terminate-instances` call as a nudge, which helps instances
-/// that get stuck in the `shutting-down` phase (e.g. due to slow EFS unmount).
+/// Every 15 s we resend a `terminate-instances` call as a nudge, in case the instance
+/// gets stuck in the `shutting-down` phase (e.g. due to slow EFS unmount).
 async fn wait_for_instance_to_terminate(
     context: &AwsClusterContext,
     node_index: usize,
@@ -1446,8 +1484,8 @@ async fn wait_for_instance_to_terminate(
             );
         }
 
-        // Send a nudge terminate call every 30 s to unstick instances that linger in shutting-down.
-        if elapsed >= last_nudge_elapsed + Duration::from_secs(60) {
+        // Send a nudge terminate call every 15 s to unstick instances that linger in shutting-down.
+        if elapsed >= last_nudge_elapsed + Duration::from_secs(15) {
             last_nudge_elapsed = elapsed;
             if let Some(instance_id) = expected_instance_id {
                 let _ = context

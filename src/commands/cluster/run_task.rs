@@ -421,6 +421,34 @@ pub async fn run_task(
 ) -> Result<()> {
     info!("Invoked `run_tasks` command...");
 
+    info!("Parsing contents of `tasks_config.yaml` file...");
+    let path = Path::new(yaml_file_path);
+    let tasks_yaml_str: String = match fs::read_to_string(path) {
+        Ok(result) => {
+            info!("Successfully read file: '{}'", yaml_file_path);
+            result
+        }
+        Err(e) => {
+            error!("{}", e.to_string());
+            bail!("Failed to read file '{}'", yaml_file_path)
+        }
+    };
+
+    let tasks_yaml: TasksYaml = match serde_yaml::from_str(&tasks_yaml_str) {
+        Ok(result) => {
+            info!("Parsed tasks yaml file successfully");
+            result
+        }
+        Err(e) => {
+            error!("{}", e.to_string());
+            bail!(
+                "Failed to parse yaml file: '{}': {:?}",
+                yaml_file_path,
+                e.to_string()
+            )
+        }
+    };
+
     // Prepare report file
     let mut report_dir = PathBuf::from("results");
     report_dir.push(format!("cluster_{}", cluster_id));
@@ -430,9 +458,12 @@ pub async fn run_task(
         bail!("FileSystem error: {}", e);
     }
 
+    let first_task_tag = tasks_yaml.tasks.first()
+        .map(|t| t.task_tag.as_str())
+        .unwrap_or("unknown");
     let timestamp = Local::now().format("%Y-%m-%dT%H:%M:%S");
-    let filename = format!("{}.txt", timestamp);
-    let report_path = report_dir.join(&filename);
+    let filename_base = format!("{}_{}", first_task_tag, timestamp);
+    let report_path = report_dir.join(format!("{}.txt", &filename_base));
 
     // Open file in Append/Create mode
     let mut report_file = match OpenOptions::new()
@@ -464,34 +495,6 @@ pub async fn run_task(
             }
         })
     }
-
-    info!("Parsing contents of `tasks_config.yaml` file...");
-    let path = Path::new(yaml_file_path);
-    let tasks_yaml_str: String = match fs::read_to_string(path) {
-        Ok(result) => {
-            info!("Successfully read file: '{}'", yaml_file_path);
-            result
-        }
-        Err(e) => {
-            error!("{}", e.to_string());
-            bail!("Failed to read file '{}'", yaml_file_path)
-        }
-    };
-
-    let tasks_yaml: TasksYaml = match serde_yaml::from_str(&tasks_yaml_str) {
-        Ok(result) => {
-            info!("Parsed tasks yaml file successfully");
-            result
-        }
-        Err(e) => {
-            error!("{}", e.to_string());
-            bail!(
-                "Failed to parse yaml file: '{}': {:?}",
-                yaml_file_path,
-                e.to_string()
-            )
-        }
-    };
 
     if let Some(ft) = &tasks_yaml.fault_tolerance {
         match ft.strategy.as_str() {
@@ -1340,6 +1343,73 @@ pub async fn run_task(
             if let Some(t) = auto_trigger_secs {
                 log_report!("auto_failure_trigger_secs={}\n", t);
             }
+            if is_ft_active(&tasks_yaml.fault_tolerance) {
+                let cluster_id_ref = cluster.id.as_str();
+                let run_started_ref = run_started_at.as_str();
+                if let Ok(phase_rows) = sqlx::query!(
+                    r#"
+                    SELECT event_type as "event_type!", occurred_at as "occurred_at!"
+                    FROM interruption_events
+                    WHERE cluster_id = ?
+                      AND occurred_at >= ?
+                    ORDER BY occurred_at ASC
+                    "#,
+                    cluster_id_ref,
+                    run_started_ref,
+                )
+                .fetch_all(pool)
+                .await
+                {
+                    let get_phase_ts = |target: &str| -> Option<String> {
+                        phase_rows.iter()
+                            .find(|r| r.event_type == target)
+                            .map(|r| r.occurred_at.clone())
+                    };
+                    let t_detected     = get_phase_ts("interruption_detected");
+                    let t_checkpoint   = get_phase_ts("checkpoint_completed");
+                    let t_node_drained = get_phase_ts("node_drained");
+                    let t_node_idle    = get_phase_ts("node_became_idle");
+                    let t_dispatched   = get_phase_ts("restart_dispatched");
+                    let t_terminal    = get_phase_ts("recovery_completed")
+                        .or_else(|| get_phase_ts("degraded_resume"))
+                        .or_else(|| get_phase_ts("no_workers_remaining"))
+                        .or_else(|| get_phase_ts("recovery_failed"));
+                    if let (Some(t1), Some(t2)) = (&t_detected, &t_checkpoint) {
+                        if let Some(d) = phase_duration_secs(t1, t2) {
+                            log_report!("phase1_s={:.3}\n", d);
+                        }
+                    }
+                    if let (Some(t_ckpt), Some(t_disp)) = (&t_checkpoint, &t_dispatched) {
+                        if let Some(total) = phase_duration_secs(t_ckpt, t_disp) {
+                            log_report!("phase2_s={:.3}\n", total);
+                        }
+                        // phase2a: checkpoint → node_drained (drain+scancel, identical for both)
+                        let phase2a = t_node_drained.as_ref()
+                            .and_then(|td| phase_duration_secs(t_ckpt, td));
+                        // phase2b: node_drained → node_became_idle (EC2 provisioning, replace only; 0 for degraded)
+                        let phase2b = t_node_drained.as_ref()
+                            .and_then(|td| t_node_idle.as_ref()
+                                .and_then(|ti| phase_duration_secs(td, ti)));
+                        // phase2c: Slurm reconfiguration + dispatch (both strategies)
+                        //   replace:  node_became_idle → dispatched
+                        //   degraded: node_drained     → dispatched
+                        let phase2c_start = t_node_idle.as_ref()
+                            .or(t_node_drained.as_ref());
+                        let phase2c = phase2c_start
+                            .and_then(|t| phase_duration_secs(t, t_disp));
+                        log_report!("phase2a_s={:.3}\n", phase2a.unwrap_or(0.0));
+                        log_report!("phase2b_s={:.3}\n", phase2b.unwrap_or(0.0));
+                        if let Some(c) = phase2c {
+                            log_report!("phase2c_s={:.3}\n", c);
+                        }
+                    }
+                    if let (Some(t1), Some(t2)) = (&t_dispatched, &t_terminal) {
+                        if let Some(d) = phase_duration_secs(t1, t2) {
+                            log_report!("phase3_s={:.3}\n", d);
+                        }
+                    }
+                }
+            }
             log_report!("status=SUCCESS\n");
             log_report!("[/RUN_METRICS]\n\n");
         }
@@ -1450,10 +1520,12 @@ pub async fn run_task(
                         .map(|(ts, _, _, _)| ts.clone())
                 };
 
-                let t_detected   = get_ts("interruption_detected");
-                let t_checkpoint = get_ts("checkpoint_completed");
-                let t_dispatched = get_ts("restart_dispatched");
-                let t_terminal   = get_ts("recovery_completed")
+                let t_detected    = get_ts("interruption_detected");
+                let t_checkpoint  = get_ts("checkpoint_completed");
+                let t_node_drained = get_ts("node_drained");
+                let t_node_idle   = get_ts("node_became_idle");
+                let t_dispatched  = get_ts("restart_dispatched");
+                let t_terminal    = get_ts("recovery_completed")
                     .or_else(|| get_ts("degraded_resume"))
                     .or_else(|| get_ts("no_workers_remaining"))
                     .or_else(|| get_ts("recovery_failed"));
@@ -1469,12 +1541,39 @@ pub async fn run_task(
                     }
                 }
 
-                if let (Some(t1), Some(t2)) = (&t_checkpoint, &t_dispatched) {
-                    if let Some(d) = phase_duration_secs(t1, t2) {
+                if let (Some(t_ckpt), Some(t_disp)) = (&t_checkpoint, &t_dispatched) {
+                    if let Some(d) = phase_duration_secs(t_ckpt, t_disp) {
                         log_report!(
                             "    checkpoint_completed   ->  restart_dispatched    : {:>8.1} s  (node recovery + dispatch)\n",
                             d
                         );
+                    }
+                    if let Some(td) = &t_node_drained {
+                        if let Some(d2a) = phase_duration_secs(t_ckpt, td) {
+                            log_report!(
+                                "      checkpoint_completed ->  node_drained         : {:>8.1} s  (phase2a: drain + scancel)\n",
+                                d2a
+                            );
+                        }
+                        if let Some(ti) = &t_node_idle {
+                            if let Some(d2b) = phase_duration_secs(td, ti) {
+                                log_report!(
+                                    "      node_drained         ->  node_became_idle     : {:>8.1} s  (phase2b: node Slurm reconfiguration)\n",
+                                    d2b
+                                );
+                            }
+                            if let Some(d2c) = phase_duration_secs(ti, t_disp) {
+                                log_report!(
+                                    "      node_became_idle     ->  restart_dispatched   : {:>8.1} s  (phase2c: restart dispatch)\n",
+                                    d2c
+                                );
+                            }
+                        } else if let Some(d2c) = phase_duration_secs(td, t_disp) {
+                            log_report!(
+                                "      node_drained         ->  restart_dispatched   : {:>8.1} s  (phase2c: restart dispatch)\n",
+                                d2c
+                            );
+                        }
                     }
                 } else if t_checkpoint.is_some() && t_dispatched.is_none() {
                     log_report!(
@@ -1524,9 +1623,24 @@ pub async fn run_task(
                         log_report!("  phase1_detection_to_checkpoint_s={:.3}\n", d);
                     }
                 }
-                if let (Some(t1), Some(t2)) = (&t_checkpoint, &t_dispatched) {
-                    if let Some(d) = phase_duration_secs(t1, t2) {
+                if let (Some(t_ckpt), Some(t_disp)) = (&t_checkpoint, &t_dispatched) {
+                    if let Some(d) = phase_duration_secs(t_ckpt, t_disp) {
                         log_report!("  phase2_checkpoint_to_dispatch_s={:.3}\n", d);
+                    }
+                    // phase2a: checkpoint → node_drained (drain+scancel, identical for both)
+                    let phase2a = t_node_drained.as_ref()
+                        .and_then(|td| phase_duration_secs(t_ckpt, td));
+                    // phase2b: node_drained → node_became_idle (EC2 provisioning, replace only; 0 for degraded)
+                    let phase2b = t_node_drained.as_ref()
+                        .and_then(|td| t_node_idle.as_ref()
+                            .and_then(|ti| phase_duration_secs(td, ti)));
+                    // phase2c: Slurm reconfiguration + dispatch (both strategies)
+                    let phase2c_start = t_node_idle.as_ref().or(t_node_drained.as_ref());
+                    let phase2c = phase2c_start.and_then(|t| phase_duration_secs(t, t_disp));
+                    log_report!("  phase2a_s={:.3}\n", phase2a.unwrap_or(0.0));
+                    log_report!("  phase2b_s={:.3}\n", phase2b.unwrap_or(0.0));
+                    if let Some(c) = phase2c {
+                        log_report!("  phase2c_s={:.3}\n", c);
                     }
                 }
                 if let (Some(t1), Some(t2)) = (&t_dispatched, &t_terminal) {
@@ -1565,10 +1679,15 @@ pub async fn run_task(
         handle.abort();
     }
 
-    info!("Result report saved at '{:?}'", report_path);
+    let success_path = report_dir.join(format!("{}_SUCCESS.txt", filename_base));
+    if let Err(e) = fs::rename(&report_path, &success_path) {
+        error!("Failed to rename result file to SUCCESS: {}", e);
+    }
+
+    info!("Result report saved at '{:?}'", success_path);
     println!(
         "All logs and results were saved at '{}'",
-        report_path.display()
+        success_path.display()
     );
 
     Ok(())
