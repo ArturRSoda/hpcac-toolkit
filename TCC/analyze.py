@@ -408,7 +408,7 @@ def save_summary_markdown(df: pd.DataFrame, out_dir: Path):
         "phase3_s", "recovery_total_s",
         "run_cost_usd", "auto_failure_trigger_secs",
     ]
-    group_cols = ["benchmark", "class", "config_workers", "strategy"]
+    group_cols = ["benchmark", "class", "config_workers", "strategy", "timing_pct"]
 
     agg = {}
     for col in numeric_cols:
@@ -540,17 +540,22 @@ def plot_mana_overhead(df: pd.DataFrame, out_dir: Path):
         x = np.arange(len(worker_counts))
         bar_w = 0.35
 
-        noft_vals, mana_vals = [], []
+        noft_vals, noft_stds = [], []
+        mana_vals, mana_stds = [], []
         for w in worker_counts:
-            noft = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]["ft_wall_time_s"]
-            mana = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]["ft_wall_time_s"]
-            noft_vals.append(noft.mean() if len(noft) else np.nan)
-            mana_vals.append(mana.mean() if len(mana) else np.nan)
+            noft_rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]
+            mana_rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]
+            nm, ns = _mean_std(noft_rows, "ft_wall_time_s")
+            mm, ms = _mean_std(mana_rows, "ft_wall_time_s")
+            noft_vals.append(nm); noft_stds.append(ns)
+            mana_vals.append(mm); mana_stds.append(ms)
 
-        ax.bar(x - bar_w / 2, noft_vals, bar_w,
-               label="noFT (native MPI)", color=STRATEGY_COLOR[STRATEGY_KEY_NONE])
-        ax.bar(x + bar_w / 2, mana_vals, bar_w,
-               label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE])
+        ax.bar(x - bar_w / 2, noft_vals, bar_w, yerr=noft_stds, capsize=3,
+               label="noFT (native MPI)", color=STRATEGY_COLOR[STRATEGY_KEY_NONE],
+               error_kw={"elinewidth": 1, "ecolor": "black"})
+        ax.bar(x + bar_w / 2, mana_vals, bar_w, yerr=mana_stds, capsize=3,
+               label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE],
+               error_kw={"elinewidth": 1, "ecolor": "black"})
 
         for i, (noft, mana) in enumerate(zip(noft_vals, mana_vals)):
             if not (np.isnan(noft) or np.isnan(mana)) and noft > 0:
@@ -604,17 +609,22 @@ def plot_synth_calls(df: pd.DataFrame, out_dir: Path):
         x = np.arange(len(levels))
         bar_w = 0.35
 
-        noft_vals, mana_vals = [], []
+        noft_vals, noft_stds = [], []
+        mana_vals, mana_stds = [], []
         for lvl in levels:
-            noft = sub[(sub["synth_level"] == lvl) & (sub["strategy"] == STRATEGY_KEY_NONE)]["ft_wall_time_s"]
-            mana = sub[(sub["synth_level"] == lvl) & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]["ft_wall_time_s"]
-            noft_vals.append(noft.mean() if len(noft) else np.nan)
-            mana_vals.append(mana.mean() if len(mana) else np.nan)
+            noft_rows = sub[(sub["synth_level"] == lvl) & (sub["strategy"] == STRATEGY_KEY_NONE)]
+            mana_rows = sub[(sub["synth_level"] == lvl) & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]
+            nm, ns = _mean_std(noft_rows, "ft_wall_time_s")
+            mm, ms = _mean_std(mana_rows, "ft_wall_time_s")
+            noft_vals.append(nm); noft_stds.append(ns)
+            mana_vals.append(mm); mana_stds.append(ms)
 
-        ax.bar(x - bar_w / 2, noft_vals, bar_w,
-               label="noFT", color=STRATEGY_COLOR[STRATEGY_KEY_NONE])
-        ax.bar(x + bar_w / 2, mana_vals, bar_w,
-               label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE])
+        ax.bar(x - bar_w / 2, noft_vals, bar_w, yerr=noft_stds, capsize=3,
+               label="noFT", color=STRATEGY_COLOR[STRATEGY_KEY_NONE],
+               error_kw={"elinewidth": 1, "ecolor": "black"})
+        ax.bar(x + bar_w / 2, mana_vals, bar_w, yerr=mana_stds, capsize=3,
+               label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE],
+               error_kw={"elinewidth": 1, "ecolor": "black"})
 
         # Annotate overhead on each MANA bar
         for i, (noft, mana) in enumerate(zip(noft_vals, mana_vals)):
@@ -669,19 +679,22 @@ def plot_synth_imbalanced(df: pd.DataFrame, out_dir: Path):
                  "MPI_Irecv + MPI_Wait with controlled sender delay — MANA overhead stays flat",
                  fontsize=11)
 
-    noft_vals, mana_vals = [], []
+    noft_vals, noft_stds = [], []
+    mana_vals, mana_stds = [], []
     for lvl in levels:
-        noft = imb_df[(imb_df["synth_level"] == lvl) &
-                      (imb_df["strategy"] == STRATEGY_KEY_NONE)]["ft_wall_time_s"]
-        mana = imb_df[(imb_df["synth_level"] == lvl) &
-                      (imb_df["strategy"] == STRATEGY_KEY_MANA_NONE)]["ft_wall_time_s"]
-        noft_vals.append(noft.mean() if len(noft) else np.nan)
-        mana_vals.append(mana.mean() if len(mana) else np.nan)
+        noft_rows = imb_df[(imb_df["synth_level"] == lvl) & (imb_df["strategy"] == STRATEGY_KEY_NONE)]
+        mana_rows = imb_df[(imb_df["synth_level"] == lvl) & (imb_df["strategy"] == STRATEGY_KEY_MANA_NONE)]
+        nm, ns = _mean_std(noft_rows, "ft_wall_time_s")
+        mm, ms = _mean_std(mana_rows, "ft_wall_time_s")
+        noft_vals.append(nm); noft_stds.append(ns)
+        mana_vals.append(mm); mana_stds.append(ms)
 
-    ax.bar(x - bar_w / 2, noft_vals, bar_w,
-           label="noFT (native)", color=STRATEGY_COLOR[STRATEGY_KEY_NONE])
-    ax.bar(x + bar_w / 2, mana_vals, bar_w,
-           label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE])
+    ax.bar(x - bar_w / 2, noft_vals, bar_w, yerr=noft_stds, capsize=3,
+           label="noFT (native)", color=STRATEGY_COLOR[STRATEGY_KEY_NONE],
+           error_kw={"elinewidth": 1, "ecolor": "black"})
+    ax.bar(x + bar_w / 2, mana_vals, bar_w, yerr=mana_stds, capsize=3,
+           label="MANA (no failure)", color=STRATEGY_COLOR[STRATEGY_KEY_MANA_NONE],
+           error_kw={"elinewidth": 1, "ecolor": "black"})
 
     for i, (noft, mana) in enumerate(zip(noft_vals, mana_vals)):
         if not (np.isnan(noft) or np.isnan(mana)):
@@ -769,10 +782,21 @@ def _fv(row, key):
         return 0.0
 
 
+def _mean_std(rows, col):
+    """Return (mean, std) for col across rows. std=0 if only one sample."""
+    vals = rows[col].dropna()
+    if len(vals) == 0:
+        return np.nan, 0.0
+    m = float(vals.mean())
+    s = float(vals.std(ddof=1)) if len(vals) > 1 else 0.0
+    return m, s
+
+
 def _draw_phase_bars(ax, px, p0_a, p1_a, slurm_a, p2b_a, p3_a,
-                     strat_for_bar, show_legend):
+                     strat_for_bar, show_legend, total_stds=None):
     """
     Draw 5-segment stacked bars on ax and annotate totals.
+    If total_stds is provided (array same length as px), error bars are drawn on totals.
     Segments (bottom to top):
       P0    (teal)   — pre-failure computation
       P1    (blue)   — checkpoint write
@@ -799,8 +823,15 @@ def _draw_phase_bars(ax, px, p0_a, p1_a, slurm_a, p2b_a, p3_a,
     ax.bar(px, p3_a,    0.32, bottom=b4,                       color=COLOR_P3,    label=lbl(True, "P3 — remaining computation"))
 
     totals = b4 + p3_a
+
+    # Error bars on total height (±1σ across runs)
+    if total_stds is not None:
+        for pos, total, std in zip(px, totals, total_stds):
+            if std > 0:
+                ax.errorbar(pos, total, yerr=std, fmt="none",
+                            color="black", capsize=3, linewidth=1, zorder=5)
+
     for pos, total in zip(px, totals):
-        # Annotate inside the bar near the top so adjacent shorter bars never obscure it
         y_txt = max(total * 0.96, total - 3)
         ax.text(pos, y_txt, f"{total:.0f}s",
                 ha="center", va="top", fontsize=6.5,
@@ -869,24 +900,27 @@ def plot_timing_phases(df: pd.DataFrame, out_dir: Path):
 
             positions, group_ticks, group_xlbls = [], [], []
             p0_v, p1_v, slurm_v, p2b_v, p3_v   = [], [], [], [], []
+            total_stds_v = []
             strat_for_bar = []
 
             base_x = 0.0
             for pct in pcts:
                 has_any = False
                 for bi, s in enumerate([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]):
-                    row = sub[(sub["strategy"] == s) & (sub["timing_pct"] == pct)]
-                    if row.empty:
+                    rows = sub[(sub["strategy"] == s) & (sub["timing_pct"] == pct)]
+                    if rows.empty:
                         continue
                     has_any = True
-                    r   = row.iloc[0]
                     positions.append(base_x + bi * (bar_w + bar_gap))
                     strat_for_bar.append(s)
-                    p0_v.append(_fv(r, "phase0_s"))
-                    p1_v.append(_fv(r, "phase1_s"))
-                    slurm_v.append(_fv(r, "phase2a_s") + _fv(r, "phase2c_s"))
-                    p2b_v.append(_fv(r, "phase2b_s"))
-                    p3_v.append(_fv(r, "phase3_s"))
+                    p0_v.append(_mean_std(rows, "phase0_s")[0])
+                    p1_v.append(_mean_std(rows, "phase1_s")[0])
+                    p2a_m = _mean_std(rows, "phase2a_s")[0]
+                    p2c_m = _mean_std(rows, "phase2c_s")[0]
+                    slurm_v.append((p2a_m or 0.0) + (p2c_m or 0.0))
+                    p2b_v.append(_mean_std(rows, "phase2b_s")[0])
+                    p3_v.append(_mean_std(rows, "phase3_s")[0])
+                    total_stds_v.append(_mean_std(rows, "ft_wall_time_s")[1])
                 if has_any:
                     group_ticks.append(base_x + (bar_w + bar_gap) / 2)
                     group_xlbls.append(f"Failure\nat {pct}%")
@@ -896,12 +930,12 @@ def plot_timing_phases(df: pd.DataFrame, out_dir: Path):
                 ax.set_visible(False)
                 continue
 
-            show_legend = ri == 0 and ci == len(worker_counts) - 1
             _draw_phase_bars(
                 ax, np.array(positions),
                 np.array(p0_v), np.array(p1_v), np.array(slurm_v),
                 np.array(p2b_v), np.array(p3_v),
-                strat_for_bar, show_legend,
+                strat_for_bar, show_legend=True,
+                total_stds=np.array(total_stds_v),
             )
 
             bench_cls = "D" if bench == "EP" else "C"
@@ -911,12 +945,20 @@ def plot_timing_phases(df: pd.DataFrame, out_dir: Path):
             ax.set_ylabel("Wall time (s)", fontsize=8)
             ax.set_ylim(bottom=0)
             ax.grid(axis="y", linestyle="--", alpha=0.4)
-            if show_legend:
-                ax.legend(fontsize=7.5, loc="upper right", framealpha=0.9)
 
-    plt.tight_layout()
+    # Figure-level legend placed outside the grid to avoid covering bars
+    handles, labels = [], []
+    for ax in axes.flat:
+        for h, l in zip(*ax.get_legend_handles_labels()):
+            if l not in labels and not l.startswith("_"):
+                handles.append(h); labels.append(l)
+    if handles:
+        fig.legend(handles, labels, fontsize=7.5, loc="upper right",
+                   bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
+
+    plt.tight_layout(rect=[0, 0, 0.82, 0.96])
     path = out_dir / "fig4_timing_phases.png"
-    plt.savefig(path, dpi=150)
+    plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  Saved: {path}")
 
@@ -953,24 +995,27 @@ def plot_cg_short_job(df: pd.DataFrame, out_dir: Path):
 
     positions, group_ticks, group_xlbls = [], [], []
     p0_v, p1_v, slurm_v, p2b_v, p3_v   = [], [], [], [], []
+    total_stds_v = []
     strat_for_bar = []
 
     base_x = 0.0
     for w in worker_counts:
         has_any = False
         for bi, s in enumerate([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]):
-            row = cg_df[(cg_df["config_workers"] == w) & (cg_df["strategy"] == s)]
-            if row.empty:
+            rows = cg_df[(cg_df["config_workers"] == w) & (cg_df["strategy"] == s)]
+            if rows.empty:
                 continue
             has_any = True
-            r = row.iloc[0]
             positions.append(base_x + bi * (bar_w + bar_gap))
             strat_for_bar.append(s)
-            p0_v.append(_fv(r, "phase0_s"))
-            p1_v.append(_fv(r, "phase1_s"))
-            slurm_v.append(_fv(r, "phase2a_s") + _fv(r, "phase2c_s"))
-            p2b_v.append(_fv(r, "phase2b_s"))
-            p3_v.append(_fv(r, "phase3_s"))
+            p0_v.append(_mean_std(rows, "phase0_s")[0])
+            p1_v.append(_mean_std(rows, "phase1_s")[0])
+            p2a_m = _mean_std(rows, "phase2a_s")[0]
+            p2c_m = _mean_std(rows, "phase2c_s")[0]
+            slurm_v.append((p2a_m or 0.0) + (p2c_m or 0.0))
+            p2b_v.append(_mean_std(rows, "phase2b_s")[0])
+            p3_v.append(_mean_std(rows, "phase3_s")[0])
+            total_stds_v.append(_mean_std(rows, "ft_wall_time_s")[1])
         if has_any:
             group_ticks.append(base_x + (bar_w + bar_gap) / 2)
             group_xlbls.append(f"{w} workers")
@@ -985,6 +1030,7 @@ def plot_cg_short_job(df: pd.DataFrame, out_dir: Path):
         np.array(p0_v), np.array(p1_v), np.array(slurm_v),
         np.array(p2b_v), np.array(p3_v),
         strat_for_bar, show_legend=True,
+        total_stds=np.array(total_stds_v),
     )
 
     ax.set_xticks(group_ticks)
@@ -992,11 +1038,15 @@ def plot_cg_short_job(df: pd.DataFrame, out_dir: Path):
     ax.set_ylabel("Wall time (s)", fontsize=9)
     ax.set_ylim(bottom=0)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
-    ax.legend(fontsize=8, loc="upper right", framealpha=0.9)
 
-    plt.tight_layout()
+    # Legend outside the axes to avoid covering bars
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, fontsize=8, loc="upper right",
+               bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
+
+    plt.tight_layout(rect=[0, 0, 0.78, 1])
     path = out_dir / "fig5_cg_short_job.png"
-    plt.savefig(path, dpi=150)
+    plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  Saved: {path}")
 
@@ -1037,17 +1087,21 @@ def plot_mana_scalability(df: pd.DataFrame, out_dir: Path):
         workers_sorted = sorted(sub["config_workers"].unique())
 
         for s, style in strat_lines:
-            xs, ys = [], []
+            xs, ys, y_stds = [], [], []
             for w in workers_sorted:
-                row = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
-                if row.empty:
+                rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
+                if rows.empty:
                     continue
-                xs.append(w)
-                ys.append(float(row["ft_wall_time_s"].iloc[0]))
+                m, sd = _mean_std(rows, "ft_wall_time_s")
+                xs.append(w); ys.append(m); y_stds.append(sd)
             if not xs:
                 continue
             ax.plot(xs, ys, color=_color(s), linewidth=2, markersize=8,
                     linestyle=style["ls"], marker=style["marker"], label=_label(s))
+            ax.fill_between(xs,
+                            [y - s for y, s in zip(ys, y_stds)],
+                            [y + s for y, s in zip(ys, y_stds)],
+                            alpha=0.15, color=_color(s))
             for x, y in zip(xs, ys):
                 ax.annotate(f"{y:.1f}s", (x, y),
                             textcoords="offset points", xytext=(0, 8),
@@ -1118,28 +1172,31 @@ def plot_strategy_comparison(df: pd.DataFrame, out_dir: Path):
             mana_sub = mana_df[
                 (mana_df["benchmark"] == bench) & (mana_df["config_workers"] == workers)
             ]
-            t_mana = float(mana_sub["ft_wall_time_s"].iloc[0]) if not mana_sub.empty else None
+            t_mana, t_mana_std = _mean_std(mana_sub, "ft_wall_time_s") if not mana_sub.empty else (None, 0.0)
 
             positions, group_ticks, group_xlbls = [], [], []
-            totals, strat_for_bar = [], []
+            totals, total_stds_v, strat_for_bar = [], [], []
 
             base_x = 0.0
             for pct in pcts:
-                rep_row = ft_sub[(ft_sub["strategy"] == STRATEGY_KEY_REPLACE) & (ft_sub["timing_pct"] == pct)]
-                deg_row = ft_sub[(ft_sub["strategy"] == STRATEGY_KEY_DEGRADED) & (ft_sub["timing_pct"] == pct)]
+                rep_rows = ft_sub[(ft_sub["strategy"] == STRATEGY_KEY_REPLACE) & (ft_sub["timing_pct"] == pct)]
+                deg_rows = ft_sub[(ft_sub["strategy"] == STRATEGY_KEY_DEGRADED) & (ft_sub["timing_pct"] == pct)]
+                rep_m, rep_s = _mean_std(rep_rows, "ft_wall_time_s") if not rep_rows.empty else (None, 0.0)
+                deg_m, deg_s = _mean_std(deg_rows, "ft_wall_time_s") if not deg_rows.empty else (None, 0.0)
 
                 entries = [
-                    (STRATEGY_KEY_MANA_NONE, t_mana),
-                    (STRATEGY_KEY_REPLACE,   float(rep_row["ft_wall_time_s"].iloc[0]) if not rep_row.empty else None),
-                    (STRATEGY_KEY_DEGRADED,  float(deg_row["ft_wall_time_s"].iloc[0]) if not deg_row.empty else None),
+                    (STRATEGY_KEY_MANA_NONE, t_mana,  t_mana_std),
+                    (STRATEGY_KEY_REPLACE,   rep_m,   rep_s),
+                    (STRATEGY_KEY_DEGRADED,  deg_m,   deg_s),
                 ]
-                has_any = any(t is not None for _, t in entries)
-                for bi, (s, t) in enumerate(entries):
+                has_any = any(t is not None for _, t, _ in entries)
+                for bi, (s, t, sd) in enumerate(entries):
                     if t is None:
                         continue
                     positions.append(base_x + bi * (bar_w + bar_gap))
                     strat_for_bar.append(s)
                     totals.append(t)
+                    total_stds_v.append(sd)
 
                 if has_any:
                     group_ticks.append(base_x + bar_w + bar_gap + bar_w / 2)
@@ -1150,11 +1207,13 @@ def plot_strategy_comparison(df: pd.DataFrame, out_dir: Path):
                 ax.set_visible(False)
                 continue
 
-            for pos, s, total in zip(positions, strat_for_bar, totals):
+            for pos, s, total, sd in zip(positions, strat_for_bar, totals, total_stds_v):
                 lbl = _label(s) if s not in seen_labels else "_"
                 seen_labels.add(s)
-                ax.bar(pos, total, bar_w, color=_color(s), label=lbl)
-                ax.text(pos, total + 1, f"{total:.0f}s",
+                ax.bar(pos, total, bar_w, color=_color(s), label=lbl,
+                       yerr=sd if sd > 0 else None, capsize=3,
+                       error_kw={"elinewidth": 1, "ecolor": "black"})
+                ax.text(pos, total + (sd or 0) + 1, f"{total:.0f}s",
                         ha="center", va="bottom", fontsize=6, rotation=45)
 
             bench_cls = "D" if bench == "EP" else "C"
@@ -1228,19 +1287,26 @@ def plot_recovery_overhead_ratio(df: pd.DataFrame, out_dir: Path):
                 (timing_df["config_workers"] == workers)
             ]
 
-            xs, rep_ys, deg_ys = [], [], []
+            xs = []
+            rep_ys, rep_bands = [], []
+            deg_ys, deg_bands = [], []
             for pct in pcts:
-                rep_row = sub[(sub["strategy"] == STRATEGY_KEY_REPLACE) & (sub["timing_pct"] == pct)]
-                deg_row = sub[(sub["strategy"] == STRATEGY_KEY_DEGRADED) & (sub["timing_pct"] == pct)]
-                if rep_row.empty or deg_row.empty:
+                rep_rows = sub[(sub["strategy"] == STRATEGY_KEY_REPLACE) & (sub["timing_pct"] == pct)]
+                deg_rows = sub[(sub["strategy"] == STRATEGY_KEY_DEGRADED) & (sub["timing_pct"] == pct)]
+                if rep_rows.empty or deg_rows.empty:
                     continue
                 xs.append(pct)
-                for row, lst in [(rep_row, rep_ys), (deg_row, deg_ys)]:
-                    r      = row.iloc[0]
-                    total  = float(r.get("ft_wall_time_s") or 1)
-                    p0     = _fv(r, "phase0_s")
-                    ratio  = (total - p0) / total * 100 if total > 0 else 0
-                    lst.append(ratio)
+                for rows, ys_list, band_list in [
+                    (rep_rows, rep_ys, rep_bands),
+                    (deg_rows, deg_ys, deg_bands),
+                ]:
+                    ratios = []
+                    for _, r in rows.iterrows():
+                        total = float(r.get("ft_wall_time_s") or 1)
+                        p0    = _fv(r, "phase0_s")
+                        ratios.append((total - p0) / total * 100 if total > 0 else 0)
+                    ys_list.append(float(np.mean(ratios)))
+                    band_list.append(float(np.std(ratios, ddof=1)) if len(ratios) > 1 else 0.0)
 
             if not xs:
                 ax.set_visible(False)
@@ -1249,8 +1315,14 @@ def plot_recovery_overhead_ratio(df: pd.DataFrame, out_dir: Path):
             show_legend = ri == 0 and ci == len(worker_counts) - 1
             ax.plot(xs, rep_ys, marker="o", color=COLOR_REP, linewidth=2,
                     markersize=8, label="REPLACE" if show_legend else "_")
+            ax.fill_between(xs, [y - s for y, s in zip(rep_ys, rep_bands)],
+                            [y + s for y, s in zip(rep_ys, rep_bands)],
+                            alpha=0.15, color=COLOR_REP)
             ax.plot(xs, deg_ys, marker="s", color=COLOR_DEG, linewidth=2,
                     markersize=8, label="DEGRADED" if show_legend else "_")
+            ax.fill_between(xs, [y - s for y, s in zip(deg_ys, deg_bands)],
+                            [y + s for y, s in zip(deg_ys, deg_bands)],
+                            alpha=0.15, color=COLOR_DEG)
 
             for x, y in zip(xs, rep_ys):
                 ax.annotate(f"{y:.0f}%", (x, y),
@@ -1325,25 +1397,31 @@ def plot_cost(df: pd.DataFrame, out_dir: Path):
                 labels  = ["noFT (on-demand)", "10% timing", "25% timing", "50% timing"]
                 colors  = [STRATEGY_COLOR[STRATEGY_KEY_NONE]] + strat_colors[strat]
 
-                datasets = []
+                datasets, err_datasets = [], []
                 # noFT
-                vals = []
+                vals, errs = [], []
                 for w in worker_counts:
-                    r = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]
-                    vals.append(float(r["run_cost_ondemand_usd"].iloc[0]) if not r.empty else np.nan)
-                datasets.append(vals)
+                    rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]
+                    m, s = _mean_std(rows, "run_cost_ondemand_usd")
+                    vals.append(m); errs.append(s)
+                datasets.append(vals); err_datasets.append(errs)
                 # FT timings
                 for t in timings:
-                    vals = []
+                    vals, errs = [], []
                     for w in worker_counts:
-                        r = sub[(sub["config_workers"] == w) & (sub["strategy"] == strat) &
-                                (sub["timing_pct"] == t)]
-                        vals.append(float(r["run_cost_usd"].iloc[0]) if not r.empty else np.nan)
-                    datasets.append(vals)
+                        rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == strat) &
+                                   (sub["timing_pct"] == t)]
+                        m, s = _mean_std(rows, "run_cost_usd")
+                        vals.append(m); errs.append(s)
+                    datasets.append(vals); err_datasets.append(errs)
 
-                for idx, (data, lbl, col, off) in enumerate(zip(datasets, labels, colors, offsets)):
+                for idx, (data, errs, lbl, col, off) in enumerate(
+                        zip(datasets, err_datasets, labels, colors, offsets)):
+                    yerr = [e if e > 0 else 0 for e in errs]
                     bars = ax.bar(x + off * bar_w, data, bar_w, label=lbl, color=col,
-                                  alpha=(0.85 if idx == 0 else 1.0))
+                                  alpha=(0.85 if idx == 0 else 1.0),
+                                  yerr=yerr if any(e > 0 for e in yerr) else None,
+                                  capsize=3, error_kw={"elinewidth": 1, "ecolor": "black"})
                     for bar, val in zip(bars, data):
                         if not np.isnan(val):
                             ax.annotate(f"${val:.3f}",
@@ -1357,20 +1435,22 @@ def plot_cost(df: pd.DataFrame, out_dir: Path):
                     (STRATEGY_KEY_NONE, STRATEGY_COLOR[STRATEGY_KEY_NONE], "noFT (on-demand)"),
                     (strat, strat_colors[strat][1], _label(strat) + " (spot)"),
                 ]):
-                    vals = []
+                    vals, errs = [], []
                     for w in worker_counts:
-                        r = sub[(sub["config_workers"] == w) & (sub["strategy"] == s) &
-                                (sub["timing_pct"].isna() if s != STRATEGY_KEY_NONE else pd.Series([True]*len(sub)))]
                         if s == STRATEGY_KEY_NONE:
-                            r2 = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
-                            vals.append(float(r2["run_cost_ondemand_usd"].iloc[0]) if not r2.empty else np.nan)
+                            rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
+                            m, sd = _mean_std(rows, "run_cost_ondemand_usd")
                         else:
-                            r2 = sub[(sub["config_workers"] == w) & (sub["strategy"] == s) &
-                                     sub["timing_pct"].isna()]
-                            vals.append(float(r2["run_cost_usd"].iloc[0]) if not r2.empty else np.nan)
+                            rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == s) &
+                                       sub["timing_pct"].isna()]
+                            m, sd = _mean_std(rows, "run_cost_usd")
+                        vals.append(m); errs.append(sd)
                     offset = (i - 0.5) * bar_w
+                    yerr = [e if e > 0 else 0 for e in errs]
                     bars = ax.bar(x + offset, vals, bar_w, label=lbl, color=col,
-                                  alpha=(0.85 if i == 0 else 1.0))
+                                  alpha=(0.85 if i == 0 else 1.0),
+                                  yerr=yerr if any(e > 0 for e in yerr) else None,
+                                  capsize=3, error_kw={"elinewidth": 1, "ecolor": "black"})
                     for bar, val in zip(bars, vals):
                         if not np.isnan(val):
                             ax.annotate(f"${val:.3f}",

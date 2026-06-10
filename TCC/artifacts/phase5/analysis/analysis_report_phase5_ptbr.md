@@ -105,7 +105,7 @@ if (rank < nprocs / 2) {
 | L3 | 12,800 | +4.3 s | +4.2 s |
 | L4 | 51,200 | +1.6 s | +2.7 s |
 
-**Descoberta:** O overhead do MANA é quase plano (~3 segundos) independente do número de chamadas e até diminui no L4. A quantidade de chamadas **não** é o que causa o atraso. A sobrecarga real vem dos custos iniciais de configuração da infraestrutura de checkpoint e não de interceptar cada comunicação individualmente.
+**Descoberta:** O overhead do MANA é quase plano (~4 segundos) independente do número de chamadas e até diminui no L4. A quantidade de chamadas **não** é o que causa o atraso. A sobrecarga real vem dos custos iniciais de configuração da infraestrutura de checkpoint e não de interceptar cada comunicação individualmente.
 
 ### 4.2 Estudo de Desequilíbrio de Comunicação
 **O que testamos:** Em programas reais (como CG e LU), usa-se `MPI_Irecv + MPI_Wait` em vez do bloqueante `MPI_Recv`. O `MPI_Irecv` posta uma requisição de recebimento e retorna imediatamente (não-bloqueante). O `MPI_Wait` depois bloqueia até a operação postada completar. A implementação interna do MANA para o `MPI_Wait` é um *loop* de giro contínuo (spin loop) — sem dormir, sem pausar:
