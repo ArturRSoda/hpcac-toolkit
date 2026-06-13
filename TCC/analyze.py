@@ -723,7 +723,8 @@ def plot_synth_imbalanced(df: pd.DataFrame, out_dir: Path):
 def plot_checkpoint_size(df: pd.DataFrame, out_dir: Path):
     """
     Fig 3: Phase 1 time vs checkpoint image size (memory per process).
-    Scatter + linear fit; shows how checkpoint write time scales with data volume.
+    Mean ± std error bars + linear fit on means; shows how checkpoint write
+    time scales with data volume across 3 repetitions per size.
     """
     ckpt_df = df[
         (df["benchmark"] == "SYNTH_CKPT") &
@@ -735,12 +736,23 @@ def plot_checkpoint_size(df: pd.DataFrame, out_dir: Path):
         print("  Skipping fig3 (no synth_ckpt data)")
         return
 
-    ckpt_df = ckpt_df.sort_values("synth_memory_mb")
-    xs = ckpt_df["synth_memory_mb"].values.astype(float)
-    ys = ckpt_df["phase1_s"].values.astype(float)
+    sizes = sorted(ckpt_df["synth_memory_mb"].unique())
+    xs, ys, y_errs = [], [], []
+    p2_ys, p2_errs = [], []
+    for mb in sizes:
+        rows = ckpt_df[ckpt_df["synth_memory_mb"] == mb]
+        m1, s1 = _mean_std(rows, "phase1_s")
+        m2, s2 = _mean_std(rows, "phase2_s")
+        xs.append(float(mb)); ys.append(m1); y_errs.append(s1)
+        p2_ys.append(m2); p2_errs.append(s2)
+
+    xs = np.array(xs, dtype=float)
+    ys = np.array(ys, dtype=float)
+    y_errs = np.array(y_errs, dtype=float)
 
     fig, ax = plt.subplots(figsize=(7, 5))
-    ax.scatter(xs, ys, color="#5B9BD5", s=90, zorder=5, label="measured Phase 1 time")
+    ax.errorbar(xs, ys, yerr=y_errs, fmt="o", color="#5B9BD5", markersize=9,
+                capsize=5, linewidth=1.5, zorder=5, label="Phase 1")
 
     if len(xs) >= 2:
         coeffs = np.polyfit(xs, ys, 1)
@@ -750,14 +762,14 @@ def plot_checkpoint_size(df: pd.DataFrame, out_dir: Path):
                 label=f"linear fit  slope = {coeffs[0]*1000:.2f} ms / MB  "
                       f"(intercept = {coeffs[1]:.1f} s)")
 
-    for x_pt, y_pt in zip(xs, ys):
-        ax.annotate(f"{int(x_pt)} MB", (x_pt, y_pt),
-                    textcoords="offset points", xytext=(8, 3), fontsize=9)
+    for x_pt, y_pt, y_e in zip(xs, ys, y_errs):
+        ax.annotate(f"{int(x_pt)} MB", (x_pt, y_pt + y_e),
+                    textcoords="offset points", xytext=(8, 4), fontsize=9)
 
     ax.set_xlabel("Memory allocated per MPI process (MB)")
-    ax.set_ylabel("Phase 1 time (s)  —  failure detected → checkpoint written to EFS")
+    ax.set_ylabel("Time (s)  —  failure detected → phase complete")
     ax.set_title("Synthetic checkpoint size study\n"
-                 "Phase 1 time scales with checkpoint image size")
+                 "Phase 1 time scales with checkpoint image size  (mean ±σ, N=3 per size)")
     ax.legend(fontsize=9)
     ax.grid(linestyle="--", alpha=0.4)
     ax.set_xlim(left=0)
@@ -1475,6 +1487,239 @@ def plot_cost(df: pd.DataFrame, out_dir: Path):
     print(f"  Saved: {path}")
 
 
+# ── Report tables ────────────────────────────────────────────────────────────
+
+def save_report_tables(df: pd.DataFrame, out_dir: Path):
+    """
+    Save all report tables (1–11) as CSV files in out_dir/tables/.
+    Each table is a self-contained DataFrame with mean and std columns.
+    """
+    tables_dir = out_dir / "tables"
+    tables_dir.mkdir(parents=True, exist_ok=True)
+
+    def _ms_cols(rows, col):
+        m, s = _mean_std(rows, col)
+        return m, s
+
+    # ── Table 1: MANA Overhead ───────────────────────────────────────────────
+    records = []
+    for bench in ["CG", "EP", "LU"]:
+        sub = df[df["benchmark"] == bench]
+        for w in sorted(sub["config_workers"].unique()):
+            noft = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]
+            mana = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]
+            nm, ns = _ms_cols(noft, "ft_wall_time_s")
+            mm, ms = _ms_cols(mana, "ft_wall_time_s")
+            if np.isnan(nm) or nm == 0:
+                continue
+            records.append({"benchmark": bench, "workers": w, "n": len(noft),
+                             "noft_mean_s": round(nm, 2), "noft_std_s": round(ns, 2),
+                             "mana_mean_s": round(mm, 2), "mana_std_s": round(ms, 2),
+                             "overhead_pct": round((mm - nm) / nm * 100, 1)})
+    pd.DataFrame(records).to_csv(tables_dir / "table01_mana_overhead.csv", index=False)
+
+    # ── Table 2: Strong Scaling ──────────────────────────────────────────────
+    records = []
+    for bench in ["CG", "EP", "LU"]:
+        sub = df[df["benchmark"] == bench]
+        for s in [STRATEGY_KEY_NONE, STRATEGY_KEY_MANA_NONE]:
+            for w in sorted(sub["config_workers"].unique()):
+                rows = sub[(sub["config_workers"] == w) & (sub["strategy"] == s)]
+                m, sd = _ms_cols(rows, "ft_wall_time_s")
+                records.append({"benchmark": bench, "strategy": s, "workers": w,
+                                 "n": len(rows), "wall_time_mean_s": round(m, 2),
+                                 "wall_time_std_s": round(sd, 2)})
+    pd.DataFrame(records).to_csv(tables_dir / "table02_strong_scaling.csv", index=False)
+
+    # ── Table 3: Synth Call Frequency ────────────────────────────────────────
+    call_counts_map = {0: 0, 1: 800, 2: 3200, 3: 12800, 4: 51200}
+    sc = df[df["benchmark"].isin(["SYNTH_CALLS", "SYNTH_P2P"]) & df["synth_level"].notna()]
+    records = []
+    for bench in ["SYNTH_CALLS", "SYNTH_P2P"]:
+        for lvl in sorted(sc["synth_level"].dropna().unique().astype(int)):
+            noft = sc[(sc["benchmark"] == bench) & (sc["synth_level"] == lvl)
+                      & (sc["strategy"] == STRATEGY_KEY_NONE)]
+            mana = sc[(sc["benchmark"] == bench) & (sc["synth_level"] == lvl)
+                      & (sc["strategy"] == STRATEGY_KEY_MANA_NONE)]
+            nm, ns = _ms_cols(noft, "ft_wall_time_s")
+            mm, ms = _ms_cols(mana, "ft_wall_time_s")
+            records.append({"benchmark": bench, "level": lvl,
+                             "mpi_calls": call_counts_map.get(lvl, "?"),
+                             "n": len(noft),
+                             "noft_mean_s": round(nm, 2), "noft_std_s": round(ns, 2),
+                             "mana_mean_s": round(mm, 2), "mana_std_s": round(ms, 2),
+                             "overhead_s": round(mm - nm, 2)})
+    pd.DataFrame(records).to_csv(tables_dir / "table03_synth_calls.csv", index=False)
+
+    # ── Table 4: Synth Imbalanced ────────────────────────────────────────────
+    delay_us_map = {0: 0, 1: 100, 2: 1000, 3: 5000, 4: 20000}
+    imb = df[(df["benchmark"] == "SYNTH_IMBALANCED") & df["synth_level"].notna()]
+    records = []
+    for lvl in sorted(imb["synth_level"].dropna().unique().astype(int)):
+        noft = imb[(imb["synth_level"] == lvl) & (imb["strategy"] == STRATEGY_KEY_NONE)]
+        mana = imb[(imb["synth_level"] == lvl) & (imb["strategy"] == STRATEGY_KEY_MANA_NONE)]
+        nm, ns = _ms_cols(noft, "ft_wall_time_s")
+        mm, ms = _ms_cols(mana, "ft_wall_time_s")
+        records.append({"level": lvl, "delay_us": delay_us_map.get(lvl, "?"),
+                         "n": len(noft),
+                         "noft_mean_s": round(nm, 2), "noft_std_s": round(ns, 2),
+                         "mana_mean_s": round(mm, 2), "mana_std_s": round(ms, 2),
+                         "overhead_s": round(mm - nm, 2)})
+    pd.DataFrame(records).to_csv(tables_dir / "table04_synth_imbalanced.csv", index=False)
+
+    # ── Table 5: SYNTH_CKPT Phase Times ─────────────────────────────────────
+    ckpt = df[(df["benchmark"] == "SYNTH_CKPT") & (df["strategy"] == STRATEGY_KEY_DEGRADED)
+              & df["synth_memory_mb"].notna()]
+    records = []
+    for mb in sorted(ckpt["synth_memory_mb"].unique()):
+        rows = ckpt[ckpt["synth_memory_mb"] == mb]
+        p1m, p1s = _ms_cols(rows, "phase1_s")
+        p2m, p2s = _ms_cols(rows, "phase2_s")
+        records.append({"memory_mb": int(mb), "n": len(rows),
+                         "phase1_mean_s": round(p1m, 2), "phase1_std_s": round(p1s, 2),
+                         "phase2_mean_s": round(p2m, 2), "phase2_std_s": round(p2s, 2)})
+    pd.DataFrame(records).to_csv(tables_dir / "table05_synth_ckpt.csv", index=False)
+
+    # ── Table 6: CG-C FT Breakdown ───────────────────────────────────────────
+    cg = df[(df["benchmark"] == "CG") &
+            df["strategy"].isin([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
+            df["timing_pct"].isna()]
+    records = []
+    for w in sorted(cg["config_workers"].unique()):
+        for s in [STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]:
+            rows = cg[(cg["config_workers"] == w) & (cg["strategy"] == s)]
+            if rows.empty:
+                continue
+            p0m, p0s = _ms_cols(rows, "phase0_s")
+            p1m, p1s = _ms_cols(rows, "phase1_s")
+            p2am, _ = _ms_cols(rows, "phase2a_s")
+            p2cm, _ = _ms_cols(rows, "phase2c_s")
+            slurm = round((p2am or 0.0) + (p2cm or 0.0), 2)
+            p2bm, p2bs = _ms_cols(rows, "phase2b_s")
+            p3m, p3s = _ms_cols(rows, "phase3_s")
+            tot_m, tot_s = _ms_cols(rows, "ft_wall_time_s")
+            records.append({"workers": w, "strategy": s, "n": len(rows),
+                             "p0_mean_s": round(p0m, 2) if not np.isnan(p0m) else None,
+                             "p1_mean_s": round(p1m, 2), "p1_std_s": round(p1s, 2),
+                             "slurm_p2a_p2c_mean_s": slurm,
+                             "p2b_mean_s": round(p2bm, 2), "p2b_std_s": round(p2bs, 2),
+                             "p3_mean_s": round(p3m, 2), "p3_std_s": round(p3s, 2),
+                             "total_mean_s": round(tot_m, 2), "total_std_s": round(tot_s, 2)})
+    pd.DataFrame(records).to_csv(tables_dir / "table06_cg_ft_breakdown.csv", index=False)
+
+    # ── Table 7: EP-D Total FT Wall Time ─────────────────────────────────────
+    ep = df[df["benchmark"] == "EP"]
+    records = []
+    for w in sorted(ep["config_workers"].unique()):
+        for pct in [10, 25, 50]:
+            rep = ep[(ep["config_workers"] == w) & (ep["strategy"] == STRATEGY_KEY_REPLACE)
+                     & (ep["timing_pct"] == pct)]
+            deg = ep[(ep["config_workers"] == w) & (ep["strategy"] == STRATEGY_KEY_DEGRADED)
+                     & (ep["timing_pct"] == pct)]
+            rm, rs = _ms_cols(rep, "ft_wall_time_s")
+            dm, ds = _ms_cols(deg, "ft_wall_time_s")
+            if np.isnan(rm) or np.isnan(dm):
+                continue
+            winner = "REPLACE" if rm < dm else "DEGRADED"
+            records.append({"workers": w, "timing_pct": pct, "n": len(rep),
+                             "replace_mean_s": round(rm, 1), "replace_std_s": round(rs, 1),
+                             "degraded_mean_s": round(dm, 1), "degraded_std_s": round(ds, 1),
+                             "winner": winner,
+                             "winner_advantage_s": round(abs(rm - dm), 1)})
+    pd.DataFrame(records).to_csv(tables_dir / "table07_ep_ft_wall_time.csv", index=False)
+
+    # ── Table 8: LU-C Total FT Wall Time ─────────────────────────────────────
+    lu = df[df["benchmark"] == "LU"]
+    records = []
+    for w in sorted(lu["config_workers"].unique()):
+        for s in [STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]:
+            for pct in [10, 25, 50]:
+                rows = lu[(lu["config_workers"] == w) & (lu["strategy"] == s)
+                          & (lu["timing_pct"] == pct)]
+                m, sd = _ms_cols(rows, "ft_wall_time_s")
+                records.append({"workers": w, "strategy": s, "timing_pct": pct,
+                                 "n": len(rows),
+                                 "wall_time_mean_s": round(m, 1),
+                                 "wall_time_std_s": round(sd, 1)})
+    pd.DataFrame(records).to_csv(tables_dir / "table08_lu_ft_wall_time.csv", index=False)
+
+    # ── Table 9: Strategy Winner Summary ────────────────────────────────────
+    records = []
+    for bench in ["EP", "LU"]:
+        sub = df[df["benchmark"] == bench]
+        for w in sorted(sub["config_workers"].unique()):
+            mana_rows = sub[(sub["config_workers"] == w)
+                            & (sub["strategy"] == STRATEGY_KEY_MANA_NONE)]
+            tm, ts = _ms_cols(mana_rows, "ft_wall_time_s")
+            row = {"benchmark": bench, "workers": w,
+                   "mana_baseline_mean_s": round(tm, 1) if not np.isnan(tm) else None,
+                   "mana_baseline_std_s": round(ts, 1) if not np.isnan(ts) else None}
+            for pct in [10, 25, 50]:
+                rep = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_REPLACE)
+                          & (sub["timing_pct"] == pct)]
+                deg = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_DEGRADED)
+                          & (sub["timing_pct"] == pct)]
+                rm, _ = _ms_cols(rep, "ft_wall_time_s")
+                dm, _ = _ms_cols(deg, "ft_wall_time_s")
+                row[f"winner_{pct}pct"] = ("REPLACE" if rm < dm else "DEGRADED") \
+                    if not (np.isnan(rm) or np.isnan(dm)) else None
+            records.append(row)
+    pd.DataFrame(records).to_csv(tables_dir / "table09_strategy_winner.csv", index=False)
+
+    # ── Table 10: Recovery Overhead Ratio ────────────────────────────────────
+    ep = df[df["benchmark"] == "EP"]
+    records = []
+    for w in sorted(ep["config_workers"].unique()):
+        for s in [STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]:
+            for pct in [10, 25, 50]:
+                rows = ep[(ep["config_workers"] == w) & (ep["strategy"] == s)
+                          & (ep["timing_pct"] == pct)]
+                if rows.empty:
+                    continue
+                ratios = []
+                for _, r in rows.iterrows():
+                    total = float(r.get("ft_wall_time_s") or 1)
+                    p0 = _fv(r, "phase0_s")
+                    if total > 0:
+                        ratios.append((total - p0) / total * 100)
+                m = float(np.mean(ratios)) if ratios else float("nan")
+                sd = float(np.std(ratios, ddof=1)) if len(ratios) > 1 else 0.0
+                records.append({"workers": w, "strategy": s, "timing_pct": pct,
+                                 "n": len(rows),
+                                 "recovery_overhead_mean_pct": round(m, 1),
+                                 "recovery_overhead_std_pct": round(sd, 1)})
+    pd.DataFrame(records).to_csv(tables_dir / "table10_recovery_overhead.csv", index=False)
+
+    # ── Table 11: Economic Cost Per Run ──────────────────────────────────────
+    records = []
+    for bench in ["CG", "EP", "LU"]:
+        sub = df[df["benchmark"] == bench]
+        for w in sorted(sub["config_workers"].unique()):
+            noft = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_NONE)]
+            nm_od, ns_od = _ms_cols(noft, "run_cost_ondemand_usd")
+            rep = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_REPLACE)]
+            deg = sub[(sub["config_workers"] == w) & (sub["strategy"] == STRATEGY_KEY_DEGRADED)]
+            if bench == "CG":
+                rep = rep[rep["timing_pct"].isna()]
+                deg = deg[deg["timing_pct"].isna()]
+            rm, rs = _ms_cols(rep, "run_cost_usd")
+            dm, ds = _ms_cols(deg, "run_cost_usd")
+            if np.isnan(nm_od) or nm_od == 0:
+                continue
+            saving_pct = round((nm_od - dm) / nm_od * 100, 1) if not np.isnan(dm) else None
+            records.append({"benchmark": bench, "workers": w, "n": len(noft),
+                             "noft_ondemand_mean_usd": round(nm_od, 5),
+                             "noft_ondemand_std_usd": round(ns_od, 5),
+                             "replace_spot_mean_usd": round(rm, 5) if not np.isnan(rm) else None,
+                             "replace_spot_std_usd": round(rs, 5) if not np.isnan(rs) else None,
+                             "degraded_spot_mean_usd": round(dm, 5) if not np.isnan(dm) else None,
+                             "degraded_spot_std_usd": round(ds, 5) if not np.isnan(ds) else None,
+                             "degraded_saving_vs_noft_pct": saving_pct})
+    pd.DataFrame(records).to_csv(tables_dir / "table11_cost.csv", index=False)
+
+    print(f"  Saved: {tables_dir}/ (tables 01–11)")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1509,6 +1754,7 @@ def main():
     print("Generating outputs...")
     save_raw_csv(df, out_dir)
     save_summary_markdown(df, out_dir)
+    save_report_tables(df, out_dir)
 
     print("Generating plots...")
     plot_mana_overhead(df, plots_dir)      # fig1: noFT vs MANA-noFT
