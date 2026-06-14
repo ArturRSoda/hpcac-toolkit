@@ -43,3 +43,7 @@ __pycache__/
 MANAcommandfiles/
 mana/
 NPB3.4.4/
+
+# Generated report files (derived from .md sources)
+*.pdf
+TCC/artifacts/**/*.html
