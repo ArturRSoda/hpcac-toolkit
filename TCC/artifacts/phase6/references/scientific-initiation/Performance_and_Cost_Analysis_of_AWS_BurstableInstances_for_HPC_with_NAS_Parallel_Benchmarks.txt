@@ -1,0 +1,968 @@
+Performance and Cost Analysis of AWS Burstable
+Instances for HPC with NAS Parallel Benchmarks
+Artur Luiz Rizzato Toru Soda1, Vanderlei Munhoz Pereira Filho1,2, M´arcio Castro1
+1Federal University of Santa Catarina (UFSC), Florian´opolis, Brazil
+artursodar@gmail.com, marcio.castro@ufsc.br
+2University of Bordeaux, CNRS, Bordeaux INP, Inria, LaBRI, Talence, France
+vanderlei.munhoz-pereira-filho@inria.fr
+Abstract—Traditional High Performance Computing (HPC)
+typically requires expensive and complex physical infrastruc-
+tures. With the advancement of cloud computing, providers
+such as Amazon Web Services (AWS) have begun to offer
+more economically viable alternatives, such as burstable and
+spot instances. However, selecting the appropriate resources
+remains challenging due to performance variability and the costs
+associated with different workload profiles. In this context, this
+work evaluates the feasibility of using burstable instances for
+HPC. To this end, an in-depth study was carried out using AWS
+on-demand burstable and non-burstable instances, evaluating
+their performance and cost under different HPC application
+scenarios. Three main sets of experiments were conducted: (1)
+comparative evaluation on homogeneous clusters of up to 4 nodes
+using NAS Parallel Benchmarks (NPB), contrasting burstable and
+similar non-burstable instances; (2) scalability analysis on larger
+clusters (4–16 nodes) with a broader variety of NPB applications;
+(3) isolated measurement of the impact of network bandwidth
+using an MPI microkernel benchmark. The results show that
+the ideal instance type depends on the workload profile: non-
+burstable instances provide the best cost-benefit for intensive
+and distributed workloads, while burstable standard may be
+more economical for light and short workloads, and burstable
+unlimited ensures constant performance at a higher cost for long-
+running workloads.
+Index Terms—high performance computing, cloud computing,
+NAS parallel benchmarks, burstable instances
+I. INTRODUCTION
+High Performance Computing (HPC) plays a fundamental
+role in supporting scientific discovery, engineering simula-
+tions, and large-scale data analysis applications that require
+massive computational resources. Traditionally, HPC work-
+loads have been executed on dedicated supercomputers or
+large-scale on-premises clusters. However, in recent years, the
+emergence and rapid growth of cloud computing have reshaped
+this landscape by introducing elasticity, flexibility, and the
+ability to provision computational resources on demand [1].
+These capabilities have made Cloud Computing an attractive
+alternative or complement to traditional HPC infrastructures,
+particularly in environments where scalability and cost effi-
+ciency are critical.
+The convergence of HPC and Cloud Computing has gained
+significant attention, as researchers and practitioners explore
+how the elasticity of cloud infrastructures can support the de-
+manding performance requirements of HPC workloads. While
+cloud providers have traditionally targeted web services, data
+storage, and business applications [2], recent advancements
+have led to specialized services tailored for computationally
+intensive tasks. This convergence raises important questions
+about how to balance performance, cost, and resource avail-
+ability when executing HPC applications in the cloud. In par-
+ticular, the pay-as-you-go pricing models and heterogeneous
+resource types offered by commercial providers present both
+opportunities and challenges for the HPC community. As a
+result, Cloud Computing has become not only a viable option
+but also an increasingly strategic platform for addressing the
+computational demands of modern scientific and industrial
+applications.
+Among the different cloud instance models, Amazon Web
+Services (AWS) provides a representative portfolio that in-
+cludes on-demand and spot pricing models, which can be ap-
+plied to various instance types including burstable performance
+instances. On-demand pricing guarantees stable availability
+and continuous access, but at a relatively high hourly cost.
+Spot pricing, on the other hand, offers significant discounts by
+leveraging unused capacity, but instances may be interrupted at
+any moment by the cloud provider, posing challenges for long-
+running HPC jobs. Burstable performance instances represent
+a distinct instance type that can use either pricing model: they
+provide baseline performance levels while allowing workloads
+to temporarily “burst” above that baseline by consuming
+accumulated CPU credits. This makes them attractive for cost-
+sensitive users, though their variable performance model intro-
+duces uncertainty when applied to computationally intensive
+workloads. Each pricing model and instance type presents
+trade-offs between cost, reliability, and performance, which
+must be carefully evaluated when planning HPC workloads in
+the cloud [3].
+A key open question is whether burstable instances can be
+effectively leveraged for HPC workloads. Their lower hourly
+rates present clear cost advantages, but the credit-based CPU
+model may severely degrade performance for long-running
+or highly parallel applications. For HPC environments where
+both execution time and monetary cost are critical factors,
+it is essential to evaluate whether burstable instances can
+provide a feasible balance between efficiency and affordability.
+Understanding these trade-offs is particularly relevant for
+researchers, institutions, and organizations operating under
+constrained budgets. Moreover, the possibility of combining
+
+
+different instance types (e.g., using burstable instances as tem-
+porary replacements for interrupted spot instances) introduces
+opportunities for cost optimization and fault tolerance that
+merit systematic investigation.
+In this paper, we address this problem by evaluating the
+performance and cost of burstable performance instances in the
+context of HPC applications, comparing them with traditional
+non-burstable on-demand instances. Using the NAS Parallel
+Benchmarks (NPB) as representative workloads [4], we ana-
+lyze how burstable instances behave under different execution
+conditions, and we assess their cost-effectiveness in various
+cluster configurations. Our contributions are the following:
+• We analyze the performance behavior of burstable in-
+stances in comparison to non-burstable instances across
+multiple HPC workloads;
+• We investigate the impact of the number of cluster nodes
+on both execution time and overall cost; and
+• We study the influence of network bandwidth of burstable
+instances on the application performance.
+To systematically investigate the performance–cost trade-
+offs, our study is structured around three complementary ex-
+perimental phases, each designed to answer a critical question.
+The first phase serves as a foundational analysis, providing
+a direct comparison of burstable and non-burstable instances
+under controlled, small-scale conditions. Its primary impor-
+tance lies in establishing the fundamental performance and
+cost differences inherent to the instance types. Building on
+this, the second phase examines scalability, which is cru-
+cial for understanding how these initial findings translate to
+more realistic, larger-scale HPC deployments, where inter-
+node communication becomes a dominant factor. Finally,
+the third phase employs a micro-benchmark to isolate the
+impact of network bandwidth from other architectural vari-
+ables, providing a causal explanation for the performance gaps
+observed and quantifying the specific role of networking in
+the overall performance equation. Together, this multi-phase
+approach provides a comprehensive analysis, moving from
+baseline comparison to scaled analysis and finally to a specific
+investigation.
+This paper is organized as follows. Section II introduces
+the necessary background, including the paradigm of HPC
+in the cloud, the characteristics of AWS pricing models (on-
+demand and spot) and instance types (including burstable
+performance instances), the HPC@Cloud provisioning tool,
+and the NAS Parallel Benchmarks used in our evaluation.
+Section III describes the experimental methodology, detailing
+the instance types under study, the selected NPB workloads,
+and the design of three core experiments for performance
+assessment. Section IV presents and analyzes the results,
+with comparative performance graphs and cost-effectiveness
+evaluations. Finally, Section VI summarizes the main findings,
+highlights their implications for selecting suitable instance
+types according to workload profiles, and discusses promising
+directions for future research, including intelligent strategies
+for dynamic resource provisioning.
+II. BACKGROUND
+A. HPC and Cloud Convergence
+High Performance Computing (HPC) traditionally refers
+to the use of on-premise computer clusters for executing
+large-scale computations in parallel. These clusters, commonly
+known as supercomputers, enable the collaborative effort of
+millions of processing elements to solve problems that would
+be infeasible on a single machine within a reasonable time-
+frame. Thus, parallelization became a fundamental approach
+to achieving computational efficiency in HPC.
+HPC applications are often tailored to the underlying
+hardware, exploiting specialized processor instructions and
+accelerators to maximize performance. At the programming
+level, several parallel programming models and APIs have
+been developed to exploit both shared-memory and distributed-
+memory systems. One of the most widely adopted models
+for shared-memory architectures is OpenMP, which provides a
+high-level programming interface for C, C++, and Fortran, us-
+ing compiler directives to generate parallel code. OpenMP in-
+cludes directives for parallelizing loops, synchronizing threads,
+and managing task dependencies. Since OpenMP assumes a
+shared-memory system, it is mainly used for intra-node paral-
+lelism in HPC clusters. For inter-node parallelization across
+distributed-memory systems, the Message Passing Interface
+(MPI) has become the de facto standard. It defines a portable
+and language-independent programming model for distributed
+computing. Multiple open-source and proprietary implemen-
+tations of MPI exist, with OpenMPI, MPICH, and MVAPICH
+being among the most widely used. These implementations
+act as middleware, providing abstractions for process manage-
+ment, synchronization, and communication. MPI supports both
+point-to-point communications (between specific processes)
+and collective communications (among groups of processes).
+Although MPI has long been the cornerstone of distributed
+HPC applications, it is frequently combined with shared-
+memory programming models such as OpenMP to fully ex-
+ploit the hierarchical structure of modern HPC clusters. In this
+hybrid approach, OpenMP handles fine-grained parallelism
+within a node, while MPI coordinates communication and
+workload distribution across nodes, enabling efficient use of
+large-scale supercomputing infrastructures.
+Cloud Computing, on the other hand, has emerged as a
+dominant paradigm for delivering computing resources as on-
+demand services over the Internet. Public clouds, in par-
+ticular, are designed to be accessible to any user without
+requiring long-term contracts or direct negotiation with the
+provider. Their services are traditionally classified into three
+service models: Infrastructure as a Service (IaaS), Platform
+as a Service (PaaS), and Software as a Service (SaaS). In
+the IaaS model, providers expose APIs that enable users to
+provision and manage compute infrastructure, including low-
+level components such as networking, storage, and backups.
+Users can select the computing capacity to be rented in terms
+of virtual CPUs (vCPUs), along with additional configurations
+such as hypervisor types, operating systems, and accelerators.
+
+
+PaaS services abstract runtime, middleware, and development
+tools, allowing users to create and deploy applications without
+managing the underlying infrastructure. Finally, SaaS provides
+fully managed, ready-to-use software applications exposed
+through APIs, which can be directly integrated into user
+workflows.
+The convergence of HPC and cloud computing reflects a
+balance between two traditionally distinct paradigms: the strict
+performance and low-latency requirements of scientific work-
+loads and the flexibility, resilience, and pay-as-you-go pricing
+model of cloud services. For researchers and organizations
+with limited budgets, the IaaS model eliminates the need
+for costly on-premise supercomputers, lowering both capital
+investment and technical entry barriers to HPC. At the same
+time, cloud platforms have matured to support rapid provi-
+sioning and elastic scaling of virtualized resources, enabling
+infrastructures to adapt dynamically to workload demands.
+While enterprise applications often prioritize resiliency and
+fault tolerance, HPC workloads demand the opposite, concen-
+trating resources in close proximity to minimize communica-
+tion latency. Bridging these differing requirements highlights
+both the challenges and the opportunities of bringing HPC into
+the cloud, motivating new strategies that combine performance
+efficiency with the economic and operational advantages of
+cloud infrastructures.
+More recently, to support high-performance workloads,
+cloud providers have offered specialized HPC-oriented ser-
+vices
+and
+infrastructures.
+These
+include
+highly-parallel
+hardware to accommodate compute-intensive applications,
+accelerator-enabled computers with GPUs or FPGAs for het-
+erogeneous computing, and parallel file systems. Additionally,
+cloud providers may offer high-performance network devices,
+which provide low-latency, high-bandwidth networking de-
+signed to improve inter-node communication in distributed
+applications.
+B. Cloud Compute and Pricing Models
+Cloud providers operate fleets of servers distributed across
+multiple data centers and offer users access to computing
+resources in the form of Virtual Machines (VMs). A VM is a
+virtual instance allocated over a shared physical infrastructure
+and represents the most common and cost-effective option in
+Cloud Computing. Providers expose a wide variety of instance
+types that differ in characteristics such as CPU architecture,
+number of vCPUs, memory capacity, storage configuration,
+and network bandwidth. This diversity enables customers to
+select instances that best match the requirements of their
+applications.
+Among public cloud providers, Amazon Web Services
+(AWS) is one of the most widely adopted, maintaining a
+global infrastructure of data centers that deliver computational
+resources to users. AWS offers two primary pricing models
+that can be applied to various instance types:
+On-demand pricing. This follows a “pay-as-you-go” model
+in which users are billed per second of compute time
+with no long-term commitments. On-demand instances
+guarantee stable and predictable availability, making them
+suitable for a broad range of workloads.
+Spot pricing. This leverages unused cloud capacity at sig-
+nificantly reduced prices, often up to 90% cheaper than
+on-demand equivalents, while providing identical perfor-
+mance characteristics. However, spot instances can be
+reclaimed by AWS with little notice whenever demand for
+capacity increases. Consequently, users must design their
+applications with fault tolerance in mind, ensuring data
+persistence and recovery mechanisms in case of instance
+termination.
+These pricing models can be applied to different instance
+families, each optimized for specific workload characteristics.
+Burstable instances are a family of instance types optimized
+for workloads with variable CPU demand. They provide a
+baseline performance level but can temporarily exceed this
+baseline using a system of CPU credits. Credits are accumu-
+lated whenever the instance operates below baseline usage and
+are spent to enable short-term performance bursts. Each credit
+typically corresponds to one vCPU running at full utilization
+for one minute.
+AWS defines two operating modes for burstable instances:
+Standard Mode: once CPU credits are exhausted, the in-
+stance is throttled down to its baseline performance,
+which can cause severe slowdowns in long-running or
+compute-intensive workloads; and
+Unlimited Mode: This mode allows an instance to contin-
+uously burst above its baseline even after credits are
+exhausted, but it incurs an additional hourly charge for
+every vCPU-minute consumed beyond the earned cred-
+its, ensuring stable performance at a potentially higher
+financial cost.
+AWS has released several families of burstable instances,
+which share the credit-based CPU model but differ in their
+underlying processor architecture and generation. Key families
+include the legacy T2 (previous generation, Intel processors),
+T3 and T3a (current generation with Intel and AMD proces-
+sors, respectively), and the more recent T4g (featuring AWS’s
+Graviton2 ARM-based processors). These families offer a
+range of options that balance cost and processor type.
+In this paper, we focus on the performance and cost eval-
+uation of instances under the on-demand pricing model (both
+burstable and non-burstable families), since our target HPC
+applications are not fault-tolerant and are therefore unsuitable
+for spot pricing.
+C. NAS Parallel Benchmarks
+The NAS Parallel Benchmarks (NPB)1 is a suite of par-
+allel benchmark programs designed by the NASA Advanced
+Supercomputing (NAS) Division [4]. By measuring various
+aspects of performance, such as computational speed and
+efficiency, NPB provides a standardized way for researchers
+and developers to assess the capabilities of parallel computing
+systems, including clusters, supercomputers, and distributed
+1https://www.nas.nasa.gov/software/npb.html
+
+
+memory architectures. It focuses on various aspects of par-
+allel computing, including computation, communication, and
+memory access patterns.
+NPB kernels are derived from Computational Fluid Dynam-
+ics (CFD) applications, representing real-world aerospace and
+engineering applications. Reference implementations of the
+benchmarks are provided by NASA using different parallel
+programming libraries such as OpenMP and Message Passing
+Interface (MPI). In this paper, we used the most recent
+reference MPI implementation (version 3.4.2), which includes
+five kernels (two implemented in C and three in Fortran).
+Input problem sizes in NPB are predefined and indicated
+as different classes. The standard sizes consist of six classes
+(S, W, A, B, C, and D): (i) S and W are designed for quick
+test purposes; (ii) A, B, and C are the standard inputs, with
+each class experiencing approximately a four-fold increase in
+size compared to the previous one; and (iii) D, E and F are
+the large inputs, with each class experiencing approximately
+a sixteen-fold increase in size compared to the previous one.
+A brief description of the kernels considered in this paper
+is given below:
+• Integer Sort (IS): It performs an integer sorting (bucket
+sort) among a sparse set of numbers, which simulates
+an important computation for particle-in-cell applications.
+This kernel simulates and measures integer computation
+and data communication capabilities.
+• Embarrassingly Parallel (EP): It is an embarrassingly
+parallel benchmark that generates pairs of Gaussian ran-
+dom deviates according to a specific scheme. This kernel
+features negligible communication overhead.
+• Conjugate Gradient (CG): It employs a Conjugate Gra-
+dient method to compute an approximation to the smallest
+eigenvalue of a large, sparse, unstructured matrix. This
+kernel tests unstructured grid computations and commu-
+nications by using a matrix with randomly generated
+locations of entries. It features irregular memory access
+and communication patterns.
+• Multi-Grid (MG): It uses a V-cycle MultiGrid method to
+compute the solution of the 3D scalar Poisson equation.
+The algorithm works continuously on a set of grids that
+are made between coarse and fine. It tests both short and
+long-distance data movements.
+• Discrete 3D Fast Fourier Transform (FT): It contains
+the computational kernel of a 3D Fast Fourier Transform
+(FFT)-based spectral method. FT performs three one-
+dimensional (1D) FFTs, one for each dimension, and
+features long-distance communications.
+• Lower-Upper Symmetric Gauss-Seidel (LU): It imple-
+ments a Computational Fluid Dynamics (CFD) applica-
+tion that numerically solves a set of nonlinear Partial Dif-
+ferential Equations (PDEs) using an approximate Lower-
+Upper (LU) factorization scheme. The equations being
+solved are a simplified model of unsteady, compressible
+fluid flow in three spatial dimensions, which makes
+the kernel representative of real-world CFD applications
+widely used in engineering and scientific domains.
+This combination of benchmarks provides a comprehensive
+assessment of AWS instances’ performance, covering tightly
+coupled, latency-sensitive workloads as well as highly paral-
+lelizable workloads limited by CPU processing power.
+III. METHODOLOGY
+To assess whether AWS burstable instances can be effec-
+tively employed for HPC workloads, we executed the NPB ap-
+plications described in Section II-C in both burstable and non-
+burstable instances. Our methodology is structured into three
+distinct experimental phases, each designed to progressively
+build a comprehensive understanding of the trade-offs of using
+AWS burstable instances for HPC. The first phase establishes
+a direct performance and cost baseline on small clusters,
+representing the foundational contribution of our study. The
+second phase assesses how these findings translate to larger-
+scale scenarios, providing critical insights into the impact of
+scalability. The third and final phase uses a targeted micro-
+benchmark to isolate and quantify the influence of network
+bandwidth, a key variable identified in the preceding analyzes.
+This multi-stage approach ensures a thorough evaluation by
+focusing on two primary metrics across all phases: execution
+time and monetary cost (in USD).
+At the time of this study, AWS burstable instances consisted
+of the T4g, T3a, and T3 families, along with the legacy
+T2 family. Since these instances are not available under the
+usual on-demand pricing model, a fair comparison required
+selecting instances from alternative non-burstable families
+with equivalent hardware specifications. After examining the
+available options, we identified that the T3 (burstable) and
+M5 (non-burstable) families utilize the Intel Xeon Cascade
+Lake 8259CL processor running at 3.1GHz. Considering ser-
+vice limits and cost constraints, we selected the 2xlarge
+variant from each family, which provides 8 virtual CPUs (4
+physical cores). Detailed hardware specifications are provided
+in Table I. It is worth noting, however, that the T3 and M5
+families differ in their maximum network bandwidth. Conse-
+quently, we anticipated potential performance degradation in
+communication-intensive workloads when deploying clusters
+of T3 instances.
+We used the HPC@Cloud Toolkit2 [5] to provision ho-
+mogeneous cluster infrastructures with 1, 2, 4, 8, and 16
+nodes, as well as to manage application execution on AWS.
+The HPC@Cloud Toolkit is an open-source framework that
+simplifies the deployment and management of HPC workloads
+in cloud environments. It offers a collection of tools and scripts
+that automate the provisioning of cloud resources, enabling
+users to configure and manage complex HPC clusters on
+platforms such as Amazon Web Services (AWS) with minimal
+effort. The toolkit supports a variety of HPC configurations,
+allowing users to define instance types, networking settings,
+and storage options to suit the specific requirements of their
+workloads. By abstracting the intricacies of resource orchestra-
+tion, HPC@Cloud accelerates the process of establishing and
+2HPC@Cloud Toolkit repository: https://github.com/lapesd/hpcac-toolkit
+
+
+Instance
+Instance
+Network
+Cost
+Cost per Extra
+Type
+Name
+vCPUs
+Memory
+Bandwidth
+per Hour
+CPU Credit
+Burstable
+t3.2xlarge
+8
+32 GiB
+Up to 5 Gbps
+0.3328 USD
+0.05 USD
+Non-Burstable
+m5.2xlarge
+8
+32 GiB
+Up to 10 Gbps
+0.3840 USD
+–
+TABLE I: Characteristics of the instances (us-east-1).
+Number of Nodes
+Execution Time (s)
+0.000
+100.000
+200.000
+300.000
+400.000
+1
+2
+4
+Number of Nodes
+Monetary Cost (USD)
+0.000
+0.100
+0.200
+0.300
+1
+2
+4
+Number of Nodes
+Execution Time (s)
+0.000
+2500.000
+5000.000
+7500.000
+10000.000
+1
+2
+4
+Number of Nodes
+Monetary Cost (USD)
+0.000
+2.000
+4.000
+6.000
+8.000
+1
+2
+4
+Number of Nodes
+EP
+LU
+Burstable (Unlimited)
+Burstable (Standard)
+non-Burstable
+Fig. 1: Execution time (seconds) and monetary costs of LU and EP (Class E).
+scaling HPC applications in the cloud. Although alternatives
+exist, such as AWS ParallelCluster, which provides a native
+solution with deep integration into AWS services and robust
+scheduler support, HPC@Cloud distinguishes itself through
+its lightweight and flexible design. Whereas ParallelCluster
+targets production-grade clusters with extensive customization
+options, HPC@Cloud emphasizes simplicity and rapid proto-
+typing, making it easier to deploy clusters for experimentation
+and development. Its lightweight nature, with minimal system
+dependencies, reduces both setup time and runtime over-
+head compared to the more feature-rich but resource-intensive
+deployments of ParallelCluster. These characteristics make
+HPC@Cloud particularly well-suited for academic settings
+and research scenarios that demand rapid iteration and testing
+across diverse configurations.
+All instances were configured with Amazon Linux 2023
+(v2023.6.20250211) and equipped with the required software
+stack to run the benchmarks, including gcc v11.4.1 and
+OpenMPI v5.1.0a1. To obtain accurate measurements of
+both the performance and costs of the instances under study,
+we used the AWS CloudWatch monitoring service. This
+service allowed us to collect fine-grained metrics related to
+CPU behavior and credit consumption, which are essential
+for estimating the actual monetary cost of executions in
+both standard and unlimited burstable modes. Specifically,
+we
+monitored
+CPUUtilization,
+CPUCreditUsage,
+CPUCreditBalance,
+CPUSurplusCreditBalance,
+and CPUSurplusCreditsCharged metrics throughout
+the experiments. These metrics enabled us to correlate
+execution performance with credit dynamics and to compute
+the effective costs incurred during each workload execution.
+IV. EXPERIMENTAL RESULTS
+The experimental evaluation highlights the complex trade-
+offs between performance and costs when executing HPC
+workloads on AWS using burstable and non-burstable in-
+stances. Across the three experimental sets, consistent patterns
+emerged that reveal both the strengths and limitations of each
+instance type in different workload scenarios.
+A. Burstable vs. Non-Burstable Instances
+In this first experiment, we restricted the analysis to two
+NAS Parallel Benchmarks applications executed with Class
+E: EP and LU. This choice was deliberate, as they represent
+two opposite workload profiles: EP is short-lived and almost
+free of communication, whereas LU is long-lived and highly
+communication-intensive.
+The comparison between non-burstable (m5.2xlarge)
+and burstable (t3.2xlarge) in clusters of up to 4 nodes
+revealed two distinct behaviors. For fast execution and commu-
+nication light workloads (EP), the performance (Figure 1) and
+monetary costs (Figure 1) were similar, showing that burstable
+instances can sustain near non-burstable performance as long
+as CPU credits are available.
+Conversely, in communication-intensive applications such
+as LU, the difference was significant, and burstable instances
+in standard mode showed up to three times lower performance
+than the non-burstable ones. This gap can be explained by two
+main factors. First, the higher baseline network bandwidth
+of non-burstable instances played a crucial role in handling
+the frequent synchronizations required by LU, ensuring lower
+communication overhead. Second, the prolonged runtime of
+LU quickly exhausted the CPU credits available in burstable
+standard instances, thereby limiting CPU performance to base-
+line capacity and causing a marked degradation in execution
+time. The burstable in unlimited mode partially mitigated this
+issue, sustaining performance at the cost of additional charges
+once the CPU credits were exhausted. This highlights a key
+trade-off: while unlimited mode can prevent unpredictable
+slowdowns, it undermines the economic advantage of burstable
+instances in longer workloads.
+
+
+Burstable (Unlimited)
+Burstable (Standard)
+non-Burstable
+Number of Nodes
+Execution Time (s)
+0.000
+50.000
+100.000
+150.000
+4
+8
+16
+Number of Nodes
+Execution Time (s)
+0.000
+500.000
+1000.000
+1500.000
+2000.000
+4
+8
+16
+Number of Nodes
+Execution Time (s)
+0.000
+50.000
+100.000
+150.000
+200.000
+4
+8
+16
+Number of Nodes
+Execution Time (s)
+0.000
+500.000
+1000.000
+1500.000
+2000.000
+4
+8
+16
+Number of Nodes
+Execution Time (s)
+0.000
+20.000
+40.000
+60.000
+4
+8
+16
+Number of Nodes
+Execution Time (s)
+0.000
+250.000
+500.000
+750.000
+1000.000
+4
+8
+16
+EP
+LU
+MG
+FT
+IS
+CG
+Fig. 2: Execution time (seconds) of all applications (Class D).
+B. Performance Scalability
+The second experiment extended the analysis by increasing
+the cluster size to 4, 8, and 16 nodes, while also broadening
+the set of benchmarks to include LU, EP, MG, CG, IS, and
+FT. For this experiment, Class D of the NPB applications was
+selected, since the memory available in the m5.2xlarge
+and t3.2xlarge instances (GiB) was insufficient to execute
+some of the applications with Class E.
+The results, illustrated in Figures 2 and 3, demonstrate
+that scalability amplifies the inherent performance differences
+between instance types. While increasing the number of nodes
+reduced execution time for all configurations, the correspond-
+ing cost increased due to the higher number of billed instances.
+For highly parallel kernels (EP, IS, MG), the non-burstable
+cluster was consistently faster but not drastically so. However,
+for synchronization-heavy kernels such as LU, CG, and FT, the
+performance gap widened with node count, as communication
+overhead accumulated and the network limitations of burstable
+instances became more apparent. This shows that burstable in-
+stances are penalized as communication requirements increase.
+When considering performance and cost together, non-
+burstable instances maintained the best overall results. The
+difference from burstable instances grew with cluster size,
+likely due to the stronger impact of network bandwidth as
+communication demands increased. Burstable in unlimited
+mode achieved intermediate behavior, often outperforming
+burstable standard in both time and cost for longer workloads,
+since the extra charges for CPU credits were offset by more
+stable performance. The burstable instances in standard mode
+were only competitive in short scenarios such as EP and
+IS, where the initial CPU credits were not exhausted and
+costs remained low. However, in longer executions, it suffered
+severe performance drops and relative cost increases due to its
+baseline capacity limit after credit depletion.
+C. Communication Overhead
+The third experiment aimed to isolate the impact of network
+bandwidth from other architectural factors. For this purpose,
+a simple MPI microkernel was implemented and executed on
+clusters consisting of 4, 8 and 16 burstable unlimited and non-
+burstable instances. The microkernel executes a CPU-intensive
+loop with a fixed number of iterations in each MPI process,
+thereby enabling the evaluation of whether network band-
+width alone explains the performance gap observed between
+burstable unlimited and non-burstable instances.
+As shown in Figure 4, the performance gap between
+burstable unlimited and non-burstable decreased considerably
+under these conditions. Cost differences, which had reached
+around 40% in the NPB benchmarks, dropped to 10%, while
+performance differences were reduced from 50% to 20%.
+These results confirm that bandwidth is indeed a dominant
+factor behind non-burstable advantage, but not the only one.
+The persistence of a smaller gap suggests that CPU credit
+management, such as how AWS internally tracks and applies
+credits, may be a contributing factor. However, other aspects
+may also play a role, including differences in virtualization
+overhead, memory latency, or CPU scheduling policies applied
+to burstable instances. Such factors introduce subtle overheads
+that remain relevant even in less communication-intensive
+workloads, and must be considered when evaluating burstable
+instances for HPC scenarios with fluctuating CPU demands.
+V. RELATED WORK
+The emergence of burstable VMs in major cloud providers
+like AWS and Azure has sparked interest in understanding
+
+
+Number of Nodes
+Monetary Cost (USD)
+0.000
+0.025
+0.050
+0.075
+0.100
+4
+8
+16
+Number of Nodes
+Monetary Cost (USD)
+0.000
+0.500
+1.000
+1.500
+4
+8
+16
+Number of Nodes
+Monetary Cost (USD)
+0.000
+0.020
+0.040
+0.060
+0.080
+4
+8
+16
+Burstable (Unlimited)
+Burstable (Standard)
+non-Burstable
+EP
+LU
+MG
+Number of Nodes
+Monetary Cost (USD)
+0.000
+0.100
+0.200
+0.300
+0.400
+0.500
+4
+8
+16
+Number of Nodes
+Monetary Cost (USD)
+0.000
+0.010
+0.020
+0.030
+0.040
+4
+8
+16
+Number of Nodes
+Monetary Cost (USD)
+0.000
+0.250
+0.500
+0.750
+1.000
+4
+8
+16
+FT
+IS
+CG
+Fig. 3: Monetary cost (USD) of all applications (Class D).
+Number of Nodes
+Execution Time (s)
+0.000
+1000.000
+2000.000
+3000.000
+4000.000
+4
+8
+16
+Burstable (Unlimited)
+non-Burstable
+(a) Execution time (seconds).
+Number of Nodes
+Monetary Cost (USD)
+0.000
+2.000
+4.000
+6.000
+4
+8
+16
+Burstable (Unlimited)
+non-Burstable
+(b) Monetary cost (USD).
+Fig. 4: Execution time and cost of the microkernel on burstable
+and non-burstable clusters.
+their performance characteristics and developing optimiza-
+tion techniques. However, research focused specifically on
+burstable instances in the context of HPC workloads remains
+limited.
+Wang et al. [6] conducted one of the first studies inves-
+tigating burstable VMs, providing fundamental insights into
+their behavior and proposing initial optimization techniques.
+Our work serves as a complementary update to this research,
+particularly given the significant technological advancements
+and new instance families that AWS has introduced in recent
+years.
+Mandal et al. [7] addressed dynamic optimization of
+burstable instances using online algorithms that migrate work-
+loads between different baseline configurations. Their ap-
+proach focuses on computational workloads with variable CPU
+demands, developing techniques to minimize surplus charges
+while maximizing credit utilization. The authors demonstrated
+that online algorithms can achieve costs comparable to future-
+aware algorithms without requiring prior knowledge of CPU
+utilization patterns.
+Drummond et al. [8] explored burstable instances for web
+scraping frameworks, demonstrating cost effectiveness for data
+extraction workloads. Their framework combines fixed and
+temporary burstable VMs in mixed clusters to meet Service
+Level Agreements (SLAs) while minimizing costs. They de-
+veloped queue-based and credit-based allocation strategies,
+achieving cost reductions of up to 74% compared to fixed-
+size clusters while maintaining SLA compliance.
+Our work distinguishes itself by providing a systematic
+evaluation of burstable instances specifically for HPC work-
+loads using standardized benchmarks. While previous studies
+explored optimization techniques and alternative application
+domains, our research directly addresses whether burstable
+instances can serve as viable alternatives to non-burstable
+instances for parallel scientific computing, considering perfor-
+
+
+mance and cost implications across varying cluster scales and
+communication patterns.
+VI. CONCLUSION
+The primary objective of this work was to evaluate whether
+AWS burstable instances can be effectively leveraged for HPC
+in terms of both performance and monetary cost. To achieve
+this, we employed a three-pronged experimental approach
+that first established a baseline comparison, then examined
+performance under scalability, and finally isolated the impact
+of key architectural factors. This structured investigation led
+to a clear conclusion: the most suitable instance type is
+intrinsically linked to the workload’s communication intensity
+and execution duration.
+Our analysis shows that non-burstable instances are the
+superior option for sustained, communication-intensive HPC
+applications. Their guaranteed network bandwidth and consis-
+tent compute performance make them both faster and more
+cost-effective for tightly coupled workloads such as LU and
+FT, particularly as cluster size increases. In these cases, the
+higher hourly cost of non-burstable instances is consistently
+offset by substantially reduced execution times, yielding the
+most favorable cost–benefit ratio.
+In contrast, burstable instances are best suited for short-
+lived or embarrassingly parallel tasks such as EP and IS. For
+these workloads, the initial CPU credit balance is sufficient to
+complete execution before throttling occurs, enabling perfor-
+mance comparable to that of non-burstable instances at a lower
+hourly rate. However, this advantage disappears for longer or
+communication-heavy runs, where credit depletion leads to
+severe performance degradation and/or increased relative cost.
+The unlimited burstable mode provides an intermediate
+solution by preventing throttling and thus ensuring more pre-
+dictable performance. While this mode mitigates the instability
+of standard burstable instances, it incurs significant financial
+overhead due to excess credit charges in prolonged compu-
+tations. As a result, although it guarantees stable execution,
+it undermines the primary cost-saving rationale of burstable
+instances, making it less economical than non-burstable alter-
+natives for long-running HPC jobs.
+A critical finding from the network isolation experiment
+(CPU-bound microkernel) is that the performance disparity
+cannot be attributed solely to network bandwidth. The persis-
+tence of a measurable performance gap (approximately 20%)
+indicates the presence of additional architectural overheads
+intrinsic to the burstable instance model, potentially arising
+from internal credit management or virtualization mechanisms.
+Overall, these results provide a detailed characterization
+of burstable and non-burstable instances in HPC contexts,
+particularly with respect to communication intensity and work-
+load duration. They support more informed decisions when
+selecting AWS resources for different HPC profiles. Further-
+more, this study establishes a foundation for future research
+directions, including the exploration of intelligent dynamic
+provisioning strategies. One promising avenue is the design of
+fault-tolerance mechanisms [9] capable of integrating spot and
+burstable instances within the same cluster. In such a scheme,
+burstable instances could remain idle while accumulating
+credits and be temporarily activated to replace interrupted spot
+instances, thereby ensuring continuity of execution until new
+spot resources become available. If viable, this approach could
+reduce costs without substantially compromising performance,
+and offers an attractive direction for subsequent investigations.
+ACKNOWLEDGMENT
+This work was partially funded by Conselho Nacional
+de Desenvolvimento Cient´ıfico e Tecnol´ogico (CNPq) and
+Amazon Web Services (AWS) through the CNPq/AWS call
+No 64/2022 (Cloud Credits for Research).
+REFERENCES
+[1] R. Saini and N. Sainis, “Enable high performance computing in cloud: A
+review,” International Journal of Scientific Research, vol. 10, pp. 44–45,
+2021.
+[2] A. Liberman Garc´ıa, “The evolution of the cloud: the work, progress
+and outlook of cloud infrastructure,” Ph.D. dissertation, Massachusetts
+Institute of Technology, 2015.
+[3] V. Munhoz, A. Bonfils, M. Castro, and O. Mendizabal, “A performance
+comparison of hpc workloads on traditional and cloud-based HPC clus-
+ters,” in International Symposium on Computer Architecture and High
+Performance Computing Workshops (SBAC-PADW), 2023, pp. 108–114.
+[4] D. H. Bailey, E. Barszcz, J. T. Barton, D. S. Browning, R. L. Carter,
+L. Dagum, R. A. Fatoohi, P. O. Frederickson, T. A. Lasinski, R. S.
+Schreiber et al., “The nas parallel benchmarks,” The International Journal
+of Supercomputing Applications, vol. 5, no. 3, pp. 63–73, 1991.
+[5] V. Munhoz and M. Castro, “Enabling the execution of HPC applications
+on
+public
+clouds
+with
+HPC@Cloud
+toolkit,”
+Concurrency
+and
+Computation: Practice and Experience, vol. 36, no. 8, p. e7976, 2024.
+[Online]. Available: https://onlinelibrary.wiley.com/doi/abs/10.1002/cpe.
+7976
+[6] C. Wang, B. Urgaonkar, N. Nasiriani, and G. Kesidis, “Using burstable
+instances in the public cloud: Why, when and how?” Proceedings of
+the ACM on Measurement and Analysis of Computing Systems, vol. 1,
+no. 1, Jun. 2017. [Online]. Available: https://doi.org/10.1145/3084448
+[7] S. Mandal, S. Lal, S. Sensarma, S. Saha, G. Maji, S. Khatua, and R. K.
+Das, “An Online Algorithm for Cost Minimization of Amazon EC2
+Burstable Resources,” in Distributed Computing and Intelligent Technol-
+ogy (ICDCIT), S. Devismes, P. S. Mandal, V. V. Saradhi, B. Prasad, A. R.
+Molla, and G. Sharma, Eds.
+Cham: Springer Nature Switzerland, 2024,
+pp. 117–132.
+[8] L. M. A. Drummond, L. Andrade, P. d. B. Muniz, M. M. Pereira,
+T. d. P. Silva, and L. Teylo, “Design and analyses of web scraping
+on burstable virtual machines,” Concurrency and Computation: Practice
+and Experience, vol. 36, no. 9, p. e7999, 2024. [Online]. Available:
+https://onlinelibrary.wiley.com/doi/abs/10.1002/cpe.7999
+[9] V. Munhoz, M. Castro, and O. Mendizabal, “Strategies for fault-tolerant
+tightly-coupled hpc workloads running on low-budget spot cloud infras-
+tructures,” in 2022 IEEE 34th International Symposium on Computer
+Architecture and High Performance Computing (SBAC-PAD), 2022, pp.
+263–272.

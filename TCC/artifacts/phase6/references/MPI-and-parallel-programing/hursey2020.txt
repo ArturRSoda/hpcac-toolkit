@@ -1,0 +1,1170 @@
+Design Considerations for Building and Running
+Containerized MPI Applications
+Joshua Hursey
+IBM
+Rochester, MN, USA
+jhursey@us.ibm.com
+Abstract—Packaging parallel applications in containers has
+become increasingly popular on High Performance Computing
+(HPC) systems. These applications depend on the Message Pass-
+ing Interface (MPI) for communication between processes in their
+parallel jobs. This paper explores the design considerations that
+container maintainers must weigh when building and running
+their applications on HPC systems. This includes highlighting and
+resolving the cgroup, namespace, and security boundaries used
+by some container runtimes that may hinder an MPI library
+from performing efﬁciently. This paper explores the impact
+on MPI libraries of two opposing container launch models,
+and various models for incorporating a system optimized MPI
+library including a novel hybrid BYO-MPI with system mounted
+components technique. This paper analyses the critical problem
+of cross-version compatibility between libraries interacting across
+the container boundary as the container image and the HPC
+system evolve over time. The paper concludes by translating the
+lessons learned from running MPI applications in traditional
+HPC systems to running in container orchestration environments
+like Kubernetes. The discussion around each of these topics will
+provide a foundation for container maintainers to make informed
+choices that best suit their speciﬁc MPI application and HPC
+system requirements.
+Index Terms—High Performance Computing, Container, MPI,
+PMIx, Linux, Kubernetes
+I. INTRODUCTION
+Containers have become an increasingly popular choice for
+building, distributing, and running Message Passing Interface
+(MPI) applications on High Performance Computing (HPC)
+systems. The MPI standard [1] is relied upon by many HPC
+applications to efﬁciently exchange data between processes in
+the system. There are many MPI implementations available as
+user-space libraries with customizations for speciﬁc systems
+that tease out the maximum performance from the compu-
+tational hardware, network, and storage components of HPC
+systems.
+Designers of containers for MPI applications must consider
+a number of build and runtime design questions including:
+• Should the application be launched using the HPC system
+native launch mechanism or with the launcher provided
+by the MPI implementation inside the container image?
+• Should all process run in the same container instance on
+a node, or each in individual instances?
+• Should the application use the MPI library inside the
+container or should it use the HPC system provided
+version?
+• How close should the library versions inside my container
+match those on the host system?
+• What namespaces and capabilities does MPI care the
+most about when passing messages both on-node and
+between nodes?
+The goal of this paper is to explore each of these questions
+in the context of MPI to provide a foundation for a container
+designer to make informed choices for their speciﬁc applica-
+tion and HPC system requirements. Since these requirements
+vary from site to site, this paper attempts not to recommend
+one solution or technique over another. Instead this paper
+focuses on highlighting the design space. Though the focus of
+this paper is on MPI much of the discussion can be applied to
+any concurrent programming library such as OpenSHMEM [2]
+and PGAS [3] libraries.
+In a Linux environment a process running in a container is
+directly accessing the host OS, and any devices and system
+resources made available to it at the time of creation. What
+distinguishes a containerized process from a non-containerized
+process is the presence of various ﬁle system mounts, names-
+paces, control groups (cgroups), capabilities, and security
+proﬁles that change its view of the system and what operations
+it is allowed to perform. A custom ﬁle system mount is often
+the primary way that users think about containers since it
+allows them to bringing their own OS personality, libraries,
+compilation tools, and runtime environment for their applica-
+tion. Packaging all of these application dependencies into the
+container image can increase portability and reusability of the
+container image.
+Linux namespaces restrict the process’ view of the overall
+system including its view of other processes on the system
+providing a degree of isolation between sets of processes on
+the system. Linux cgroups restrict or limit the process’ access
+to system resources such as CPUs, GPUs, memory, and IO
+bandwidth. Cgroups can be used to ensure that a process does
+not exceed a resource envelope while running on a node with
+other processes. Finally, capabilities and seccomp security
+proﬁles restrict the actions available to a container including
+available system calls [4].
+Each container runtime has a different set of defaults for
+each of these containment dimensions, and options to adjust
+them before launching the container. The purpose of this paper
+is to highlight the impact of these containment dimensions on
+MPI libraries to provide the reader with a foundation when
+35
+2020 2nd International Workshop on Containers and New Orchestration Paradigms for Isolated Environments in HPC
+(CANOPIE-HPC)
+DOI 10.1109/CANOPIEHPC51917.2020.00010
+/20/$31 00 ©2020 IEEE
+.
+ 
+ 
+978-1-6654-1555-2
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+considering how they approach containerization in various
+HPC systems.
+In Section II we discuss design decisions related to building
+the container image. Section III highlights challenges with
+launching and wiring up MPI processes including a discussion
+of two opposing launch mapping options. Sections IV and
+V explore the intranode and internode container boundary
+issues, respectfully, that may hinder MPI efﬁciency on an HPC
+system. Section VI presents three models for incorporating a
+system optimized MPI library into the container image. Sec-
+tion VII discusses cross-version issues that commonly occur as
+container images and HPC system software levels drift apart.
+Section VIII takes the lessons learned from traditional HPC
+systems and applies them to container orchestrated environ-
+ments. Finally, in Section IX, we conclude our discussion and
+present some opportunities for future investigation.
+II. BUILDING AN MPI CONTAINER IMAGE
+The HPC application container will include the application
+and all of its dependencies such as the MPI library, accelerator
+libraries and tools, and parallel math libraries. The MPI library
+will need the container to include at least the user-space
+libraries for the network(s), accelerator(s), and parallel ﬁle
+system(s) for the targeted HPC system. If the container needs
+to target multiple systems then you may need to have either
+multiple sets of these libraries or multiple versions of your
+container image – one per HPC target system. The dependent
+user-space libraries are necessary to install (or build from
+source) an MPI implementation for the HPC system.
+Choosing the right MPI implementation for your container
+is about picking one that you are most comfortable with using,
+and one that is most compatible with the target system(s).
+Section VI explores the topic of using your own MPI versus
+the system MPI at runtime. This section focuses on including
+the necessary dependencies in the container image at build
+time.
+It is important to highlight that the container image can
+only contain the user-space portion of the libraries that MPI
+depends upon. Some network and accelerator libraries, such
+as InﬁniBand and CUDA, also have a Linux kernel-space
+modules that exist outside of the container that must be
+compatible with the user-space libraries inside the container.
+It is important to review the forward and backward (referred
+to in this paper as cross-version) compatibility requirements
+of these libraries when constructing the container image. See
+Section VII for further discussion of cross-version compatibil-
+ity.
+Additionally, some parallel ﬁle systems, like IBM Spectrum
+Scale, have user-space libraries that MPI can use to optimize
+MPI-IO operations for that ﬁle system. The container image
+should incorporate compatible versions of these libraries to
+more efﬁciently harness this resource.
+Matching these user-space versus kernel-space and inter-
+dependent library versions is a complex task requiring much
+more knowledge of the inter-library dependencies and minor
+version differences than can be expected of most HPC users. In
+response to this need container builder projects and container
+runtimes are working to incorporate logic to hide much of
+this complexity from the end user. Container builder projects
+like HPC Container Maker (HPCCM) [5] and Spack [6] can
+trace the dependencies of the MPI library (and other HPC
+libraries) to include one or more versions compatible with
+the targeted HPC system(s). Container runtimes, such as the
+NVIDIA Container Runtime [7] and Sarus [8], provide a hook
+interface (often Open Container Initiative (OCI) compatible)
+that can be used inject and/or activate the correct version
+of these libraries at runtime before the application starts
+execution. If an incompatible library version pairing inside
+versus outside of the container is detected then an error
+can be raised with appropriate information on how the user
+can correct the situation. Some container runtimes use this
+technique, such as Sarus and Shifter [9], to inject a whole
+MPI implementation from the host system with some caveats
+discussed in Section VI.
+It is also important to remember that the container image is
+an architecture speciﬁc binary object meaning that a different
+image is needed for an x86 machine versus a ppc64le
+machine, for example. Additionally, even when in the same
+broader processor architecture family (e.g., ppc64le) the
+compiler used to build the application may introduce archi-
+tecture speciﬁc optimizations for speciﬁc CPUs (e.g., Power8
+versus Power9) on which you built the container image. Often
+it is important to build the container on the same CPU
+architecture as the target HPC system.
+When building a container to support an MPI application
+on HPC systems users have a choice between building a
+speciﬁc container to a speciﬁc HPC system or building a
+generic container for a broader set of HPC systems. Building
+a container for a speciﬁc HPC system allows the application
+extract the maximum performance on that system since the
+library levels and optimizations will match most closely with
+those on the system. However, a new container image will
+need to be created for each system. Container builder projects
+and remote builders can help users manage this complexity.
+Alternatively, a user could try to build a container image
+as generically as possible targeting the broadest set of HPC
+system requirements that they intend to run against. By doing
+so a user might consider reducing the system speciﬁc depen-
+dencies on, for example, kernel-space interconnect libraries
+and instead use a more generic version of the interconnect
+library or Ethernet. This may come at a performance loss on
+any given HPC system, but produces a more portable container
+image between machines and possibly more longevity on a
+single machine. Some of the potential performance loss could
+be mitigated by container runtimes and OCI hooks that “ﬁxup”
+the container with system speciﬁc libraries at runtime.
+III. LAUNCH AND WIRE-UP OF MPI PROCESSES
+An MPI application is composed of many individual pro-
+cesses distributed across an allocated set of hardware re-
+sources. The Resource Manager (RM) plays a critical role
+in the lifecycle of an MPI job. The RM assists the MPI
+36
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+library in launching MPI processes, enabling those processes
+to discover static and dynamic information about other pro-
+cesses in the job, facilitating the establishment of communica-
+tion channels between processes, notiﬁcation of events (such
+as wall-time), and support for dynamic job operations like
+MPI_Comm_spawn. The RM could be the one provided by an
+MPI library (such as ORTE [10], PRRTE [11], or Hydra [12])
+or provided by the HPC system like SchedMD’s Slurm, Cray’s
+Application Level Placement Scheduler (ALPS), or IBM’s Job
+Step Manager (JSM).
+There are two sets of interrelated design considerations
+presented in this section. The ﬁrst has to do with how
+containers are launched in the system, and the second on
+how the MPI library communicates with the RM across the
+container boundary.
+A. Launching MPI Processes
+MPI processes are launched by either the system provided
+launcher (e.g., srun, aprun, jsrun) or a launcher provided
+by an MPI implementation (e.g., mpirun, mpiexec). These
+are sometimes referred to as a direct launch and an indirect
+launch, respectively.
+The ﬁrst decision that you need to make is if you are using
+the direct or indirect launch method for your containerized ap-
+plication. The direct launch method often uses pre-established
+daemons on the system to speed up launch times. The indirect
+launch method requires the launching of daemons on the nodes
+then the launching of the application across those nodes.
+The advantage of the direct launch method is that, when
+provided, this method usually tightly integrates with other
+system services providing the most custom launch experience
+for that speciﬁc system. The disadvantage is that the RM will
+often exist outside of your container and will need a previ-
+ously deﬁned mechanism to communicate across the container
+boundary, such as with a Process Management Interface -
+Exascale (PMIx) library. Often direct launch methods force
+you into a “one container per process” (1-per-proc) launch
+mapping described in Section III-A1 because the RM is not
+able to distinguish between launching a traditional application
+binary and a containerized binary. Not all HPC systems
+have a direct launch method, and some Workload Managers
+(WLMs) provide options for transparently providing a “one
+container per node” (1-per-node) launch mapping described
+in Section III-A2.
+The advantage of the indirect launch method is that it often
+allows a users to choose between a 1-per-proc and a 1-per-
+node launch mapping depending on the needs of the container.
+If you are using the indirect launch method inside of your
+container then you can standardize on that launcher allowing
+you to choose the runtime that you are most comfortable with
+and with which you have veriﬁed your application. This results
+in simpler job execution scripts since you only need to target
+one launch mechanism, and the speciﬁc process placement and
+binding options for that mechanism. The biggest disadvantage
+is that the launch mechanism might not be supported on the
+target HPC system or be as tightly integrated as the direct
+launch method. If you are using the launcher from inside of
+your container then you will also need to make sure that the
+remote daemons are also launched inside of the same container
+image. Often this will force you into a 1-per-node launch
+mapping described in Section III-A2.
+Along with the decision of direct vs indirect launching the
+user must consider if they are using a 1-per-proc or a 1-per-
+node launch mapping. This decision impacts how MPI process
+see each other on a node (explored in Section IV), how they
+see the node itself (explored in Section V), and the resource
+requirements a runtime might consume to maintain multiple
+containers on a node.
+1) Launching one container per process (1-per-proc):
+In the 1-per-proc launch mapping (sometimes called “rank
+contained”) the RM will launch one container per process
+on all nodes. See Figure 1 for an illustration of this launch
+mapping. To the RM the 1-per-proc launch mapping looks
+just like launching one un-contained, traditional binary since
+the container and the process are logically the same. The job
+script, external to the container, will call the native launch
+mechanism (be it direct or indirect) to start the MPI processes
+in the job.
+The 1-per-proc mapping allows a job script to mix multiple
+containers in the same job allocation which can be helpful
+in workﬂow scenarios. Historically, this mapping was used
+because it did not require any RM or WLM integration making
+it great for older HPC systems. Modern HPC RMs and WLMs
+are now integrating container management features that can,
+for example, help stage container images to compute nodes
+before the job starts.
+The disadvantage of this model is that each MPI process on
+a single node has a container boundary around it that might
+limit its view of other MPI processes in this job negatively
+impacting the performance of the MPI library. The impact of
+such a boundary on MPI is explored in Section IV. Container
+runtimes often allow you to remove most or nearly all of these
+barriers.
+2) Launching one container per node (1-per-node): In the
+1-per-node launch mapping (sometimes called “fully con-
+tained”) the RM will launch one container per node with all
+of the processes assigned to that node launched inside the
+same container instance. See Figure 2 for an illustration of this
+launch mapping. The RM needs to know about the container
+boundary so that it can start up the container instance and
+launch one or more processes inside that same instance. Often
+the RM will place a daemon inside the container instance
+that will then create the MPI processes. This requires that
+the daemon program and all of its dependencies are available
+inside of the container – either as part of the container image
+or mounted in separately.
+The advantage of the 1-per-node mapping is that there are
+no boundaries between MPI processes in the same job since
+they share the same container instance. The container can be
+as isolated from the other processes on the system as necessary
+without adversely impacting the processes inside the container.
+This makes it seem to the application like a privately imaged
+37
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+Launch Node
+node1
+node2
+PMIx
+RM
+MPI
+container
+MPI 
+Process
+myjob.sh
+mpirun -np 6 …  
+c0
+R0
+orted
+c1
+R1
+c2
+R2
+c0
+R3
+orted
+c1
+R4
+c2
+R5
+Fig. 1. Illustration of one container per process (1-per-proc) launch mapping.
+Launch Node
+node1
+node2
+PMIx
+RM
+MPI
+container
+MPI 
+Process
+c0
+myjob.sh
+mpirun -np 6 …  
+c0
+R0
+orted
+R1
+R2
+c0
+R3
+orted
+R4
+R5
+Fig. 2. Illustration of one container per node (1-per-node) launch mapping.
+virtual machine without the virtual machine overhead. This
+model better matches orchestrated environments where the
+bare metal operating system is minimal as discussed further
+in Section VIII.
+The 1-per-node launch mapping better ﬁts the bring-your-
+own MPI scenario where the job script and the (indirect)
+launcher are built into the container. The job script can be
+tuned to the speciﬁc launcher packaged with the container.
+The launcher needs to be able to launch itself into a re-
+mote container instance when starting up its daemons. Some
+WLMs, like LSF, hide this from the launcher behind the
+blaunch API [13]. Whereas some indirect launchers, like
+ORTE and PRRTE, have options to assist in starting the
+container then launching inside of that container instance (e.g.,
+the --launch-agent option).
+The disadvantage of the 1-per-node mapping is that if you
+are using a direct launcher then the RM and WLM needs
+to know how to launch inside the container instance, which
+is not a common feature. However if you use an indirect
+launch mechanism and bring-your-own launcher then the RM
+and WLM need not be aware of containerization. Even when
+bringing your own launcher that launcher will need to talk
+with the RM to acquire, at least, the list of hosts allocated to
+the job and some guidance on the preferred way to start its
+daemons on those allocated nodes.
+The launcher daemon inside the container will be talking
+across the container boundary to the RM (and possibly the
+WLM) and as such the launcher will either need a portable API
+to the RMs or include in the container the necessary libraries
+to communicate with the RM. The PMIx library has been
+used to talk across the container boundary between the indirect
+launch daemon and the RM daemon – though more work on
+reﬁning this use case is needed. Often the RM leaves enough
+information in the environment of the launch node to discover
+this information without the need for a separate library (e.g.,
+using environment variables and temporary ﬁles). The launcher
+just needs to know where to ﬁnd this information and how to
+parse it. However, some RMs do require access to APIs for
+this type of discovery so the container must either be built
+with the library included, or have it mounted in at runtime.
+The latter has the advantage of picking up the exact same
+version of the library on both sides of the container boundary
+side stepping the need for cross-version compatibility issues
+as one side or the other drifts.
+B. Wire-up of MPI Processes
+After the MPI processes are launched they need the RM
+to assist them in discovering their peer processes and wiring
+up communication between them. Often this occurs in or
+shortly after MPI_Init. Some HPC systems have a custom,
+non-standardized interface between the MPI library and the
+RM. However, many HPC software ecosystems have been
+moving towards PMIx [14] as a community deﬁned, standard
+API for a programming library like MPI or OpenSHMEM to
+interact with the RM in as abstract of a manner as possible.
+For containerized applications the primary advantage of PMIx
+versus a system speciﬁc library is that they need to only
+package one library in their container to interact with a wide
+range of RMs instead of one for each system on which they
+might run.
+The MPI library will use PMIx to query the RM for the
+job allocation information, information regarding peers in the
+job, and exchange connectivity information between sets of
+peers. This data exchange is often referred to as a business
+card exchange or module exchange (modex) operation.
+PMIx was designed to connect RM (like Slurm and JSM)
+with tools (like debuggers) and clients (like MPI libraries)
+possibly across container boundaries. The OpenPMIx imple-
+mentation [15] provides cross-version compatibility assurances
+for container environments where the version of PMIx inside
+38
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+the container may be older or newer than that used by
+other PMIx enabled components (like the RM) in the system
+possibly outside of the container instance.
+Figure 1 illustrates a 1-per-proc launch mapping in which
+we can see Open MPI (with the ORTE runtime) launching six
+containers on two compute nodes. The yellow boxes represent
+the container instances. The PMIx communication, represented
+as red arrows, is crossing the container boundary between the
+MPI processes inside the container and the orted daemon
+outside of the container. It is across this communication
+boundary that we need to worry about similar cross-version
+compatibility as we discussed earlier for accelerator, network
+system libraries.
+Figure 2 illustrates a 1-per-node launch mapping in which
+the indirect launcher (mpirun in this example) coordinates
+with the host RM to determine how best to navigate the
+system. PMIx can be used here for mpirun to launch its
+orted daemons by operating ﬁrst as a PMIx tool then as a
+PMIx server.
+IV. MPI INTRANODE COMMUNICATION
+Efﬁcient MPI implementations leverage shared memory for
+intranode communication. If all of the MPI processes are
+in the same container instance within a node (a 1-per-node
+launch mapping) then there are no namespace or cgroup
+boundaries between them that would impede their ability to
+use shared memory. There is still a boundary between the
+processes inside the container and the Linux OS which is
+expressed through capabilities and seccomp security proﬁles.
+Alternatively, if each process is in a separate container instance
+within a node (a 1-per-proc launch mapping) then we need to
+make sure those containers on the same node have sufﬁcient
+ability to “see” and “interact” with each other across those
+container boundaries. In this scenario we need to consider
+Linux namespaces (in addition to capabilities and security
+proﬁles) which can limit the view of one process from another
+process in different containers on the same system hindering
+the establishment of shared memory segments.
+For capabilities and seccomp security proﬁles it is helpful
+to remember that MPI processes running bare metal have
+access to the Linux system call interface and a default set
+of capabilities that are often sufﬁcient for MPI’s needs. When
+moving into a container instance we are often only further
+constraining these restrictions. The security principle of least
+privilege tell us to give the container only the access that it
+needs and as such a container runtime may impose a security
+proﬁle that is overly restrictive.
+For shared memory support MPI will need access to the
+system calls to setup a shared memory segment (e.g., shmat,
+shmget), often a ﬁle system mount point visible to all
+processes (e.g., in /tmp or /dev/shm), and sufﬁcient ca-
+pabilities to read/write to the peer processes memory. The
+latter item is important when using Cross Memory Attach
+(CMA) [16] and system calls like process_vm_readv
+and process_vm_writev which are used to perform a
+single-copy message transfer to/from the address space of one
+MPI process from/to that of the calling MPI process. In this
+case the CAP_SYS_PTRACE capability is required for CMA
+to function between processes even in the same container
+instance. MPI implementations may have other shared memory
+single-copy techniques that they can fall back on if this
+capability is not present, possibly at a performance loss.
+Namespace considerations often only become an issue in
+the 1-per-proc launch mapping where there are container
+boundaries between processes on the same system. To see
+and interact with other MPI processes on the same system
+the container instances need to share the same PID and IPC
+namespaces. Note that they do not need the full system view
+of these namespaces, but a namespace that is shared between
+the container instances so that the MPI processes can see
+each other. This allows for the fundamental shared memory
+operations to proceed across that container boundary.
+Next, the MPI library may need part of the host local ﬁle
+system shared between the container instances if the MPI
+library is, for example, using the ﬁle system to back the shared
+memory segment or provide rendezvous information. In a 1-
+per-node mapping that ﬁle system mount could be isolated to
+just that container instance. In a 1-per-proc mapping it must
+be accessible at the same path in all container instances.
+Next, each container instance on the same node should see
+the same hostname since some MPI implementations use this
+information to help determine locally in the system. This is
+deﬁned by the UTS namespace in Linux. The PMIx interface
+can be leveraged in this instance to minimize the sensitivity
+of the MPI library to the hostname, but often the application
+and user are still sensitive to the consistency of the hostname.
+When a container instance is started by the container
+runtime it is often created in a cgroup to restrict the resources
+available to processes in this container instance. For NVIDIA
+GPUs, for example, the cgroup must contain the GPUs to
+be available to this process and any uniﬁed memory regions
+associated with those GPUs. In a 1-per-node mapping this is
+sufﬁcient to use GPU-to-GPU copy techniques like GPUDirect
+Peer-to-Peer. In a 1-per-proc mapping the sum of all of the
+GPUs and uniﬁed memory regions must be present in all of
+the containers to use such copy techniques.
+Finally, some libraries that support MPI libraries like
+hwloc [17] use the system call interface to get and set
+process bindings, memory policies, and memory bindings.
+The system call interfaces required for some of these activ-
+ities may be restricted by default. As such, for hwloc the
+CAP_SYS_NICE capability is required to access system calls
+such as set_mempolicy.
+V. MPI INTERNODE COMMUNICATION
+At runtime MPI libraries need direct access to network
+devices, accelerators, and parallel ﬁle systems to drive appli-
+cation performance. These are the aspects of the HPC system
+that the user came to leverage, so MPI needs unimpeded
+access to deliver the performance the user expects. Container
+runtimes can expose the raw devices by mounting them into
+the container instance. This provides the processes inside
+39
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+the container with direct access to the hardware without any
+virtualization overhead.
+Some devices, such as Inﬁniband, require particular capa-
+bilities be granted to the container that might otherwise be
+restricted. Speciﬁcally CAP_IPC_LOCK to lock memory for
+data transmission. Associated with this the ulimit setting for
+“max locked memory” needs to be set to unlimited.
+For HPC systems using a GPU-to-GPU copy technique
+across nodes, like GPUDirect RDMA, then you also need to
+make sure the network device(s) is in the cgroup(s) associated
+with the containers along with the GPUs and any uniﬁed
+memory regions.
+More fundamentally the Ethernet interface exposed to con-
+tainers is often just a local loopback to the node where the
+container is running. If you are running in a multi-node
+allocation you must either expose the host network (removing
+the network isolation imposed by the NET namespace) or
+construct an overlay network between the containers. Most
+container runtimes have a mechanism to expose the host Eth-
+ernet network into the container instance. This is a convenient
+option, but does expose the processes in the container to the
+entire network. Some RMs, like LSF, use the host network
+(NET) and IPC namespaces to allow the containers to more
+fully interact with the native network and other processes on
+the system.
+Alternatively a private overlay network can be created
+between the container instances in the same job. There are
+many ways to create an overlay network for containers though
+most users may turn to container orchestrators like Docker
+Swarm or Kubernetes which provide overlay networks in
+addition to other services. Section VIII discusses using MPI
+in these environments in more detail. The advantage of the
+overlay network is that all containers have their own private
+network fully routable to each other and when combined with
+DNS capabilities provided by some container orchestrators
+the container instances start to look and feel like private
+nodes. The disadvantage is that the overlay imposes additional
+latency between containers as they route through the virtual
+and physical networking layers. Beltre, et al. [18] explore this
+performance impact in more detail.
+VI. USE THE SYSTEM MPI OR BRING YOUR OWN MPI
+In prior sections we discussed mounting devices into the
+container at runtime. In this section we will focus on how to
+insert an MPI library that knows how to leverage these devices
+for MPI operations into the container. For this discussion we
+will focus on three broad techniques:
+A. Bring Your Own MPI (BYO-MPI)
+When building an application container an MPI imple-
+mentation must be available in the container to compile the
+application. This MPI implementation will likely also include
+an indirect launcher (e.g., mpirun). The user can then verify
+the correctness of their container by using the MPI library and
+associated launcher on an available development cluster. The
+user can choose to continue using this embedded MPI library
+instead of the version provided by the target HPC system –
+so called the BYO-MPI technique.
+Using the BYO-MPI technique the user can validate their
+application against a speciﬁc implementation and build of the
+MPI library. They can also tune their job run script to the
+provided launcher to get the process layout and binding that
+best serves their application. Further, if the application relies
+on newer, non-standard, or typically disabled features of the
+MPI implementation then the embedded MPI library can be
+adjusted to ﬁt the needs of the application without forcing the
+target HPC system to provide an alternative installation (which
+might not be possible in some situations).
+The primary disadvantage of a purely BYO-MPI scenario
+is that you might not get the best performance from the
+system compared to the system provided MPI. This is often
+the result of system architecture and network tuning in the
+system provided MPI. If the system provided MPI is open
+source then it is likely that you could match its conﬁguration.
+However, if the system provided MPI is proprietary then it is
+not likely that you will be able to do so.
+B. Bind the System MPI (System-MPI)
+In the System-MPI technique the system provided MPI
+library is bound into the container image at runtime. The
+application inside the container will need to be built against
+an MPI implementation that is Application Binary Interface
+(ABI) compatible with the system MPI. At runtime the system
+MPI implementation is mounted into the container image, and
+the binary and library search paths are adjusted to pick up this
+version of the MPI library instead of the one embedded into
+the container.
+The advantage with this model is that you are using the
+supported MPI library built for that target system. You will
+likely get the best performance and integration experience.
+However, care must be taken to adjust any rpaths attached
+to the application binary or associated parallel libraries inside
+the container that might point directly to the embedded version
+otherwise a mix of versions can be experienced. Additional
+care must be taken when mounting in any shared library
+from the host system that the dependencies that it carries
+are satisﬁed when inside the container. One such example of
+this problem is with conﬂicting versions of glibc where the
+system MPI depends upon a newer version of the library than
+was in the container [19].
+The other challenge with this model is that you need to
+make sure the MPI that the container was built against is
+ABI compatible with the MPI that you intend to mount in
+from the system. There exist versioned pairs of freely available
+and/or open source and proprietary MPI implementations that
+are ABI compatible, if conﬁgured correctly. The onus is on
+the container developer to seek out these MPI implementations
+when crafting their container for the target HPC system.
+It is important to note that there is no standard ABI
+for MPI so each implementation is likely incompatible at
+the MPI interface level. The question is often raised about
+why the MPI Forum standardization body does not create
+40
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+a standardized MPI ABI to resolve this situation. The MPI
+Forum has been working on this since at least 2008 [20]
+without much progress. There are good reasons as to why
+there are ABI differences in common data structures like
+predeﬁned communicators and datatypes that often focus on
+design decisions that relate directly to performance.
+C. Combine BYO-MPI with System Components
+This last option is a blend of the BYO-MPI and System-
+MPI options. Some MPI implementations, like Open MPI [10],
+and interconnect libraries, like UCX [21], are built around a
+modular component design. In this design there are frame-
+works deﬁned around sections of MPI functionality such as
+collectives or point-to-point operations. Each framework has a
+stable APIs behind which one or more runtime selectable com-
+ponents are built [22]. These components often take the form
+of shared libraries placed in one or more well known search
+directories. All of the components in these search directories
+are dynamically loaded at runtime and a selection process
+speciﬁc to each framework chooses the winning component(s)
+for the MPI process. This modular component design allows a
+user to drop in additional component shared objects into one
+of these well known directories post-install that will be used
+at runtime.
+As a result of this design a container image can be built with
+a version of Open MPI, for example, that supports basic TCP
+and shared memory operations. Then, at container runtime,
+the target HPC system can provide a set of shared objects
+that are tuned to support the system architecture and network
+for this speciﬁc system. These shared library objects can be
+bind mounted into the container, and the Open MPI library
+embedded in the container will incorporate them at runtime
+allowing you to take better advantage of that speciﬁc HPC
+system.
+The advantage is that you are still using the MPI installation
+that you validated your application against with any new or
+optional features activated that your application requires. Ad-
+ditionally, the network drivers and any customized collectives
+are dropped into the container to tune it for the speciﬁc system
+to deliver improved performance.
+The disadvantage is the same as the System-MPI technique
+since you still have an ABI consideration, but maybe one
+that is more manageable. The only requirement here is that
+the ABI at the framework level (not the whole MPI interface
+level) is compatible with the component being dropped in to
+the container. Since the ABI is at the framework level it is a
+smaller interface and is governed by a speciﬁc implementation
+then it might be easier to negotiate a stabilized interface over
+a range of versions. Knowing that range of versions an OCI
+hook could be developed that brings in the shared objects when
+they are compatible, or skips them (maybe with an appropriate
+warning) when they are not. Since the MPI library is fully
+functional without the system provided shared objects the
+result of not mounting in the new objects is that the job might
+not run as fast as it would otherwise, but it will still run. The
+container will still have to worry about carried dependencies
+on these shared library objects, but is it likely that the surface
+area is reduced and the container runtime hook can help check
+for this type of inconsistency.
+VII. AGING IN PLACE
+An important detail to consider with containers is cross-
+version compatibility across the container boundary seen in
+Figure 3 as MOFED W.x in user-space interacting with
+MOFED Y.x in kernel-space. As soon as your application
+inside the container needs to interact with a process or
+interface outside of the container then version compatibility
+becomes a vital consideration. This goes beyond API or ABI
+compatibility since it may often include the wire protocols that
+different library versions use internally. This is often seen in
+network or accelerator libraries with a user-space and a kernel-
+space component. The user-space component of the software
+lives inside the container, and the kernel-space component
+lives outside of the container. The two library components
+might interact though a well deﬁned API or use a custom
+protocol. Any mismatch in these levels could lead to program
+crashes or data integrity issues.
+There are three scenarios to consider here all of which are
+commonly expected. First, the version of the library inside the
+container matches the version outside of the container. This
+could be because the container was built with this system in
+mind, or that the library was bind mounted into the container
+at runtime. In this scenario we should not expect any problems.
+Second, the version of the library inside the container
+is newer than the version outside of the container. This is
+typically found when a newer application container makes use
+of an established HPC system. HPC systems often upgrade
+their system software on a slower timeline since doing so
+often incurs downtime and extensive stability testing before
+rolling out. Applications that wish to take advantage of newer
+versions of their application that require newer library versions
+will need to make sure they are compatible with the system
+side.
+Third, the version of the library inside the container is older
+than the version outside of the container. This is typically
+found when an established container image is ﬁrst used after
+an HPC system software upgrade.
+The container maintainer needs to have a good idea of
+the forwards and backwards compatibility guarantees provided
+by system libraries especially those with a user-space and a
+kernel-space component.
+The issue of cross-version compatibility raises the ques-
+tion of whether a container maintainer should rebuild their
+container for the target system after every system upgrade, or
+should they try to make more general choices that might allow
+them to go longer between needing to refresh their container
+image? One such solution to ease this burden on the container
+maintainers is for the HPC system administrator in conjunction
+with the vendor to establish a base container image with the
+necessary library versions for each upgrade of the system.
+This would allow the container maintainer to change the base
+container image that they are pulling from and rebuild from
+41
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+Container Boundary
+Centos 8
+./a.out
+RHEL 7
+MOFED Y.x (kernel module)
+CUDA A.x (kernel module)
+Hardware
+GPU0
+GPU1
+GPU2
+GPU3
+mlx5_0
+mlx5_1
+mlx5_2
+MOFED W.x (user space)
+CUDA B.x (user space)
+mlx5_3
+Open MPI
+Fig. 3. Illustration of cross-version issues across a container boundary.
+there. The system administrator then governs which range of
+base images are supported for the current conﬁguration of the
+HPC system.
+VIII. CONTAINER ORCHESTRATION PLATFORMS AND MPI
+To this point the discussion has focused on using contain-
+ers in traditional HPC systems. These systems have batch
+oriented WLMs and RMs with possibly some support for
+helping manage containers in the system. As HPC workloads
+begin to explore cloud environments those that are already
+containerized are experimenting with container orchestration
+platforms like Red Hat OpenShift or other Kubernetes (K8s)
+ecosystems. To simplify our discussion in this section we will
+assume a K8s orchestrator, though the principles apply to any
+container orchestration ecosystem.
+In K8s, and speciﬁcally Red Hat OpenShift, there is a move
+towards a minimalist OS, such as CoreOS [23], running on
+each compute resource in the system. This minimal OS is
+designed to support only the necessary set of services to run
+containers on the system. As such the OS image typically
+does not have many user space libraries like MPI installed.
+For HPC containers this means that they will not be able to
+rely on mounting in libraries from the host OS and instead
+must package all of their parallel computing libraries in the
+container image. This forces the containers into a BYO-MPI
+(Section VI-A) model and makes them dependent on using an
+indirect launcher packaged with their container.
+K8s allocates resources to pods under which one or more
+containers are grouped. The pods are effectively containers
+without a running image since they are deﬁned by the cgroups,
+namespaces, capabilities, and security proﬁles that serve to
+protect containers running in one pod from interacting di-
+rectly with containers running in another pod on the same
+system. Containers running inside a pod each have their own
+running image, but experience a much more permeable and
+ﬂexible set of namespace boundaries between those containers.
+Though pods can support the 1-per-proc launch mapping
+(Section III-A1) it is much more common to use a 1-per-
+pod launch mapping (like the 1-per-node mapping discussed
+in Section III-A2).
+The same requirements for internode and intranode commu-
+nication (replacing node with pod) requirements described in
+sections IV and V, respectively, apply to a K8s environment.
+The difference with a K8s environment is whether these
+requirements on namespaces and capabilities are deﬁned in
+the pod and container K8s YAML descriptions, or if they are
+deﬁned directly in the underlying container runtime behind
+the K8s Container Runtime Interface (CRI). In practice we
+have found that a mixture of both are necessary. For example,
+currently, K8s does not have the means to specify the ulimit
+for containers in a pod which is necessary for InﬁniBand
+support [24]. To set the ulimit one must adjust the default
+set by the container runtime, such as Docker, behind the
+CRI otherwise the container may default to an undesirable
+value. Whereas K8s does have the ability to specify capa-
+bilities per pod which lets us set CAP_SYS_PTRACE and
+CAP_IPC_LOCK for improved intra- and inter-node commu-
+nication.
+The Ethernet network exposed to the containers is usually
+in the form of a private overlay network as mentioned in
+Section V. The overlay network adds some additional overhead
+to Ethernet trafﬁc in exchange for for the beneﬁt of a private
+network [18]. Depending on if the K8s environment is running
+on bare metal or in a virtual machine accessing the high
+speed network might need to be routed through a hypervisor.
+For example, InﬁniBand can be exposed through K8s running
+on bare metal as native HCA devices or exposed through
+K8s running in a virtual machine as SRIOV devices. The
+former provides better performance while the latter gives
+more provisioning control opportunities to the orchestrator
+environment.
+Currently, the default scheduler in K8s does not have an
+understanding of gang scheduling necessary to start all of
+the required pods for an MPI job at the same time. Without
+this capability it is possible to deadlock the system as two
+job greedily grab resources until either they have what they
+need to run or there are none left and neither job can make
+progress. Replacing the default scheduler with one that can
+handle this type of scheduling and resource provisioning is
+critical to running MPI applications [25]–[27]
+IX. CONCLUSION
+HPC systems are seeing an increase in the use of containers
+to run parallel applications many of which rely on MPI
+42
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+libraries. Containers allow the application to be packaged with
+exactly the libraries and other system dependencies that it
+requires whether they be newer, older, or differently conﬁgured
+than that which is provided on the target HPC system. These
+containers face a number of sometimes challenging decisions
+when choosing how to run their containerized MPI application
+on an HPC system.
+In this paper we explored many of these build and runtime
+challenges. For each we presented some common options
+along with a discussion of the advantages and disadvantages
+of each. The purpose of this paper was to explore these
+challenges as a means to provide container maintainers with
+a foundation of information to make informed choices for
+their speciﬁc application needs. Where possible we tried not to
+prescribe a preference for one approach over another to allow
+the container maintainer to weigh the choices for their speciﬁc
+requirements.
+The challenges explored in this paper included library
+compatibility issues that need to be considered when building
+a container image. Along with this challenge we explored
+cross-version compatibility issues at runtime. When launching
+MPI processes, we presented two competing launch mapping
+models namely the one container per process and one container
+per node models. We discussed the role of PMIx in assisting
+MPI libraries in wiring up and negotiating interactions across
+container boundaries. We explored how various container
+boundaries (e.g., cgroups, namespaces, capabilities) can hinder
+an MPI implementations ability to perform efﬁciently on an
+HPC system. We presented three models for how to insert a
+tuned version of the MPI library into the container. Finally
+we ﬁnished with a discussion of translating the experience
+with containers in traditional HPC environments to a container
+orchestration environment, speciﬁcally K8s.
+In the future, we plan to expand our exploration to the
+parallel ﬁle system requirements needed by MPI-IO opera-
+tions including a discussion of the role of object storage in
+orchestrated environments on MPI-IO. Additionally, we plan
+to explore containerized applications that are starting to use
+MPI Sessions [28] and dynamic operations which will likely
+stress the MPI library and RM coordination through PMIx.
+REFERENCES
+[1] Message Passing Interface Forum, “MPI-3.1: Ofﬁcial document,”
+http://www.mpi-forum.org/docs, June 2015.
+[2] OpenSHMEM Consortium, “OpenSHMEM speciﬁcation 1.4 ﬁnal,”
+http://openshmem.org/site/Speciﬁcation, 2016, [Online; accessed 26-
+Apr-2017].
+[3] PGAS
+working
+group,
+“Partitioned
+global
+address
+space,”
+http://www.pgas.org/, 2016, [Online; accessed 04-Apr-2019].
+[4] A.
+Grattaﬁori,
+“Understanding
+and
+hardening
+Linux
+contain-
+ers,”
+NCC
+Group,
+Tech.
+Rep.
+1.1,
+June
+2016.
+[Online].
+Available:
+https://www.nccgroup.com/us/our-research/understanding-
+and-hardening-linux-containers/
+[5] S. McMillan, “Making containers easier with HPC container maker,” in
+In HPCSYSPROS18: HPC System Professionals Workshop, Dallas, TX,
+November 2018.
+[6] T.
+Gamblin,
+M.
+LeGendre,
+M.
+R.
+Collette,
+G.
+L.
+Lee,
+A.
+Moody,
+B.
+R.
+de
+Supinski,
+and
+S.
+Futral,
+“The
+Spack
+package
+manager:
+bringing
+order
+to
+HPC
+software
+chaos,”
+in
+SC15: International Conference for High-Performance Computing,
+Networking,
+Storage
+and
+Analysis.
+Los
+Alamitos,
+CA,
+USA:
+IEEE Computer Society, nov 2015, pp. 1–12. [Online]. Available:
+https://doi.ieeecomputersociety.org/10.1145/2807591.2807623
+[7] NVIDIA,
+“NVIDIA
+container
+runtime.”
+[Online].
+Available:
+https://github.com/NVIDIA/nvidia-container-runtime
+[8] L. Benedicic, F. A. Cruz, A. Madonna, and K. Mariotti, “Sarus: Highly
+scalable Docker containers for HPC systems,” in High Performance
+Computing, M. Weiland, G. Juckeland, S. Alam, and H. Jagode, Eds.
+Cham: Springer International Publishing, 2019, pp. 46–60.
+[9] S. Canon and D. Jacobsen, “Shifter: Containers for HPC,” Proceedings
+of Cray Users Group, 2016.
+[10] E. Gabriel, G. E. Fagg, G. Bosilca, T. Angskun, J. J. Dongarra, J. M.
+Squyres, V. Sahay, P. Kambadur, B. Barrett, A. Lumsdaine, R. H.
+Castain, D. J. Daniel, R. L. Graham, and T. S. Woodall, “Open MPI:
+Goals, concept, and design of a next generation MPI implementation,”
+in Proceedings, 11th European PVM/MPI Users’ Group Meeting, Bu-
+dapest, Hungary, September 2004, pp. 97–104.
+[11] PMIx Community, “PMIx Reference RunTime environment (PRRTE),”
+https://github.com/openpmix/prrte, 2020.
+[12] Argonne National Laboratory, “Hydra process management framework,”
+https://wiki.mpich.org/mpich/index.php/Hydra Process
+Management Framework, 2014, [Online; accessed 26-Apr-2017].
+[13] IBM,
+“Conﬁgure
+and
+use
+LSF
+integrations
+for
+containers.”
+https://www.ibm.com/support/knowledgecenter/en/SSWRJV 10.1.0/
+lsf welcome/lsf kc containers.html, 2019, [Online; accessed 25-Apr-
+2019].
+[14] R. H. Castain, D. Solt, J. Hursey, and A. Bouteiller, “PMIx: Process
+management for exascale environments,” in Proceedings of the 24th
+European MPI Users’ Group Meeting, ser. EuroMPI ’17.
+New
+York, NY, USA: ACM, 2017, pp. 14:1–14:10. [Online]. Available:
+http://doi.acm.org/10.1145/3127024.3127027
+[15] PMIx
+Community,
+“OpenPMIx
+Reference
+Library,”
+https://openpmix.github.io/, 2020.
+[16] C.
+Yeoh,
+“Cross
+memory
+attach.”
+[Online].
+Available:
+https://lwn.net/Articles/405284/
+[17] F. Broquedis, J. Clet-Ortega, S. Moreaud, N. Furmento, B. Goglin,
+G. Mercier, S. Thibault, and R. Namyst, “Hwloc: A generic framework
+for managing hardware afﬁnities in hpc applications,” in Proceedings
+of the 2010 18th Euromicro Conference on Parallel, Distributed and
+Network-based Processing, ser. PDP ’10.
+Washington, DC, USA:
+IEEE Computer Society, 2010, pp. 180–186. [Online]. Available:
+http://dx.doi.org/10.1109/PDP.2010.67
+[18] A. M. Beltre, P. Saha, M. Govindaraju, A. Younge, and R. E. Grant,
+“Enabling HPC workloads on cloud infrastructure using Kubernetes
+container orchestration mechanisms,” in 2019 IEEE/ACM International
+Workshop on Containers and New Orchestration Paradigms for Isolated
+Environments in HPC (CANOPIE-HPC), 2019, pp. 11–20.
+[19] R. S. Canon and A. Younge, “A case for portability and reproducibility
+of HPC containers,” in 2019 IEEE/ACM International Workshop on
+Containers and New Orchestration Paradigms for Isolated Environments
+in HPC (CANOPIE-HPC), 2019, pp. 49–54.
+[20] MPI Forum, “MPI3 ABI mailing list archive.” [Online]. Available:
+https://lists.mpi-forum.org/pipermail/mpi3-abi/
+[21] P. Shamis, M. G. Venkata, M. G. Lopez, M. B. Baker, O. Hernandez,
+Y. Itigin, M. Dubman, G. Shainer, R. L. Graham, L. Liss, Y. Shahar,
+S. Potluri, D. Rossetti, D. Becker, D. Poole, C. Lamb, S. Kumar,
+C. Stunkel, G. Bosilca, and A. Bouteiller, “UCX: An open source
+framework for HPC network APIs and beyond,” in Proceedings of the
+2015 IEEE 23rd Annual Symposium on High-Performance Interconnects,
+ser. HOTI ’15.
+Washington, DC, USA: IEEE Computer Society, 2015,
+pp. 40–43. [Online]. Available: http://dx.doi.org/10.1109/HOTI.2015.13
+[22] J.
+M.
+Squyres,
+“Open
+MPI,”
+The
+Architecture
+of
+Open
+Source Applications, Volume II, May 2012. [Online]. Available:
+https://www.aosabook.org/en/openmpi.html
+[23] Red
+Hat,
+“Red
+Hat
+Enterprise
+Linux
+CoreOS
+(RHCOS),”
+https://access.redhat.com/documentation/en-
+us/openshift container platform/4.3/html/architecture/architecture-
+rhcos, 2020.
+[24] “Kubernetes issue 3595: rlimit support,” January 2015. [Online].
+Available: https://github.com/kubernetes/kubernetes/issues/3595
+[25] K.
+Ahmed,
+“Bridging
+HPC
+and
+cloud
+native
+development
+with
+Kubernetes.”
+[Online].
+Available:
+https://www.hpcwire.com/solution content/ibm/cross-industry/bridging-
+hpc-and-cloud-native-development-with-kubernetes/
+43
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+[26] J. Hursey and S. Miller, “Running InﬁniBand and GPU accelerated MPI
+applications in a Kubernetes environment,” in 2019 IEEE/ACM Interna-
+tional Workshop on Containers and New Orchestration Paradigms for
+Isolated Environments in HPC (CANOPIE-HPC), 2019. [Online]. Avail-
+able:
+https://www.canopie-hpc.org/wp-content/uploads/2019/12/MPI-
+and-k8s-with-ParallelJob-2019-11-sc-workshop.pdf
+[27] M. Korupolu and S. Chatterjee, “Production multi-node jobs with
+gang
+scheduling,
+K8s,
+GPUs
+and
+RDMA.”
+[Online].
+Available:
+https://sched.co/ZejQ
+[28] N. Hjelm, H. Pritchard, S. K. Guti´errez, D. J. Holmes, R. Castain, and
+A. Skjellum, “MPI Sessions: Evaluation of an implementation in Open
+MPI,” in 2019 IEEE International Conference on Cluster Computing
+(CLUSTER), 2019, pp. 1–11.
+44
+Authorized licensed use limited to: Carleton University. Downloaded on May 29,2021 at 23:49:08 UTC from IEEE Xplore.  Restrictions apply. 

@@ -1,0 +1,815 @@
+A Comparative Review of High-Performance 
+Computing Major Cloud Service Providers 
+Rawan Aljamal 
+Computer Engineering Department 
+The University of Jordan 
+Amman, Jordan 
+E-mail: r.aljamal@ju.edu.jo 
+ 
+Ali El-Mousa 
+Computer Engineering Department 
+Princess Sumaya University for 
+Technology 
+Amman, Jordan 
+a.elmousa@psut.edu.jo 
+Fahed Jubair 
+Computer Engineering Department 
+The University of Jordan 
+Amman, Jordan 
+F.Jubair@ju.edu.jo
+ 
+Abstract— This paper reviews the top leading cloud 
+providers, surveys their offering related to High Performance 
+Computing (HPC). Four top cloud provider are selected, 
+Microsoft Windows Azure, Amazon Elastic Compute Cloud 
+(Amazon EC2), Google Compute Engine and Oracle Cloud. Each 
+one of them has its unique value proposition that enables it to 
+survive in the market and make it a real competitor. A 
+comparative analysis of the offerings and relative benefits of each 
+are provided. This study is an introduction to our extensive work 
+in the HPC field. 
+Keywords— High-Performance Computing, Microsoft Azure, 
+Amazon EC2, Google Compute, Oracle, price, performance. 
+I.  INTRODUCTION  
+1.1 High-Performance Computing on the cloud  
+High-Performance Computing (HPC) on the cloud is one 
+of the most trending research topics nowadays. Performing 
+HPC jobs on the cloud is a cost effective solution that 
+overcomes and replaces real dedicated cluster. Cloud 
+architects focus on developing a potential alternative for costly 
+real clusters that were used for this purpose for many years. 
+Many big companies such as Amazon Elastic Compute Cloud 
+(EC2), Microsoft Azure and Google invest hundreds of 
+millions of dollars on cloud technology, delivering many 
+scalable cloud computing solutions to serve users and satisfy 
+their needs and expectations. Cloud computing providers use 
+service-driven models. All hardware, platform and software 
+resources are leased to customer on-demand [14]. Cloud 
+providers offer services that can be classified into three types: 
+Software as a Service (SaaS), Platform as a Service (PaaS), 
+and Infrastructure as a Service (IaaS). Amazon EC2 and 
+Microsoft Azure are the most popular cloud providers. Both 
+offer the IaaS platform. Both providers support a wide range 
+of hardware and software varieties that complicate the 
+selection of the compute node and its operating system [4]. 
+1.2 Benefits of using cloud for High-Performance 
+computing purposes 
+Moving HPC applications from real traditional clusters to 
+virtual cloud clusters has many benefits. It offers the 
+Computing as a Service paradigm which enables HPC 
+solutions to reach wide industrial and scientific communities. 
+Cloud HPC guarantees exclusive execution of jobs without any 
+interference with other user tasks. This feature enables HPC 
+users to achieve maximum performance from leased resources. 
+Cloud providers offer virtual machines with a heterogeneous 
+configuration of processors, network and memory [4]. These 
+benefits encourage all researchers in this domain to investigate 
+the migration of HPC applications. Researchers now are 
+studying all factors that affect executing applications on the 
+cloud. The following benefits increase the value of cloud 
+offerings; meanwhile, these advantages increase the value of 
+research in this field. 
+1. 
+On-demand pricing. All resources used to build 
+virtual clusters such as virtual machines, storage accounts, 
+connected networks, network addresses etc. are priced 
+based on the usage time of resources, (Dollar per hour). 
+However, if the reserved resources are underutilized or idle, 
+users can manually turn off any unused resources, or the 
+cloud provider can automate this process when the usage of 
+the resources drop to a certain threshold. The payment 
+policy in the cloud is pay as you go [3]. 
+2. 
+Elasticity. Cloud providers offer the Auto-Scale 
+feature when deploying resources on the cloud. Resources 
+will automatically expand or shrink to fit the currently 
+executing jobs. This will reduce the underutilization of 
+resources that may occur. In real clusters, resources remain 
+idle and unused during weekends, nights and the time 
+between major tasks execution. These features proves those 
+cloud services, in general, are scalable and will reflect on 
+the cost of running HPC jobs on the cloud [1]. 
+3. 
+Resources control, security, maintenance and 
+management are the responsibility of the cloud 
+provider. No need for a dedicated team to do regular 
+maintenance, updates and upgrades. Machines are 
+automatically upgraded by the provider team, which also 
+reduces the operational cost usually paid to the IT and help 
+desk team in real dedicated clusters [1].  
+4. 
+Cloud resources are reliable and guaranteed by 
+the cloud provider. Services are on, reachable and 
+operational all the time. Many replicas of resources are 
+deployed. The redundancy policy is chosen according to 
+user choice. Resources may be replicated in the same data 
+center or in another one in the same geographical region or 
+in another region. This will help systems to recover quickly 
+in case of any unexpected crash or disaster [11]. 
+5. 
+Queuing time almost does not exist in virtual 
+clusters. Resources are automatically created or released 
+This work has been carried out during sabbatical leave granted to the author 
+Ali El-Mousa from the University of Jordan during the academic year 2017. 
+2018 9th International Conference on Information and Communication Systems (ICICS)
+978-1-5386-4366-2/18/$31.00 ©2018 IEEE
+181
+
+
+based on the workload of the task. No more waiting in the 
+cluster scheduler. This will reduce the total turnaround time 
+of task execution [3]. 
+6. 
+Cost-effectiveness. Especially for small-to-medium 
+size jobs. The cost of running these HPC applications on 
+dedicated clusters is more expensive than leasing the same 
+resources on the cloud [2]. 
+7. 
+RDMA Support. Remote Direct Memory Access 
+(RDMA) also called one-sided communication. RDMA is 
+used to read and write data from another node memory with 
+minimum latency directly. This will reduce communication 
+overhead and minimize the communication to computation 
+ratio of an application [12]. 
+1.3 Cloud providers market share  
+Gartner, Inc. publishes a periodic magic quadrant every 
+quarter. The Magic Quadrant of June 2017 as shown in Fig. 1, 
+shows that the AWS cloud used by Amazon and the Azure 
+cloud used by Microsoft dominate the field of IaaS. Both 
+providers take almost all IaaS market share, while other 
+providers are niche competitors. In this paper we survey the 
+previous work done on these cloud providers, listing their 
+current and up-to-date HPC services, and then we compare 
+them to each other. This work aims to help cloud customers to 
+select the best provider according to their applications. Prices 
+are not listed in the comparison due to its fluctuation. The rest 
+of the paper is organized as follows: Section 2 provides a 
+literature review of HPC previous work on different cloud 
+providers. Section 3 presents the top cloud providers that were 
+selected to be discussed in this work. Discussion and 
+comparison between the cloud providers are presented in 
+Section 4. Section 5 contains the conclusion.    
+II. 
+RELATED WORK  
+2.1 HPC application enables much academic research 
+Scientists, researchers and engineers use HPC to solve 
+many scientific and industrial problems. Cluster hardware is 
+used efficiently to execute HPC applications in a short time. 
+HPC can reduce the execution time of these applications from 
+weeks or days to few hours. Past surveyed studies that will be 
+presented in the next subsection shows that many different 
+cluster architecture can be designed to work as HPC clusters. 
+These clusters vary in specifications such as: computing 
+resources, type of networks connected to it, disk size and type, 
+memory size and many other deterministic parameters. As 
+presented in [3], there is no one size fits all HPC virtual cluster. 
+Consequently, not all benchmarks will execute with the same 
+performance on all cluster architectures.  
+2.2 Cloud Provider role in HPC 
+High-Performance computing on the cloud architecture is 
+one of the promising topics in research nowadays. Many 
+researchers work in this field, studying the possibility of 
+architecture improvement and the possibility of using it 
+efficiently.  
+2.2.1 HPC efficiency studies on Amazon EC2 cloud  
+Many previous research about using cloud as a HPC 
+environment was done on Amazon (EC2). Hence, it is the 
+pioneer of the IaaS architecture in the cloud and one of the 
+market leaders. Amazon shares the leadership with Microsoft 
+Windows Azure and Google Engine clouds. These studies 
+evaluated EC2 through many performance metrics such as: 
+execution time and cost. Microsoft Azure is used as an HPC 
+cluster provider but not much as Amazon EC2. The following 
+subsection briefly explores these studies. 
+2.2.2 Comparing Amazon EC2 cloud with the real on-
+premises clusters 
+ The work done in [2] provided a comprehensive study 
+and evaluated the performance of many clusters that exist on 
+EC2 cloud indicating the positive aspects of the cloud HPC 
+cluster, such as: scalability and availability versus the cloud 
+negative aspects such as virtualization, latency and low-speed 
+networks compared with the relatively high computation 
+capability. Many contributions are done in [4], the most 
+important is the recommendation of disabling hyper threading 
+in the cloud to enhance performance due to the sharing of the 
+physical execution units between logical CPUs. This 
+recommendation which was proved in [2], explained the effect 
+of CPU affinity on the execution time and the performance. A 
+problem occurs when using high scale clusters; EC2 does not 
+assure the co-location of the virtual machines. When virtual 
+machines are located in a different data center, the inter-
+communication time will increase especially in tightly-coupled 
+applications. This will degrade performance due to the long 
+network connections between farther virtual [4]. Work 
+submitted in [3], completed the previous work done in [4], and 
+introduced a full, comparative study of using the cloud for 
+HPC.  
+ 
+Fig. 1. Gartner's Magic Quadrant for Cloud Infrastructure as a Service, 
+Worldwide June 2017 
+2018 9th International Conference on Information and Communication Systems (ICICS)
+182
+
+
+This study compared the HPC cluster of EC2 with five 
+real clusters that exist in Lawrence Livermore National 
+Laboratory (LLNL) for research purposes. Compute nodes in 
+these clusters differ in their computing capabilities, memory 
+size, network technology; network bandwidth and speed used 
+in the interconnection between compute nodes. After executing 
+many benchmarks on various types of clusters, EC2 did not 
+perform superbly based on measuring the execution time 
+compared with real clusters, but it had significantly minimum 
+queuing times due to its elasticity. Therefore, the turnaround 
+time is less in most benchmarks, except the communication 
+intensive ones because EC2 has the 10/Gbps Ethernet speed 
+versus InfiniBand network in real clusters [3].  
+Evaluation done by [3] considered the tradeoff between 
+performance and cost. They considered many factors while 
+comparing different architecture such as: the applications 
+themselves 
+including 
+computing 
+and 
+communication 
+requirements of each, the resource utilization and the cost of 
+executing tasks on the specific cluster. An important part of 
+their work was developing a pricing model which was used to 
+make a fair cost comparison when evaluating HPC 
+applications. Work done in [12] focused on studying cloud 
+bottlenecks that were evaluated by previous work done in [3] 
+and [4]. These bottlenecks and challenges have the maximum 
+effect in large and scalable applications; some of these 
+challenges are the HPC network performance and the 
+monitoring challenges. Authors of [12] try to overcome these 
+challenges and recommended the best design practices to make 
+efficient HPC networks. They discussed in details the network 
+monitoring techniques that were proposed to improve existing 
+methods, such as: the SNMP centralized methods, the scalable 
+push-based approaches and data aggregation.  
+2.3 HPC efficiency studies on real on-premises clusters 
+and virtualized local clusters  
+Work submitted in [1] surveyed many HPC architectures 
+such as real HPC clusters, virtualized in-house HPC clusters 
+using KVM, and then compared them with private and public 
+cloud provides. The comparison considered many points of 
+view to determine which architecture is the best for each type 
+of applications as the authors in [4]. Authors defined the 
+bottlenecks of each architecture after executing various types 
+of benchmarks This work identified the main barriers that face 
+HPC on the cloud, which directly affect the performance, such 
+as: virtualization overhead, the choice of operating system 
+effects and hypervisor visualization, storage and memory 
+performance and the placement of the cluster virtual machines 
+either in the same region or in different regions in many 
+geographical places. The main conclusion which was an 
+enhancement to the work done in [4], was that when we 
+execute the same benchmarks on the same cloud architecture 
+many times, there is a variation in the results due to the sharing 
+of resources and network fluctuations. The work suggested 
+many 
+optimization 
+techniques 
+to 
+reduce 
+performance 
+degradation in the cloud; such as: lightweight virtualization, 
+using thin virtual machines with containers, and CPU affinity 
+on the application level, and the hypervisor level to reduce the 
+variation of execution time from run to run, answering two 
+important questions: which application to migrate on cloud and 
+which cloud architecture to migrate to.   
+2.4 HPC efficiency studies on Windows Azure cloud  
+Microsoft Windows Azure is a relatively new cloud 
+provider. It provides both IaaS and PaaS. Azure became a 
+leader in the market of cloud computing due to many integrated 
+technical and industrial solutions that it offers to cloud 
+customers. Meanwhile it takes its popularity from Microsoft’s 
+reputation in the market. It’s a branded company that has 
+customers trust all around the world over the past two-decades. 
+Azure has many other benefits. It has more than thirty six 
+regions scattered all around the world that has hundreds of data 
+centers, to provide a high level of service to its customers. 
+2.4.1 Comparing Windows Azure cloud with other cloud 
+providers  
+Work submitted in [8] and [9] studied three different 
+cloud providers (Amazon EC2, Microsoft Azure and 
+Rackspace), introducing very comprehensive details about 
+virtual machines deployment details such as: setup procedures, 
+hardware and software configurations, interconnection speeds, 
+virtualization techniques used, booting time, deleting time, the 
+ability of changing the VM size, supported operating systems 
+etc. Beside many performance and cost analysis similar to that 
+done in [1], [3] and [4], authors in [8] and [9] discuss briefly 
+the history of the cloud providers. Amazon EC2 is more 
+popular because it came before Microsoft Azure and 
+introduced the IaaS offering while Microsoft Azure was 
+delivering PaaS only at that time.  Authors evaluated the 
+performance of Amazon EC2 clusters and Microsoft Azure 
+clusters. Many benchmarks were tested with the result that 
+indicated that Microsoft Azure HPC clusters are closest to real 
+clusters than Amazon EC2 HPC clusters. This paper also 
+introduced the difficulties that face porting existing work and 
+compute instances to the Microsoft Azure cloud, explaining the 
+migration process, the needed perquisites that should be 
+satisfied before porting applications to Azure, and proving that 
+these challenges do not affect the performance. Azure is still 
+better than EC2 due to its better interconnections. 
+2.4.2 Microsoft Azure Virtual machines performance   
+Work submitted in [10] presented a comparative analysis 
+of the compute instances performance on multiple cloud 
+providers, studying the performance of single nodes, and the 
+speedup of executing parallel and distributed tasks on a large 
+number of nodes. High scalable benchmarks are used to 
+evaluate the computation capabilities of different kinds of 
+virtual machines on the cloud by estimating the performance 
+per single core in each of them. This work examined all 
+Microsoft Azure virtual machine specifications. Azure 
+classifies the virtual machines into many categories called 
+series; this work presented a clear comparison between Azure 
+VMs [10]. 
+2018 9th International Conference on Information and Communication Systems (ICICS)
+183
+
+
+III. 
+THE TOP FOUR HPC CLOUD PROVIDERS 
+In this paper, the top HPC solutions from the four 
+leading cloud providers will be explained and then they will 
+be compared with each other. Comparison criteria are selected 
+according to the HPC user needs and expectations. This 
+information was obtained from the official websites of each 
+provider, and it is the most up-to-date information when this 
+paper was submitted. Some features may have changed over 
+time such as the number of regions, and other service may get 
+available to users.   
+Table 
+1 
+compares 
+these 
+providers 
+from 
+many 
+perspectives. Some related to performance and some related to 
+price. The following subsection discuss each provider in 
+detail. 
+ 
+ 
+Table 1 Amazon vs Azure vs Google vs Oracle 
+ 
+Amazon EC2 and web services 
+(AWS) [15] 
+Microsoft Windows Azure 
+platform [14] 
+Google Cloud [17] 
+Oracle Cloud [16] 
+Starting Date 
+2006 
+2010 
+2011 
+2007 
+Available 
+Regions 
+18 region 
+36 region 
+13 region, 11 additional new region 
+in 2018 
+12 region 
+Virtual 
+machines 
+types 
+• 
+General purpose 
+• 
+Compute optimized 
+• 
+Memory optimized 
+• 
+Storage optimized 
+• 
+Accelerated computing 
+• 
+General purpose 
+• 
+Compute optimized 
+• 
+Memory optimized 
+• 
+Storage optimized 
+• 
+High performance 
+compute 
+• 
+Standard machines 
+• 
+High-memory machines 
+• 
+High-CPU machines 
+• 
+Mega-memory machines 
+• 
+Bare Metal instances 
+• 
+Traditional virtual 
+machines 
+Batch 
+Processing 
+(if exist) 
+Azure Batch 
+AWS Batch 
+N/A 
+N/A 
+SMB File 
+Storage 
+(if exist) 
+Amazon Elastic File System 
+Azure File Storage 
+N/A 
+N/A 
+Migration 
+Tools 
+(if exist) 
+Full Integrated package, AWS 
+Snowball Edge  
+Simple Import and export 
+process 
+N/A 
+N/A 
+Developer 
+Tools 
+(if exist) 
+AWS SDK 
+Azure SDK Visual Studio 
+Integrated tools for Android, 
+Powershell and  Eclipse 
+N/A 
+Management 
+Tools 
+(if exist) 
+AWS Managed Services 
+N/A 
+N/A 
+N/A 
+Pricing 
+methodology 
+All cloud providers charge users for operating system images, except open source images such as Ubuntu Linux. In addition, static IP address 
+assignment for virtual machines and VPN tunnels that are used to connect to virtual machines and between virtual machines is charged also. 
+Pricing Policy 
+• 
+On-Demand 
+instances, 
+billing is based on computing 
+capacity per hour (Pricing 
+Calculator) 
+• 
+Spot instances billing is 
+based on number of used 
+VMs, price may fluctuate 
+based on the demand inside 
+requested zone. 
+• 
+Reserved instances up to 
+75%) lower in price than the 
+on-demand pricing. 
+• 
+Per-second instances, Price is 
+nbased on  user usage per 
+minutes and seconds. 
+• 
+All virtual machines are 
+priced based on the 
+usage of of resources per 
+hour. 
+• 
+Not all VM are exist in 
+all zones, this affect the 
+price of VM’s in the 
+nearby zones. 
+• 
+Resources in different 
+zones vary in their price 
+according to the size of 
+the 
+datacenter, 
+its 
+utilization, country tax 
+and 
+currencies 
+differences. 
+• 
+All virtual machines are 
+priced based on the usage of 
+its resources per hour. 
+• 
+When 
+using 
+the 
+custom 
+virtual machines the price is 
+flexibilty. Billing is based on 
+the customer selected VM 
+characterstices. 
+• 
+Pricing is based on 
+the subtype of the 
+virtual machine if it 
+is a standard virtual 
+machines or if it a 
+Dense I/O virtual 
+machines. 
+• 
+The 
+Dense 
+I/O 
+virtual 
+machines 
+have double price 
+than the standard 
+virtual machines. 
+Pricing 
+Discount 
+Based on the contract period, longer contract saves more money, also based on the payment option, for example, if it’s full upfront payment, 
+more discount is obtained than the partial upfront. For example, Azure reduces resources billing if the user purchases them for one year 
+commitment with up to 53% lower pricing and for three year commitment with up to 69% lower pricing. 
+2018 9th International Conference on Information and Communication Systems (ICICS)
+184
+
+
+3.1 Amazon EC2 and Amazon Web Services (AWS)  
+Amazon Web Services (AWS) was launched in 2003 as a 
+retail company for computing infrastructure. But in 2006, 
+Amazon expanded its work to provide a full, integrated 
+package of online core services. Amazon is the pioneer of the 
+cloud. Initially,, it delivered IaaS but now Amazon delivers 
+PaaS offering also [15]. Nowadays, Amazon cloud consists of 
+a set of services, providing virtual and cloud based 
+computation, storage and other services [11]. Amazon EC2 
+cloud enables users to create and manage compute instances in 
+data centers using a simple web interface and productive tools 
+and utilities [11]. EC2 provides locations for creating resources 
+on it. Locations are regions and availability zones, which 
+enable cloud users to replicate virtual machines in multiple 
+locations for redundancy purposes. In general, regions hold one 
+or more availability zones, which are geographically dispersed 
+[6]. Amazon EC2, the oldest cloud provider, offers four ways 
+of payment to the customer: On-Demand instances, Spot 
+instances, reserved instances and dedicated instances. When 
+using On-Demand instances, there are no long-term 
+commitments or agreement. Customers can expand or shrink 
+the compute capacity manually based on the expected 
+application workload. This type is recommended for short-
+term and unpredictable workloads. Amazon Spot instances 
+allow the auto-scaling feature as spare computing capacity It 
+can be used during peak hours. A pool of instances (virtual 
+machines) are created and placed virtually in one Auto Scaling 
+group. Customers can specify the minimum and the maximum 
+number of instances in the group. Amazon recommends spot 
+instances for urgent needs when some applications need more 
+capacity and for applications with flexible beginning and 
+ending times [15]. The third type of virtual machines offered 
+by Amazon, are the Reserved Instances. Availability zones are 
+created by customers to place the computing resources on it. 
+Virtual machines inside the availability zone are reserved for 
+the zone owner. This feature guarantees a certain level of 
+confidence. These types of virtual machines are recommended 
+for predictable usage. It can be used for applications that 
+require steady-state computing behavior and high capacity. 
+The last Amazon offering related to compute solutions is the 
+Per Second Billing instances. These instances are used for 
+applications testing, batch processing and data analytics [15].  
+3.2 Microsoft Windows Azure Platform 
+Microsoft Windows Azure platform was commercially 
+available in 2010. It delivers more than six hundred Azure 
+services. This wide variety of services can serve applications 
+running on a wide range of systems, including: computation 
+workloads, storage, mobile services, big data management, 
+web development and machine learning [7]. Microsoft Azure 
+was initiated for running applications on Windows virtual 
+machines and storing the virtual machines data on the cloud 
+[7]. Azure mainly consists of five components: Compute. 
+Microsoft Azure provides Windows-based and Linux-based 
+solutions that are used as a computing service. These virtual 
+machines are used for many purposes such as: Desktop 
+applications, simulations and HPC applications. Storage. 
+Microsoft Azure provides many options for storing data; such 
+as: blobs that store binary large objects, queues used for 
+communication between many Azure applications, and also 
+offers tables and files that store many type of files. Fabric 
+controller. This component will be used to control more than 
+one virtual machine that work together. The controller collects 
+a large number of virtual machines into a single data center as a 
+pool of resources. Other HPC Microsoft Azure components 
+such as: compute and storage works on top of this pool of 
+resources. Content delivery network (CDN). Windows Azure 
+CDN uses many caching techniques to deal with storage 
+accounts. Caching works well on the location of data to 
+maintain it closer to the user. Connect. Windows Azure 
+Connect service is used to interact with cloud applications; 
+especially when there are on-premises components which are 
+used beside cloud resources. Azure virtual machines allow 
+users to deploy a wide range of computing solutions in an 
+agile way. You can deploy virtually many compute solutions 
+with many operating system options such as Windows, Linux, 
+or a custom created operating system selected from Microsoft 
+windows growing list of partners. Azure has many Virtual 
+machines with different hardware and software configurations 
+that fit all cloud user needs [7]. 
+3.3 Google Cloud Platform  
+Google basically offers the Google App Engine Platform 
+as a full integrated service solution. Developers use it as a full 
+package to write code, link code with services, SDK, 
+development environments and other components, then 
+hosting and running it as traditional web applications or 
+mobile applications. All resources needed to give such a 
+service are built and managed by Google cloud without 
+engaging the developers in the underlying details of 
+infrastructure [5]. Google App Engine is also available as a 
+very high availability scalable solution on the cloud as a PaaS. 
+This solution minimizes the management overhead caused by 
+virtual machine utilization, especially during peak hours. This 
+engine scales the number of virtual machines automatically to 
+overcome the overload problem.  Google decided later to enter 
+the market of IaaS, and gave cloud users many other solutions 
+on its infrastructure. The Google Compute Engine allows users 
+to have complete control on their virtual machines running on 
+the cloud via direct access to the hardware [17]. Users are not 
+restricted to use a single solution, they can mix options and 
+choose the right solution for the right application and then 
+connect component together. Users can use the App Engine 
+solution for the front end layer that interacts with users, while 
+using the Redis virtual machine in the Compute Engine [17]. 
+Google Compute Engine's virtual machines are available in 
+many different configurations that create custom virtual 
+machine types which are optimized for specific needs. There 
+are a wide variety of virtual machines configurations 
+characterized by VM sizes. Google also offers flexible pricing 
+options and discounts for long-term workloads to ensure 
+sustainable business. All these features make the Compute 
+Engine of Google the leader of the price/performance 
+competition between the four previously mentioned cloud 
+providers [17].  
+2018 9th International Conference on Information and Communication Systems (ICICS)
+185
+
+
+There are many configurations from micro instances 
+with one CPU to extra-large instances with 96 vCPUs and 
+624GB of memory. Types are categorized between standard, 
+high CPU and, high memory configurations. The other 
+offering from Google is the Custom Virtual Machines, this 
+type is tailored according to user needs to fit their application 
+[17]. 
+3.4 Oracle Cloud 
+Oracle began to provide cloud services since 2007 as a 
+database cloud services known as Database as a Service. Now, 
+they entered the market of the cloud strongly by providing all 
+other cloud offerings such as: IaaS, PaaS and SaaS at a lower 
+competitive price. Oracle provides distinguishing Infrastructure 
+as Service solutions: The Bare Metal Instances and the 
+traditional Virtual machines instances. The Bare Metal 
+instances are fully dedicated servers connected to each other 
+using the software-defined network on the hypervisor operating 
+system. Bare metal virtual machines offer unique raw 
+performance. Each virtual machine has 36 processor cores with 
+super SSDs that provide millions of IOPS. These virtual 
+machines are ideal for HPC applications, input/output intensive 
+applications such as big data workloads, and Oracle Database 
+workloads [16].  
+Oracle Virtual Machine instances are used for other 
+workloads that does not require dedicated and High-
+Performance virtual machines. These virtual machines are 
+cloud-optimized, its hardware, storage, and networking 
+infrastructure are accessible via predefined API’s. Oracle 
+offers two options under the Compute category: Bare Metal 
+Instances and Virtual machine instances. The Bare dedicated 
+instances come with three types of virtual machines with 36 
+vCPU with different memory sizes, Standard Compute 
+Capacity virtual machine with 256GB memory, High I/O 
+Compute Capacity virtual machine with 512GB memory and 
+12.8TB SSD disk and the Dense I/O Compute Capacity with 
+512GB and 28.8TB SSD disk [16]. The ordinary virtual 
+machine 
+instances 
+have 
+more 
+CPU 
+and 
+memory 
+configurations; from one CPU on the standard virtual 
+machines to sixteen CPU for the DenseIO virtual machines. 
+The DenseIO virtual machines have more memory than 
+Standard; its memory reaches 240GB [16].  
+IV. 
+CONCULSION 
+No cloud provider fit all user requirements. Each has its 
+value proposition in the market. Some of the providers have a 
+large market share due its seniority in the field such as 
+Amazon EC2 cloud. Other providers have a good market share 
+due to its reputation in the market. Microsoft Azure has its 
+popularity from Microsoft reputation. Oracle already focuses 
+their work on serving database and high I/O requirements. 
+Google proposed new purchasing technique. Users can request 
+any computing and storage requirement amount. In the 
+information technology field, there are no clear predictions 
+about what would happen in the next few years. All 
+competitors invest millions of dollars to lead the market. They 
+offer many services, many facilities to keep their old 
+customers satisfied with their services and attract new 
+customers to earn their loyalty.  
+Our 
+work 
+continues 
+to 
+provide 
+detailed 
+recommendations 
+and 
+guidelines 
+for 
+users 
+of 
+HPC 
+applications. Currently, comprehensive HPC experiments 
+using benchmarks are being conducted on the Microsoft Azure 
+platform. Machine learning techniques are being used to 
+evaluate 
+results 
+and 
+to 
+help 
+determine 
+the 
+best 
+recommendations from the various offerings. This paper 
+introduced our current extensive work in the HPC field. 
+However, due to lack of space, we are unable to show full 
+experiment results.  
+REFERENCES 
+[1] A.Gupta, “Techniques for Efficient High-Performance Computing in the 
+Cloud”, University of Illinois, Urbana Champaign, 2014 
+[2] A.Gupta, L.Kale and F.Gioachin, “The Who, What, Why and How of 
+High-Performance Computing Application on the Cloud”, 2013. 
+[3] A.Marathe, R.Harris, D.Lowenthal, B.Supinski, B.Rountree, M.Schulz. 
+and  X.Yuan, “A Comparative Study of High-Performance Computing 
+on the Cloud”, In the International Symposium on High-Performance 
+Parallel and Distributed Computing, pp. 239-250, 2013. 
+[4] A. Marathe, D. Lowenthal, B. Rountree, X. Yuan, M. Schulz and B. de 
+Supinski, “A User Perspective of High-Performance Computing on the 
+Cloud”, The University of Arizona, Lawrance Livermore National 
+laboratory, March, 2012.  
+[5] A.Zahariev, “Google App Engine”, Helsinki University of Technology, 
+2009. 
+[6] C.Vecchiola, S.Pandey and R.Buyya, “High-Performance Cloud 
+Computing: A View of Scientific Applications”, 2009.   
+[7] D. Chappel, “Introducing Windows Azure”, David Chappel and 
+Associates, 2008 
+[8] E.Roloff, F.Birck, M.Diener, A.Carissimi and P.Navaux, “Evaluating 
+High-Performance Computing on the Windows Azure Platform”, In 
+IEEE Fifth International Conference on Cloud Computing, pp. 803- 810, 
+2012. 
+[9] E.Roloff, M.Diener, A.Carissimi. and P.Navaux, “High-Performance 
+Computing in the Cloud: Deployment, Performance and Cost 
+Efficiency”, In 4th International Conference on Cloud Computing 
+Technology and Science, pp. 371-378, 2012.  
+[10] M.Mohammadi. and T.Bazhirov, “Comparative benchmarking of cloud 
+computing 
+vendors 
+with 
+High-Performance 
+Linpack”, 
+Cornell 
+University library, February 2017. 
+[11] Q.Zhang, L.Cheng and R.Boutaba, “Cloud computing: state-of-the-art 
+and research challenges”, In Journal of Internet Services and 
+Applications, pp. 7–18, 2010. 
+[12] T.Groves, “Characterizing and Improving Power and Performance of 
+HPC Networks”, University of New Mexico and Sandia National 
+Laboratories, 2016. 
+[13] V.Persico, P.Marchetta, A.Botta and A.Pescapè “On Network 
+Throughput Variability in Microsoft Azure Cloud”, University of Naples 
+Federico, Italy, 2016. 
+[14] Portal.azure.com. (2017). Microsoft Azure. [online] Available at: 
+https://portal.azure.com/ [Accessed 1 Dec. 2017]. 
+[15] Amazon Web Services, Inc. (2017). Amazon Web Services 
+(AWS), 
+Cloud 
+Computing 
+Services. 
+[online] 
+Available 
+at: 
+https://aws.amazon.com/ [Accessed 1 Dec. 2017]. 
+[16] Cloud.oracle.com. (2017). Enterprise Cloud Computing SaaS, PaaS, 
+IaaS | Oracle Cloud. [online] Available at: https://cloud.oracle.com 
+[Accessed 1 Dec. 2017]. 
+[17] Google Cloud Platform. (2017). Google Cloud Computing, Hosting 
+Services & APIs  |  Google Cloud Platform. [online] Available at: 
+https://cloud.google.com 
+[Accessed 
+1 
+Dec. 
+2017]
+ 
+ 
+2018 9th International Conference on Information and Communication Systems (ICICS)
+186

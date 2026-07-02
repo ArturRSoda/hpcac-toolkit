@@ -1,0 +1,70 @@
+AWS Compute Blog
+New Amazon EC2 Spot pricing model: Simpliﬁed purchasing
+without bidding and fewer interruptions
+by Roshni Pary | on 13 MAR 2018 | Permalink |  Share
+Contributed by Deepthi Chelupati and Roshni Pary
+Amazon EC2 Spot Instances oﬀer spare compute capacity in the AWS Cloud at steep discounts. Customers—
+including Yelp, NASA JPL, FINRA, and Autodesk—use Spot Instances to reduce costs and get faster results.
+Spot Instances provide acceleration, scale, and deep cost savings to big data workloads, containerized
+applications such as web services, test/dev, and many types of HPC and batch jobs.
+At re:Invent 2017, we launched a new pricing model that simpliﬁed the Spot purchasing experience. The new
+model gives you predictable prices that adjust slowly over days and weeks, with typical savings of 70-90%
+over On-Demand. With the previous pricing model, some of you had to invest time and eﬀort to analyze
+historical prices to determine your bidding strategy and maximum bid price. Not anymore.
+How does the new pricing model work?
+You don’t have to bid for Spot Instances in the new pricing model, and you just pay the Spot price that’s in
+eﬀect for the current hour for the instances that you launch. It’s that simple. Now you can request Spot
+capacity just like you would request On-Demand capacity, without having to spend time analyzing market
+prices or setting a maximum bid price.
+Previously, Spot Instances were terminated in ascending order of bids, and the Spot price was set to the
+highest unfulﬁlled bid. The market prices ﬂuctuated frequently because of this. In the new model, the Spot
+prices are more predictable, updated less frequently, and are determined by supply and demand for Amazon
+EC2 spare capacity, not bid prices. You can ﬁnd the price that’s in eﬀect for the current hour in the EC2
+console.
+New Amazon EC2 Spot pricing model: Simplified...
+https://aws.amazon.com/blogs/compute/new-amaz...
+1 of 3
+6/10/26, 16:03
+
+
+As you can see from the above Spot Instance Pricing History graph (available in the EC2 console under Spot
+Requests), Spot prices were volatile before the pricing model update. However, after the pricing model
+update, prices are more predictable and change less frequently.
+In the new model, you still have the option to further control costs by submitting a “maximum price” that you
+are willing to pay in the console when you request Spot Instances:
+You can also set your maximum price in EC2 RunInstances or RequestSpotFleet API calls, or in command line
+requests:
+The default maximum price is the On-Demand price and you can continue to set a maximum Spot price of up
+to 10x the On-Demand price. That means, if you have been running applications on Spot Instances and use
+the RequestSpotInstances or RequestSpotFleet operations, you can continue to do so. The new Spot pricing
+model is backward compatible and you do not need to make any changes to your existing applications.
+Fewer interruptions
+Spot Instances receive a two-minute interruption notice when these instances are about to be reclaimed by
+EC2, because EC2 needs the capacity back. We have signiﬁcantly reduced the interruptions with the new
+pricing model. Now instances are not interrupted because of higher competing bids, and you can enjoy longer
+workload runtimes. The typical frequency of interruption for Spot Instances in the last 30 days was less than
+5% on average.
+To reduce the impact of interruptions and optimize Spot Instances, diversify and run your application across
+multiple capacity pools. Each instance family, each instance size, in each Availability Zone, in every Region is a
+separate Spot pool. You can use the RequestSpotFleet API operation to launch thousands of Spot Instances
+and diversify resources automatically. To further reduce the impact of interruptions, you can also set up Spot
+Instances and Spot Fleets to respond to an interruption notice by stopping or hibernating rather than
+terminating instances when capacity is no longer available.
+Spot Instances are now available in 18 Regions and 51 Availability Zones, and oﬀer 100s of instance options.
+aws ec2 run-instances --instance-market-options
+'{"MarketType":"spot", "SpotOptions": {"MaxPrice": "0.12"}}' \
+ --image-id ami-1a2b3c4d --count 1 --instance-type c3.large
+New Amazon EC2 Spot pricing model: Simplified...
+https://aws.amazon.com/blogs/compute/new-amaz...
+2 of 3
+6/10/26, 16:03
+
+
+We have eliminated bidding, simpliﬁed the pricing model, and have made it easy to get started with Amazon
+EC2 Spot Instances for you to take advantage of the largest pool of cost-eﬀective compute capacity in the
+world. See the Spot Instances detail page for more information and create your Spot Instance here.
+TAGS: Amazon EC2, Amazon EC2 Spot, Amazon EC2 Spot Instances, spot
+New Amazon EC2 Spot pricing model: Simplified...
+https://aws.amazon.com/blogs/compute/new-amaz...
+3 of 3
+6/10/26, 16:03

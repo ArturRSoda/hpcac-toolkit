@@ -1,0 +1,68 @@
+N. Meghanathan et al. (Eds.): Advances in Computing & Inform. Technology, AISC 176, pp. 729–737. 
+springerlink.com                                                                      © Springer-Verlag Berlin Heidelberg 2012 
+Load Balancing in Cluster Using BLCR 
+Checkpoint/Restart 
+Hemant Hariyale, Manu Vardhan, Ankit Pandey, Ankit Mishra,  
+and Dharmender Singh Kushwaha  
+Motilal Nehru National Institute of Technology Allahabad 
+Department of Computer Science and Engineering 
+Allahabad-211004, U. P., India 
+{cs1010,rcs1002,it088003,it088015,dsk}@mnnit.ac.in 
+Abstract. Modern computation is becoming complex in a way that the resource 
+requirement is gradually increasing. High Throughput Computing is one 
+technique to deal with such a complexity. After a significant amount of time, 
+computing clusters gets highly overloaded resulting in degradation of 
+performance. Since there is no central coordinator in Computer Supported 
+Cooperative Working (CSCW) load-balancing is more complex. An overloaded 
+node does not participate in a CSCW network as they are already overloaded. 
+This paper proposes migration of computation intensive jobs from overloaded 
+nodes, which will allow overloaded nodes to be able to participate in CSCW. 
+The proposed solution improves the performance by making more nodes 
+participating in CSCW by migrating compute intensive jobs from overloaded 
+nodes to underloaded nodes. Evaluation of proposed approach shows that the 
+availability and performance of the CSCW clusters is improved by 30%-40% 
+with fault-tolerance based load balancing.  
+Keywords: Checkpoint/Restart, CSCW, Fault Tolerance, Job Migration, Load 
+Balancing.  
+1   Introduction 
+Computer Assisted Cooperative Working is concept, in which a group of computer 
+nodes participate to share services, computational workload and perform compute 
+intensive jobs cooperatively. Cluster computing is becoming more popular these days 
+and the prime reason for that is high availability, more reliability and more efficient 
+computing. Checkpoint/Restart is a technique of storing the state of process at 
+particular intervals. If the process fails at some point of time, previously stored 
+process states can be used to restart the process from the last stable state. Storing the 
+state of a running process i.e. process id, register values, stack pointer etc. in a file 
+known as context or checkpoint file is known as creating a checkpoint. 
+Checkpointing/Restart allows starting a job from the most recent stable running state 
+saving a lot of computational time and reducing response time of crashed jobs in 
+overloaded conditions. Berkley Lab Checkpoint/Restart (BLCR) is an open source 
+
+
+730 
+H. Hariyale et al. 
+checkpointing and restart utility for Linux clusters that targets the space of typical 
+High Performance Computing applications (HPC) developed at Computational 
+Research Division, Ernest Orlando Lawrence Berkeley National Laboratory. 
+Cluster is a group of computers interconnected for providing efficient computation 
+for High Throughput Computation (HPC) application. Balancing load for achieving 
+optimal performance forces the job migration. Job migration is termination of job on 
+the overloaded CPU and restarting it on a underloaded or idle CPU. Since a CSCW 
+does not have a central controller or coordinator, balancing load in such situations is 
+more complex and needs to be done in decentralized manner. Migration of job 
+requires transfer of files required for restarting a job on new node. Due to increasing 
+complexity, requirements of computational intensive jobs, the possibility that the 
+process may fail during the course its execution will increase. 
+ 
+ 
+Fig. 1. Architecture 
+Figure 1 shows three clusters, each having a cluster head. Each cluster head 
+manages some node locally. If one of the cluster head fails because of overloading, all 
+the nodes in its cluster zone will not be able to participate in computer supported 
+cooperative working. Job migration helps in handling issues related to fault tolerance 
+for critical processes as well as for balancing the load among the nodes of cluster. In 
+all job migration improves availability of cluster node in CSCW. 
+The rest of the paper is organized as follows. The next section discusses the related 
+work done in the context of job migration, checkpointing and load balancing. Section 3 
+discusses the proposed work. In section 4 performance evaluation is performed which is 
+followed by conclusion in section 5. 

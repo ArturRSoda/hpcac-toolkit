@@ -1,0 +1,562 @@
+2020 10th International Symposium on Telecommunications (IST'2020) 
+978-1-7281-8012-0/20/$31.00 ©2020 IEEE 
+A  Reliability Aware Algorithm for Workflow 
+Scheduling on Cloud Spot Instances Using Artificial 
+Neural Network 
+ 
+Hoda Ghavamipoor  
+New Media Department 
+Cyberspace Research Center 
+Tehran, Iran 
+h.ghavamipoor@aut.ac.ir 
+Sayyed Ali Kianian Mousavi      Hamid Reza Faragardi 
+Electrical Engineering and Computer Science Department
+KTH Royal Institute of Technology 
+Stockholm, Sweden 
+sakm2@kth.se           hrfa@kth.se 
+Nayereh Rasouli 
+Department of Computer Engineering 
+University of Science and Culture 
+Tehran, Iran 
+n.rasouli@usc.ac.ir 
+ 
+Abstract—IT infrastructures are rapidly growing due to the 
+increased demand for computing power used by applications. 
+Furthermore, modern cloud data centers are hosting various 
+advanced applications based on the user's needs. The goal of 
+this paper is to maximize the reliability of running workflow 
+applications considering spot instances revocation without 
+imposing fault-tolerance overhead. For this purpose, we use an 
+Artificial Neural Network algorithm (ANN) to define a failure 
+prediction module for the cloud spot instances. Indeed, we 
+introduce a novel workflow scheduling algorithm, named 
+Reliability Aware and modified HEFT (Heterogeneous Earliest 
+Finish Time) for minimizing the makespan of a given workflow 
+subject to a specified reliability of the application. To evaluate 
+our ANN based prediction model, we have used a 
+benchmarking data set. The results of the model training 
+demonstrate that the prediction accuracy is about 96 percent. 
+Our experiments illustrate that although makespan does not 
+improve significantly in all experiments, an acceptable level of 
+reliability is achieved. 
+Keywords—cloud 
+computing, 
+spot 
+instances, 
+machine 
+learning, workflow scheduling, reliability. 
+ 
+I. 
+INTRODUCTION  
+Cloud computing is the delivery of on-demand computing 
+services, from applications to storage and processing power, 
+typically over the Internet and on a pay-as-you-go basis. It can 
+run applications with high flexibility, scalability, and 
+availability with economical pricing for cloud users[1]. They 
+only need a remote connection to a cloud data center to run their 
+workloads on the variety of its servers. According to the ability 
+to build flexible and sophisticated applications, each user 
+application service is expressed in a workflow. A cloud 
+workflow system is a type of platform service that aids the 
+automation of distributed applications based on the cloud 
+infrastructure[2]. 
+Amazon Elastic Compute Cloud (EC2) offers elastic 
+resources based on customer demands which can be provisioned 
+immediately even if the system is overloaded [3]. However, 
+when its computing resources are under-provisioned, EC2 can 
+rent spare compute capacity as Amazon EC2 spot instances at 
+steep discounts (up to a 90% discount) compared to On-Demand 
+instances [4] based on an auction bidding mechanism. Spot 
+Instances are utilized for various stateless, fault-tolerant, or 
+flexible applications such as big data, containerized workloads, 
+CI/CD, web servers, high-performance computing (HPC), and 
+other test and development workloads. The trade-off for cheaper 
+prices of spot instances is based on the fact that the SLA is not 
+guaranteed for these resources and they may not always be 
+available. In the situation that the current spot instance price is 
+greater than the customer’s bid price or in the case that the 
+Amazon EC2 is faced with a lack of on-demand resources, the 
+customer’s spot instance is revoked. Therefore, reliability is a 
+challenge for customers when they want to choose spot instances 
+for the execution of their tasks. To overcome this challenge, 
+some solutions are proposed in previous studies with different 
+approaches. The first approach is using fault-tolerant 
+scheduling. These algorithms are used in a hybrid set of spot 
+instances and on-demand cloud resources to mitigate the 
+reliability risk by utilizing a kind of redundancy mechanism [5]. 
+These models can minimize or even eliminate the lost work for 
+spot instances revocations. However, they incur additional 
+overhead related to application completion time (which can lead 
+to time penalty costs) as well as deployment cost. This, in turn, 
+can be at odds with the main purpose of using spot instances, 
+which is cost reduction. 
+In recent years, to get rid of the overhead of employing fault-
+tolerance mechanisms, another approach is proposed in some 
+papers which tends to overcome the reliability challenge using 
+the spot instance failure probability prediction. These studies 
+were frequently utilized constant failure rates to schedule 
+workflows based on heuristic algorithms. 
+In this paper, a machine learning-based failure prediction 
+model for spot instances is proposed which aims more 
+
+
+ 
+ 
+accurately and intelligently to estimate the probability of task 
+completion on each spot instance type before the task 
+assignment. Furthermore, a scheduling algorithm entitled “RA-
+HEFT” (Reliability Aware Heterogeneous Earliest Finish 
+Time), a modified version of the original HEFT algorithm [6] is 
+proposed. RA-HEFT algorithm utilizes the proposed predictor 
+to optimize the makespan of workflows considering a minimum 
+ensured reliability rate. 
+The rest of the paper is structured as follows: previous works 
+are discussed in Section 2.  A prediction for solving spot instance 
+revocations problem by using an artificial neural network is 
+discussed in Section 3. In section 4, the workflow scheduling 
+algorithm (RA-HEFT) is proposed. The evaluation of the 
+proposed method is presented in Section 5. The conclusions are 
+given in Section 6. 
+II. 
+RELATED WORKS 
+In cloud systems, spot instances can be revoked at any time, 
+creating uncertainty about task completion times. To tackle this 
+unreliable situation, researchers investigate fault tolerance 
+criteria by focusing on various methods such as replication [8], 
+checkpointing [5], [2], and VM migration [8] as we review some 
+previous studies focusing on these various areas. Wu et al. [10] 
+represented a dynamic fault-tolerant workflow scheduling 
+method with hybrid spatial and temporal re-execution schemes. 
+Farid et al. [11] represented a solution for the scheduling 
+scientific workflow problem with a new multi-objective 
+scheduling algorithm. Fuzzy resource utilization based on the 
+swarm optimization method was proposed. Poola et al. [6] 
+presented an adaptive just-in-time scheduling algorithm for 
+scientific workflows, which was fault-tolerant against 
+performance variations, out-of-bid failures, and resource 
+failures for clouds. Martinez et al. [12] organized the Markov 
+decision process of workflows in cloud environments to 
+minimize the monetary cost while being subject to timeliness 
+constraints and looked up for the optimal policy taking into 
+account the user preferences in time and cost.  
+As we mentioned, the conventional approaches for fault 
+tolerance rely on checkpointing restart mechanisms, which 
+periodically save a snapshot of a system to stable storage and 
+use it to recover the system from failures so based on the 
+dynamic environment of the cloud system, these methods cannot 
+solve the issue instead using machine learning techniques for 
+predictions are addressed in [13]. In [14], Ragmani et al. tried to 
+find the more accurate machine learning algorithm namely an 
+artificial neural network model for defining a failure prediction 
+module for cloud architectures. Mishra et al. [15] presented 
+machine learning techniques for predicting the spot price to 
+facilitate the users in bidding. According to the experimental 
+results, reliability and reduce the cost of computing on VM 
+instances were improved.  
+Reducing the effect of spot instance revocations without 
+using the fault tolerance technique, which imposes an extra 
+overhead to the system, increases the deployment and user costs, 
+is already addressed by a few research works such as in [16], 
+Alourani et al. introduced a cloud market-based method that 
+leverages cloud spot market features to provision spot instances 
+without engaging fault-tolerant mechanisms to diminish the 
+deployment cost and completion time of applications. Pham et 
+al. [17] explained the life cycle of SIs and described the most 
+relevant events that might interrupt a user from obtaining SIs. 
+They revealed that the SI interruption rate was able to influence 
+the fulfillment rate. Their method was evaluated on real EC2 
+cloud experiments. 
+III. THE FAILURE PERDITION MODEL 
+In this section, a feed-forward neural network is trained to 
+extract the failure prediction model. We utilize a benchmark 
+data set [17] which includes 3840 spot requests organized in 
+experiments each of which invokes 16 requests to the same SI 
+type. Those 16 requests have been sub-divided into 4 different 
+workloads and bid prices. The steps of model derivation are as 
+follows: 
+In the first step, necessary fields for our dataset are identified 
+and the rest of the fields are removed before further processing. 
+The fields that are used in this research from spot instance 
+allocation history data, are: Instance creation time, Instance 
+types (there are 4 types of instances in the mentioned data set 
+[17], Instance price which means the customer bidding price, the 
+Execution time of the task, and, the Instance status field. The 
+Instance status indicates the fulfillment/failure of the task. 
+Table 1. The structure of input data 
+Instance 
+creation time 
+Instance 
+type 
+Instance 
+price 
+Execution 
+time 
+Instance 
+status 
+  
+The data is cleaned to make the dataset more consistent and 
+expressive. Records with very low execution times (<5s) 
+referring to the creation of the instances are removed. Moreover, 
+instances that are canceled by the user are also removed from 
+the dataset because they are not canceled by the cloud’s 
+provider, so, we cannot say whether that instance completes 
+successfully or fail. 
+In the next step, the string messages in records are replaced 
+with appropriate numbers for quantification purposes. The string 
+version of instance types is replaced with the number of VCPU 
+each instance type has according to the specification sheet 
+provided by Amazon EC2 cloud provider. A multiplier of 1.2 is 
+also applied to generation 5 instances since, according to the 
+Amazon cloud, the 5th generation of instances is about 20% 
+faster compared to generation 3 and 4. A string version of 
+instance status is replaced with 1 for failure and 2 for success. 
+The Execution time is calculated as the seconds of difference 
+between the first created instance in the dataset and the current 
+record. The resulting dataset consisted of 2209 records. With 
+1743 recording indicating failure and 416 records indicating 
+success. 
+The failure and success instances are separated, shuffled, and 
+then distributed into two sets of training and test in a 75/25 ratio, 
+maintaining the distribution of failed and succeeded numbers in 
+two sets. The resulting dataset is fed into a simple 3-layer neural 
+network with the following structure (fig. 1).  
+
+
+ 
+ 
+ 
+Fig 1.The structure of the failure prediction neural 
+network 
+           
+The resulting neural network is then trained using Bayesian 
+regulation for 1000 epochs. The results of the training are shown 
+in Fig. 2. 
+ 
+Fig 2. The resulted confusion matrices 
+  
+The top training confusion matrix shows the number of false 
+positives (2.4%), false negatives (1.0%) as well as the total 
+accuracy (96.6%) on training data. In the test set, the rate of the 
+false positive and false negative is 4.8% and 2.3% accordingly, 
+our accuracy in the test set, and the total dataset is 92.9% and 
+96.1% accordingly. 
+The neural network performance chart, as shown in Fig. 3, 
+is flattened regarding test error. Indicating that the network has 
+already achieved optimal performance. 
+  
+ 
+Fig 3. The neural network performance chart 
+In this step, our failure prediction model is extracted and it 
+will be embedded in the RA-HEFT algorithm in the next section. 
+IV. THE RA-HEFT ALGORITHM 
+To schedule the workflow in cloud systems a variety of 
+algorithms were proposed in the literature. One of the most 
+popular ones is the HEFT algorithm [6]. In this section, the RA-
+HEFT algorithm, a modified version of the HEFT algorithm, is 
+proposed.  
+RA-HEFT decides to allocate workflow tasks to processors 
+based on whether the neural network predicts its successful 
+execution. Algorithm 1 shows the pseudo-code of the proposed 
+algorithm. Each task in the pseudocode includes it’s starting 
+time, execution time as well as it’s instance requirement. 
+ 
+Algorithm 1: The RA-HEFT algorithm
+1.
+Compute ranku of each task according to the HEFT 
+algorithm. 
+2. 
+Train neural network net(pk, Sk) with the dataset to 
+approximate failure rate of each instance type relative to 
+required reservation time. 
+3. 
+while there is an unscheduled task in the list do 
+4. 
+    select the first task ti with the highest rank.  
+5. 
+        for each processor pk in cluster set (pk in Q) do 
+6. 
+            compute EFT(ti,pk) and EST(ti,pk) value with  
+            insertion-based scheduling policy 
+7. 
+            Predict net(pk, EFT(ti,pk), EST(ti,pk)) to  
+            approximate whether the task will be run 
+successfully in the current processor. 
+8. 
+    if there is a processor with the successful execution 
+9. 
+        Assign ti to pj with minimum EFT and successful  
+        execution prediction. 
+10.         Remove task ti from the pool. 
+
+
+ 
+ 
+11.
+   Else
+12.        if the instance can get smaller  
+13.             half the instance requirement of ti 
+14. 
+                double ti execution time  
+15.             do not assign it to any processors so that it  
+        would be reselected in the loop. 
+16.        Else 
+17.             add constant delay time d 
+18.             Set instance requirement back to full 
+19.        End if 
+20. End if 
+21.  
+22. End while  
+ 
+In the first step, the RA-HEFT algorithm computes the 
+upward ranking of each task recursively as follows: 
+	 = 
+ +
+max
+∈	, + 	 
+Where ti represents ith task, 
+  represents average 
+computation time of the task among all processors, child(ti) 
+represents children tasks of task ti, and ci,j represents the 
+communication cost(time needed for data transfer) between task 
+i and j. 
+Following the HEFT computation of upward ranking, RA-
+HEFT trains a copy of the neural network for each processor 
+with the given dataset, which is partitioned per region for each 
+processor. 
+In the final step, each task is scheduled to its corresponding 
+processor according to its rank, in a similar fashion to HEFT. 
+But, unlike classical HEFT, the prediction of the neural network 
+corresponding to the processor being scheduled is also taken into 
+consideration, if the prediction fails, the task allocation is 
+repeated with smaller instances and longer execution time. If 
+that also fails, a constant delay time d is added. For this work, d 
+is set to 1 second for precision purposes. 
+V. EVALUATION 
+ 
+To evaluate the proposed scheduling algorithm, both HEFT 
+and RA-HEFT algorithms, as well as a third ReplicateAll 
+algorithm for reference purposes are simulated using Java 
+workflowsim [19]. ReplicateAll algorithm is an algorithm that 
+runs every task in the step simultaneously on all processors, and 
+the result of the first successful processor is taken as the result 
+for the next step calculation. The simulation environment has 
+two cloud clusters. Each cluster has a failure function generated 
+from fitting an extreme value probability distribution to our 
+observed timelines that the instances were terminated.  
+The inspiral-30 example from the Pegasus workflow 
+generation framework[20] is considered as the input of 
+scheduling algorithms. Four test cases were done using the 
+HEFT, RA-HEFT, and ReplicateAll [21] scheduling algorithms 
+from the Pegasus workflow generator. To run the scheduling 
+algorithms, according to the input data structure of the HEFT 
+algorithm [6] the input data set of tasks, represented as the 
+following directed acyclic graph (Fig. 4) . In the given data the 
+execution time of each task on each spot instance type and the 
+times to communicate the results from each job to each of its 
+children are determined.  
+ 
+ 
+ 
+ 
+Fig 4. The input workflow graph 
+Then the HEFT. RA-HEFT and ReplicateAll are applied to 
+the given data set. The results makespan of each algorithm is 
+provided in Table 2. 
+ 
+The following table shows the total execution time of each 
+scheduling algorithm in each predefined test case in the Pegasus 
+workflow framework. The table shows the computed ideal 
+predicted makespan of each algorithm as well as the actual 
+makespan in workflowsim simulated cloud environment. The 
+additional description in each cell in simulation columns shows 
+the number of errors that happened in simulation as well as the 
+tasks that were failed due to the termination of the process.  
+ 
+Table 2. The resulting predicted and actual simulated Makespan for HEFT 
+and RA-HEFT  
+Test Case/ 
+Algorithm 
+HEFT 
+Computed/Sim
+ulated 
+RA-HEFT 
+Computed/ 
+Simulated 
+ReplicateAll 
+Computed/ 
+Simulated 
+Inspiral 30 
+16052/18619(2 
+errors, at tasks 7, 
+26) 
+19146/19146(0 
+errors) 
+30087/30087(
+4 errors, at 
+tasks 7, 26, 
+27x2) 
+Inspiral 50 
+25332/30598(3 
+errors, at tasks 
+14, 18, 47) 
+32159/32159(0 
+errors) 
+52673/526732
+(4 errors, at 
+tasks 14, 18, 
+47, 48) 
+SIPHT 30 
+19599/19599(1 
+error, at task 19) 
+19599/19599(0 
+errors) 
+44103/44103(
+0 errors) 
+Montage 50 
+1055/1055(0 
+errors) 
+1106/1106(0 
+errors) 
+4150/4150(0 
+errors) 
+ 
+VI. CONCLUSION  AND FUTURE WORKS 
+In this paper, we have proposed an enhanced version of 
+HEFT algorithm, which also used neural network to improve the 
+
+
+ 
+ 
+reliability of workflow scheduling on unstable, volatile cloud 
+resources especially Amazon EC2 Spot instances. 
+We have trained a neural network based on a failure and 
+successful execution dataset on Amazon EC2 Spot instances. 
+Then the trained model have been used in the proposed RA-
+HEFT algorithm to predict the successful execution of each task 
+on the chosen instances. Since the RA-HEFT assigns tasks only 
+to the reliable instances that are expected to be able to run the 
+workflow successfully, the workflow scheduling generated by 
+the RA-HEFT algorithm is potentially more reliable than what 
+is provided by the original HEFT. 
+ The RA-HEFT generated schedule was then tested against 
+the scheduling of the original HEFT in the workflowsim 
+environment to evaluate the resulting simulated execution time 
+as well as the resulting reliability for each scheduling algorithm. 
+As shown in the test cases, although HEFT is theoretically 
+5% faster than RA-HEFT in terms of the makespan of the given 
+workflow, in practice it might be dramatically worse since the 
+chosen spot instances are more unreliable which may lead to 
+failure and need to re-execute the workflow multiple times. On 
+the other hand, ReplicateAll is a demanding algorithm that 
+performs twice as worse as the HEFT algorithm but its 
+makespan is noticeably more predictable and accurate. As the 
+calculation complexity and cumulative execution time of nodes 
+did not change, this means that the additional time spent in 
+HEFT and ReplicateAll for retries and redundancy was time 
+wasted on a functioning VM. In other words, while the observed 
+busy time of clusters seems to be shorter, the accumulation of 
+busy times for both clusters indicate that we actually have spent 
+more time using the instances, resulting in higher cost compared 
+to RA-HEFT. 
+Possible future work involves considering the instance cost 
+for each specified resources assignment and optimization the 
+total cost of workflow scheduling in addition to the time and 
+reliability rate. 
+  
+VII. REFERENCES 
+[1] J. P. Ara_ujo Neto, D. M. Pianto, and C. G. Ralha, “Towards increasing 
+reliability of amazon ec2 spot instances with a fault-tolerant multi-agent 
+architecture," Multiagent and Grid Systems, vol. 15, no. 3, pp. 259-287, 
+2019. 
+[2] Wu, Zhangjun, Zhiwei Ni, Lichuan Gu, and Xiao Liu. "A revised discrete 
+particle swarm optimization for cloud workflow scheduling." In 2010 
+International Conference on Computational Intelligence and Security, pp. 
+184-188. IEEE, 2010. 
+[3] Jung, D., Chan, S., Chung, K.S. and Yu, H., “VM migration for fault 
+tolerance in spot instance-based cloud computing,” In International 
+Conference on Grid and Pervasive Computing Springer, Berlin, 
+Heidelberg, 2013, May, pp. 142-151. 
+[4] Poola, Deepak, Kotagiri Ramamohanarao, and Rajkumar Buyya. "Fault-
+tolerant Workflow Scheduling using Spot Instances on Clouds." In ICCS, 
+pp. 523-533. 2014. 
+[5] A. R. Setlur, S. J. Nirmala, H. S. Singh, and S. Khoriya, “An efficient 
+fault-tolerant workflow scheduling approach using replication heuristics 
+and checkpointing in the cloud," Journal of Parallel and Distributed 
+Computing, vol. 136, pp. 14, 28, 2020. 
+[6] H. Topcuoglu, S. Hariri, and M.-y. Wu, “Performance-effective and 
+low-complexity task scheduling for heterogeneous computing,” IEEE 
+transactions on parallel and distributed systems, vol. 13, no. 3, pp. 260–
+274, 2002. 
+[7] D. Poola, K. Ramamohanarao, and R. Buyya, “Enhancing the reliability 
+of workflow execution using task replication and spot instances," ACM 
+Transactions on Autonomous and Adaptive Systems (TAAS), vol. 10, no. 
+4, pp. 1. 21, 2016. 
+[8] M. Damodhar and S. Poojitha, “An adaptive fault reduction scheme to 
+provide reliable cloud computing environment," vol. 19, pp. 64. 73, 2017. 
+[9] L. Teylo, L. Arantes, P. Sens, and L. M. d. A. Drummond, “A bag-of-
+tasks scheduler tolerant to temporal failures in clouds," in 2019 31st 
+International Symposium on Computer Architecture and High-
+Performance Computing (SBAC-PAD), pp. 144-151, IEEE, 2019. 
+[10] N. Wu, D. Zuo, and Z. Zhang, “Dynamic fault-tolerant workflow 
+scheduling with hybrid spatial-temporal re-execution in clouds," 
+Information, vol. 10, no. 5, p. 169, 2019. 
+[11] M. Farid, R. Latip, M. Hussin, and N. A. W. A. Hamid, “Scheduling 
+scientific workflow using the multi-objective algorithm with fuzzy 
+resource utilization in a multi-cloud environment," IEEE Access, vol. 8, 
+pp. 24309-24322, 2020. 
+[12] R. G. Martinez, A. Lopes, and L. Rodrigues, “Planning workflow 
+executions when using spot instances in the cloud," in Proceedings 1of 
+the 34th ACM/SIGAPP Symposium on Applied Computing, pp. 310-317, 
+2019. 
+[13] Q. Guan, Z. Zhang, and S. Fu, “Proactive failure management by 
+integrated unsupervised and semi-supervised learning for dependable 
+cloud systems," in 2011 Sixth International Conference on Availability, 
+Reliability, and Security, pp. 83-90, IEEE, 2011. 
+[14] A. Ragmani, A. Elomri, N. Abghour, K. Mous said, M. Rida, and E. 
+Badidi, “Adaptive fault-tolerant model for improving cloud computing 
+performance using artificial neural network," Procedia Computer 
+Science, vol. 170, pp. 929-934, 2020. 
+[15] A. K. Mishra, D. K. Yadav, Y. Kumar, and N. Jain, “Improving reliability 
+and reducing cost of task execution on preemptible VM instances using 
+machine learning approach," The Journal of Supercomputing, vol. 75, no. 
+4, pp. 2149-2180, 2019. 
+[16] A. Alourani and A. D. Kshemkalyani, “Provisioning spot instances 
+without employing fault-tolerance mechanisms," arXiv preprint 
+arXiv:2003.13846, 2020. 
+[17] T.-P. Pham, S. Ristov, and T. Fahringer, “Performance and behavior 
+characterization of amazon ec2 spot instances," in 2018 IEEE 11th 
+International Conference on Cloud Computing (CLOUD), pp. 73-81, 
+IEEE, 2018. 
+[18] W. Chen and E. Deelman, "WorkflowSim: A toolkit for simulating 
+scientific workflows in distributed environments," 2012 IEEE 8th 
+International Conference on E-Science, Chicago, IL, 2012, pp. 1-8, DOI: 
+10.1109/eScience.2012.6404430. 
+[19] Deelman, Ewa & Singh, Gurmeet & Su, Mei-Hui & Blythe, James & Gil, 
+Yolanda & Kesselman, Carl & Mehta, Gaurang & Vahi, Karan & 
+Berriman, G. & Good, John & Laity, Anastasia & Katz, Daniel S.. (2005). 
+Pegasus: A Framework for Mapping Complex Scientific Workflows onto 
+Distributed 
+Systems. 
+Scientific 
+Programming. 
+13. 
+219-237. 
+10.1155/2005/128026. 
+[20] H. R. Faragardi, M. R. Saleh Sedghpour, S. Fazliahmadi, T. Fahringer and 
+N. Rasouli, "GRP-HEFT: A Budget-Constrained Resource Provisioning 
+Scheme for Workflow Scheduling in IaaS Clouds," in IEEE Transactions 
+on Parallel and Distributed Systems, vol. 31, no. 6, pp. 1239-1254, 1 June 
+2020, doi: 10.1109/TPDS.2019.2961098. 
+[21] N. Mansouri and G. H.  Dastghaibyfard. “Job scheduling and dynamic 
+data 
+replication 
+in 
+data 
+grid 
+environment”. The 
+Journal 
+of 
+Supercomputing, 2013, 64(1), pp. 204-225. 
+ 
+ 
+ 

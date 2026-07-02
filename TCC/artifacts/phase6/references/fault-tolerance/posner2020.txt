@@ -1,0 +1,314 @@
+System-Level vs. Application-Level Checkpointing
+Jonas Posner
+University of Kassel, PLM, Kassel, Germany
+jonas.posner@uni-kassel.de
+I. INTRODUCTION
+Fault tolerance is becoming increasingly important since
+the probability of permanent hardware failures increases with
+machine size. A typical resilience approach to fail/stop failures
+today is checkpointing, which can be performed on system- or
+application-level. Both levels come in many variants, but they
+fundamentally differ. On system-level, no code changes are
+required, full program states are saved, and after a failure the
+program must be restarted from the last checkpoint. In con-
+trast, on application-level, only user-deﬁned data are check-
+pointed, which requires some programming effort. Thereby,
+the running time overhead may be reduced signiﬁcantly, and
+programs may continue execution after failures.
+Typical
+representatives
+include
+DMTCP
+(Distributed
+MultiThreaded
+Checkpointing)
+[1]
+for
+system-level,
+and
+FTGLB (Fault Tolerant Global Load Balancing) [2] for
+application-level. DMTCP is a user-space library, which
+checkpoints parallel programs transparently and restarts them
+from a checkpoint. DMTCP supports many programming
+languages and HPC environments.
+FTGLB bases on a distributed task-pool pattern, and writes
+uncoordinated in-memory checkpoints. Checkpoints only in-
+clude task descriptors and interim results, and are written at
+regular time intervals and at certain events, e.g. work stealing.
+In this work, we experimentally compare DMTCP and
+FTGLB with up to 320 processes. Moreover, we derive for-
+mulas for predicting running times, including failure handling.
+With these formulas, we compare DMTCP and FTGLB in
+failure-prone and larger settings. Overall, the results clearly
+show that the application-level optimizations of FTGLB are
+worthwhile since the running time overhead is signiﬁcantly
+lower than that of DMTCP.
+II. EXPERIMENTS
+The experiments were run on Goethe-HLR1, which provides
+Inﬁniband-connected nodes with two 20-core Intel Xeon Sky-
+lake Gold 6148 CPUs and 192 GB of main memory. We started
+40 workers per node, each worker being a system process.
+We used DMTCP in its latest version 3.0 (Mar. 7, 2020)2,
+FTGLB and its non-resilient base GLB in their latest revisions
+(Dec. 15, 2019)3, and Java in version 1.8.0 221.
+1https://www.top500.org/system/179588
+2https://github.com/dmtcp/dmtcp
+3https://github.com/posnerj/PLM-APGAS-Applications
+(FT)GLB implements a model of dynamic independent
+tasks (combined with a resiliency scheme) as a framework [2].
+Therefore, users do not need additional programming effort for
+load balancing and resiliency. As benchmark, we deployed
+our own synthetic one (called SynBench), which calculates
+π using the Monte Carlo method. Its main purpose is to
+provide smooth weak scaling to enable an accurate timing
+analysis of both checkpointing systems. However, obtained
+experimental results could be translated to other applications,
+under consideration of characteristics like number of tasks,
+stealing rate, result type, and task descriptor size.
+SynBench deploys a ﬁxed number of static tasks which are
+initially distributed evenly over all workers. We conﬁgured a
+base calculation time T B = 100s, 6000 tasks per worker, and
+20% task duration ﬂuctuation. The latter enforces an initial
+work imbalance between workers despite the same number
+of tasks per worker. A failure-free and unprotected execution
+takes T B plus some time for work stealing. For FTGLB, we
+set the regular checkpoint interval to 10s, see [2].
+A. Failure-Free Runs
+Figure 1 depicts the total running times of non-resilient
+GLB, FTGLB and DMTCP, reporting averages over 5 runs.
+DMTCP checkpoints GLB, but was conﬁgured as follows:
+• shm once: one global checkpoint is written at half of T B;
+each worker uses its local memory as storage.
+• scratch once: one global checkpoint is written at half of
+T B; the distributed ﬁle system is used as storage.
+• shm/scratch
+10s:
+global
+checkpoints
+are
+written
+periodically every 10 seconds of processing time.
+Checkpoints are saved uncompressed, resulting in an average
+size of 0.6 GB per worker. Results of the shm runs can be
+treated as a lower bound, since local memory offers higher
+bandwidth and particularly scalability with the number of
+nodes, in contrast to distributed ﬁle systems. For the scratch
+runs, we ensured that the distributed ﬁle system was idle.
+We also measured negligible overheads when we conﬁgured
+DMTCP to not write any checkpoints (not in the Figures). For
+Figure 1, the following observations can be made:
+GLB constantly needs approximately 101s, for any number
+of workers. This is as expected and reﬂects the smooth scaling.
+FTGLB writes an average of 64 checkpoints per worker
+(only 8 are regular). This results in an overhead of at most
+2.64s with 320 workers compared to the non-resilient GLB.
+The overhead increases gently with the number of workers.
+DMTCP shm once takes 5.66s for writing one global check-
+point with 40 workers; and 23.30s with 320 workers. The time
+404
+2020 IEEE International Conference on Cluster Computing (CLUSTER)
+978-1-7281-6677-3/20/$31.00 ©2020 IEEE
+DOI 10.1109/CLUSTER49012.2020.00051
+Authorized licensed use limited to: London School of Economics & Political Science. Downloaded on May 17,2021 at 14:14:19 UTC from IEEE Xplore.  Restrictions apply. 
+
+
+Time in seconds
+Workers
+GLB
+FTGLB
+DMTCP shm once
+DMTCP scratch once
+DMTCP shm 10s
+DMTCP scratch 10s
+100
+120
+140
+160
+180
+200
+220
+240
+260
+280
+40
+80
+120
+160
+200
+240
+280
+320
+Fig. 1: Total running times
+Time in seconds
+Workers
+DMTCP shm once
+DMTCP scratch once
+0
+2
+4
+6
+8
+10
+12
+14
+16
+18
+40
+80
+120
+160
+200
+240
+280
+320
+Fig. 2: DMTCP restart timings
+Time in seconds
+Failures
+FTGLB (measured)
+FTGLB
+DMTCP shm 10s
+DMTCP scratch 10s
+100
+120
+140
+160
+180
+200
+220
+240
+260
+0
+1
+2
+4
+8
+12
+Fig. 3: Failures out of 40 workers
+Time in hours
+Worker MTBF in years
+failure-free baseline
+FTGLB
+DMTCP scratch once
+FTGLB: one crash
+DMTCP scratch: one crash
+0
+200
+400
+600
+800
+1000
+1200
+1
+2
+4
+8
+16
+32
+64
+128
+Fig. 4: Running times with 320 workers
+taken increases with the number of workers, and is caused by
+an increasing coordination effort required by checkpoint writ-
+ing, since the local memory bandwidth remains unchanged.
+DMTCP scratch once takes 8.55s for writing one global
+checkpoint with 40 workers; and 29.05s with 320 workers. The
+difference to shm increases with the number of workers,
+caused by the limited (not upscaling) bandwidth of the dis-
+tributed ﬁle system.
+DMTCP shm/scratch 10s takes 81.44s using the local
+memory, and 175.11s using the distributed ﬁle system, both
+with 320 workers. Since DMTCP is capable of optimizing the
+writing of multiple checkpoints, the total time required does
+not increase linearly with the number of checkpoints.
+Overall, it pays off that FTGLB’s checkpointing scheme
+is highly optimized and saves only selected data. In contrast,
+DMTCP writes checkpoints of full program states. This results
+in a signiﬁcantly lower overhead and much better scalability
+for FTGLB compared to all DMTCP conﬁgurations.
+B. Failure Handling
+Failures are handled differently: FTGLB supports shrinking
+recovery, whereby a program continues execution with fewer
+workers. For that, a recovery procedure is performed causing a
+negligible overhead [2]. In contrast, a DMTCP program aborts,
+but can be restarted from the last checkpoint. Figure 2 presents
+DMTCP restart timings. It can be observed, that the restart
+costs increase with the number of workers. The increase is
+stronger for scratch than for shm. Again, the limited bandwidth
+of the distributed ﬁle system is a dominating factor.
+For further analyses, we present formulas to predict ex-
+pected running times. We use the following notation:
+• w: number of workers,
+• b: checkpoint interval,
+• c: time for writing checkpoints,
+• r: time for performing recovery/restart,
+• T x
+n (w): expected running time when n failures occur.
+We assume that the failures hit different workers and, on
+average, strike at midway of running time. For FTGLB, this
+results in the loss of n/2 of the total computing power plus
+half of the work per checkpoint interval. Therefore, we obtain:
+T FTGLB
+n
+(w) = w · (T GLB
+0
+(w) + c)
+w −(n/2)
++
+n
+
+i=1
+b
+2(w −i) + n · r.
+(1)
+DMTCP restarts with the initial number of workers:
+T DMTCP
+n
+(w) = (T GLB
+0
+(w) + c) +
+n
+
+i=1
+b
+2 + n · r.
+(2)
+Figure 3 depicts expected running times with 40 workers
+and up to 12 failures, using the formulas and values from
+above for the determination. Moreover, we conﬁrmed the
+formulas by carrying out FTGLB while crashing random
+workers at random times. Overall, it can be observed that
+FTGLB is by far faster than both DMTCP shm/scratch 10s.
+Figure 4 depicts running time predictions of more realistic
+scenarios. The y-axis scales the worker MTBF (Mean Time
+Between Failures) from 1 to 128 years. For each value, we
+calculated a failure-free and unprotected baseline, as twice the
+optimal checkpoint interval of the Daly formula [3], using val-
+ues of c and r from DMTCP runs. Therefore, DMTCP writes
+one single checkpoint. FTGLB and DMTCP conﬁgurations
+complete the same amount of work as the baseline. It can be
+observed that DMTCP is always slighty faster than FTGLB in
+failure-free settings (up to 10s), but in failure-prone settings
+FTGLB is considerably faster than DMTCP (up to 219h).
+III. CONCLUSIONS
+This
+work
+compared
+checkpointing
+at
+system-
+and
+application-level using DMTCP and FTGLB, respectively.
+The results clearly show that FTGLB works more efﬁciently
+than DMTCP. Especially for large computations, the effort of
+application-level (avoiding distributed ﬁle system and restart)
+pays off. Future work may consider other checkpointing
+systems, and more clusters for experiments.
+REFERENCES
+[1] J. Ansel, K. Arya, and G. Cooperman, “DMTCP: Transparent checkpoint-
+ing for cluster computations and the desktop,” in IPDPS, 2009.
+[2] J. Posner, L. Reitz, and C. Fohry, “A comparison of application-level fault
+tolerance schemes for task pools,” FGCS, vol. 105, pp. 119–134, 2020.
+[3] J. Daly, “A higher order estimate of the optimum checkpoint interval for
+restart dumps,” FGCS, vol. 22, pp. 303–312, 2006.
+405
+Authorized licensed use limited to: London School of Economics & Political Science. Downloaded on May 17,2021 at 14:14:19 UTC from IEEE Xplore.  Restrictions apply. 

@@ -1,0 +1,910 @@
+An Evaluation of User Level 
+Failure Mitigation Support in 
+MPI 
+W. Bland, A. Bouteiller, T. Herault, J. Hursey, G. Bosilca, J.J. Dongarra 
+Innovative Computing Laboratory @ The University of Tennessee 
+Oak Ridge National Laboratory 
+ 
+Acknowledgements: the MPI Forum members, and especially participants to the MPI-3 FT working group 
+ 
+ 
+EuroMPI’12, Wien 
+
+
+Apocalypse? 
+• 
+Rollback recovery efficiency is 
+threatened at Exascale  
+• 
+We are considering replication as a 
+serious option, this is disheartening 
+• 
+On a sweet-sour note, replication 
+negates only ~2yr of Moore’s law… 
+% Efficiency
+Application-visible System Sockets
+Replication
+No Replication
+0
+10
+20
+30
+40
+50
+60
+70
+80
+90
+100
+10
+20
+50
+100
+200
+500
+1,000
+2,000
+5,000
+10,000
+20,000
+50,000
+100,000
+200,000
+Figure 1: Modeled application eﬃciency with and
+without state machine replication for a 168-hour ap-
+plication, 5-year per-socket MTBF, and 15 minute
+checkpoint times.
+Shaded region corresponds to
+possible socket counts for an exascale class machine
+[4].
+Source: Ferreira et al. SC’11 
+Failures 
+NUMA 
+Heterogeneity 
+Jitter 
+
+
+Issues with Rollback Recovery 
+• 
+Rollback recovery issues: 
+• 
+I/O overhead grows with scale (as MTBF declines) 
+• 
+Young/Dali Formulas used to compute optimal 
+checkpoint interval 
+• 
+Results in too many preventive checkpoints 
+• 
+Eventually, more time spent doing checkpoints 
+than real work 
+• 
+Coordinated Checkpoint (legacy): 
+• 
+Low cost on communication J 
+• 
+Coordinated recovery  
+• 
+Uncoordinated Checkpoint: 
+• 
+Some cost on communication L 
+• 
+Independent process recovery  
+• 
+Non faulty process continue progressing during 
+recovery 
+Coordinated checkpoint 
+(with non-blocking, incremental checkpoints) 
+Uncoordinated checkpoint 
+(with non-blocking, incremental checkpoints) 
+
+
+Forward Recovery 
+• 
+Forward Recovery: 
+• 
+Any technique that permit the application to continue 
+without rollback 
+•  Master-Worker with simple resubmission 
+•  Iterative methods, Naturally fault  tolerant 
+algorithms 
+•  Algorithm Based Fault Tolerance 
+•  Replication (the only system level Forward Recovery) 
+• 
+No checkpoint I/O overhead 
+• 
+No rollback, no loss of completed work 
+• 
+May require (sometime expensive, like replicates) 
+protection/recovery operations, but still generally 
+more scalable than checkpoint J 
+• 
+Often requires in-depths algorithm rewrite (in 
+contrast to automatic system based C/R) L 
+Protection blocks 
+Factorized in 
+previous iterations 
+trailing matrix  
+& protection 
+update by 
+applying the 
+same 
+operations 
+Factorized in 
+previous iterations 
+Factorize 
+ABFT 
+a 
+b 
+c 
+d 
+b 
+e 
+Master 
+Worker0 
+Worker1 
+Worker2 
+time 
+
+
+Algorithm Based Fault Tolerance 
+Performance 
+• 
+without failure 
+• 
+cost of ABFT comes from extra flops 
+(to update checksums) 
+• 
+Cost decrease with scale (divided 
+by P when using PxQ processes) 
+• 
+Goes to 0% cost at scale 
+• 
+Much better than replication, 
+obviously 
+• 
+Cost of a failure 
+• 
+Still competitive with non FT QR 
+(~5% overhead compared to non-
+FT, with a failure!) 
+• 
+Each failure costs ~2% of runtime, 
+bound to decrease with scale 
+• 
+Productivity cost 
+• 
+Application code is heavily modified 
+(as deep as the algorithmic level) 
+
+
+Algorithm Based Fault Tolerance 
+Performance 
+• 
+without failure 
+• 
+cost of ABFT comes from extra flops 
+(to update checksums) 
+• 
+Cost decrease with scale (divided 
+by P when using PxQ processes) 
+• 
+Goes to 0% cost at scale 
+• 
+Much better than replication, 
+obviously 
+• 
+Cost of a failure 
+• 
+Still competitive with non FT QR 
+(~5% overhead compared to non-
+FT, with a failure!) 
+• 
+Each failure costs ~2% of runtime 
+• 
+Bound to decrease with scale 
+• 
+Productivity cost 
+• 
+Application code is heavily modified 
+(as deep as the algorithmic level) 
+
+
+The FT techniques spectrum 
+• 
+All these FT methods suppose that MPI continues 
+to operate across failures 
+• 
+Advanced Rollback Recovery (uncoordinated 
+checkpoint) 
+• 
+Forward Recovery: 
+•  Master-Worker with simple resubmission 
+•  Iterative methods, Naturally fault  tolerant 
+algorithms 
+•  Algorithm Based Fault Tolerance 
+•  Replication (the only system level Forward Recovery) 
+Protection blocks 
+Factorized in 
+previous iterations 
+trailing matrix  
+& protection 
+update by 
+applying the 
+same 
+operations 
+Factorized in 
+previous iterations 
+Factorize 
+ABFT 
+a 
+b 
+c 
+d 
+b 
+e 
+Master 
+Worker0 
+Worker1 
+Worker2 
+time 
+Uncoordinated checkpoint 
+(with non-blocking, incremental checkpoints) 
+
+
+MPI-2: Fault Tolerance support 
+• 
+We have the algorithms, but… 
+• 
+MPI support of FT is non-existent 
+• 
+Prevents effective deployment of ABFT 
+• 
+MPI_ERRORS_ARE_FATAL (default mode) 
+•  Application crashes at first failure 
+• 
+MPI_ERRORS_RETURN 
+•  Error returned to the user 
+•  State of MPI undefined 
+•  “…does not necessarily allow the user to continue to use MPI after an error is 
+detected. The purpose of these error handler is to allow a user to issue user-
+defined error messages and take actions unrelated to MPI…An MPI 
+implementation is free to allow MPI to continue after an error…” ( MPI-1.1, page 
+195) 
+•  “Advice to implementors: A good quality implementation will, to the greatest 
+possible extent, circumvent the impact of an error, so that normal processing can 
+continue after an error handler was invoked.” 
+
+
+Non standard extensions for 
+Fault Tolerant MPI 
+•  Example: FT-MPI - a fault tolerant MPI implementation 
+(designed ~2000) 
+•  Proven research tool 
+•  Effective support of Forward Recovery, many success stories 
+•  ABFT dense Linear Algebra 
+•  CG, Iterative methods, etc. 
+•  …but… 
+•  Supports only TCP, does not support modern networks 
+•  Not installed by default on your system, may not compile on your 
+flavor of HPC system 
+•  Non standard, FT-MPI adapted code is not portable 
+
+
+Requirements for MPI 
+standardization of FT 
+•  Expressive, simple to use 
+•  Enable users to port their code simply, support a variety of FT 
+models and approaches 
+•  Support legacy code, backward compatible 
+•  Minimal (ideally zero) impact on failure free performance 
+•  No global knowledge of failures 
+•  No supplementary communications to maintain global state 
+•  Realistic memory requirements 
+•  Simple to implement 
+•  Minimal (or zero) changes to existing functions 
+•  Limited number of new functions 
+•  Consider thread safety when designing the interfaces 
+
+
+Fault Tolerant MPI: the ULFM 
+proposition for standardization 
+•  Operations that can’t complete return 
+ERR_PROC_FAILED 
+•  State of MPI objects unchanged 
+(communicators, etc) 
+•  Repeating the same operation has the same 
+outcome 
+•  Operations that can be completed 
+return MPI_SUCCESS  
+•  Pt-2-pt operations between non failed ranks 
+can continue 
+S(1) 
+PF 
+time 
+R(2) 
+R(1) 
+R(2) 
+S(2) 
+S(3) 
+S 
+R(0) 
+S 
+PF 
+S(0) 
+S 
+S 
+S(2) 
+R(3) 
+S 
+S 
+S 
+S 
+
+
+Example with MPI_ANY_SOURCE:  
+Master-worker 
+MPI_Irecv_init(comm, ANY_SOURCE, work_done) 
+ 
+While(more_work && workers) { 
+  submit_work(worker[i++ % workers]) 
+  rc = MPI_Test(work_done) 
+  if(MPI_SUCCESS != RC) 
+  { 
+    MPI_COMM_FAILURE_ACK(comm) 
+    MPI_COMM_FAILURE_GET_ACKED(comm, i) 
+    worker[i] = worker[workers--] 
+    resubmit_work(worker[i], i) 
+  } 
+} 
+     
+a 
+b 
+c 
+d 
+b 
+e 
+Master 
+Worker0 
+Worker1 
+Worker2 
+
+
+Fault Tolerant MPI: the ULFM 
+proposition for standardization 
+•  Operations that can’t complete return 
+ERR_PROC_FAILED 
+•  Operations that can be completed 
+return MPI_SUCCESS  
+•  local semantic is respected (that is buffer 
+content is defined), it does not indicate 
+success at other ranks! 
+•  New constructs Comm_Revoke resolves 
+inconsistencies introduced by failures 
+Bcast 
+S 
+S 
+PF 
+Bcast 
+Revoke 
+R 
+R 
+Shrink 
+Bcast 
+S 
+S 
+S 
+time 
+
+
+Summary of new functions and impact 
+on implementation 
+• 
+MPI_Comm_failure_ack(comm) 
+• 
+Resumes matching for MPI_ANY_SOURCE 
+• 
+Implementation: easy 
+• 
+Requirement: memory linear with number of failures + 1 index per communicator 
+• 
+MPI_Comm_failure_get_acked(comm, &group) 
+• 
+Returns to the user the group of processes acknowledged to have failed 
+• 
+Implementation: easy 
+• 
+Requirement: none 
+• 
+MPI_Comm_revoke(comm) 
+• 
+Non-collective, interrupts all operations on comm (future or active, at all ranks) by raising MPI_ERR_REVOKED 
+• 
+Implementation: moderate/difficult 
+• 
+Requirement: reliable broadcast, modification in the matching logic, supplementary condition on the latency path, one extra boolean per communicator 
+• 
+MPI_Comm_shrink(comm, &newcomm) 
+• 
+Collective, creates a new communicator without failed processes (identical at all ranks) 
+• 
+Implementation: moderate 
+• 
+Requirement: agreement algorithm (many available in the literature) 
+• 
+MPI_Comm_agree(comm, &bool) 
+• 
+Agree on the AND value on bool, ignoring failed processes (reliable AllReduce) 
+• 
+Implementation: moderate (but identical to the agreement in shrink) 
+• 
+Requirement: agreement algorithm 
+
+
+Summary of new functions and impact 
+on implementation 
+• 
+MPI_Comm_failure_ack(comm) 
+• 
+Resumes matching for MPI_ANY_SOURCE 
+• 
+Implementation: easy 
+• 
+Requirement: memory linear with number of failures + 1 index per communicator 
+• 
+MPI_Comm_failure_get_acked(comm, &group) 
+• 
+Returns to the user the group of processes acknowledged to have failed 
+• 
+Implementation: easy 
+• 
+Requirement: none 
+• 
+MPI_Comm_revoke(comm) 
+• 
+Non-collective, interrupts all operations on comm (future or active, at all ranks) by raising 
+MPI_ERR_REVOKED 
+• 
+Implementation: moderate/difficult 
+• 
+Requirement: reliable broadcast, modification in the matching logic, supplementary condition on the latency 
+path, one extra boolean per communicator 
+• 
+MPI_Comm_shrink(comm, &newcomm) 
+• 
+Collective, creates a new communicator without failed processes (identical at all ranks) 
+• 
+Implementation: moderate 
+• 
+Requirement: agreement algorithm (many available in the literature) 
+• 
+MPI_Comm_agree(comm, &bool) 
+• 
+Agree on the AND value on bool, ignoring failed processes (reliable AllReduce) 
+• 
+Implementation: moderate (but identical to the agreement in shrink) 
+• 
+Requirement: agreement algorithm 
+
+
+Summary of new functions and impact 
+on implementation 
+• 
+MPI_Comm_failure_ack(comm) 
+• 
+Resumes matching for MPI_ANY_SOURCE 
+• 
+Implementation: easy 
+• 
+Requirement: memory linear with number of failures + 1 index per communicator 
+• 
+MPI_Comm_failure_get_acked(comm, &group) 
+• 
+Returns to the user the group of processes acknowledged to have failed 
+• 
+Implementation: easy 
+• 
+Requirement: none 
+• 
+MPI_Comm_revoke(comm) 
+• 
+Non-collective, interrupts all operations on comm (future or active, at all ranks) by raising MPI_ERR_REVOKED 
+• 
+Implementation: moderate/difficult 
+• 
+Requirement: reliable broadcast, modification in the matching logic, supplementary condition on the latency path, one extra 
+boolean per communicator 
+• 
+MPI_Comm_shrink(comm, &newcomm) 
+• 
+Collective, creates a new communicator without failed processes (identical at all ranks) 
+• 
+Implementation: moderate 
+• 
+Requirement: agreement algorithm (many available in the literature) 
+• 
+MPI_Comm_agree(comm, &bool) 
+• 
+Agree on the AND value on bool, ignoring failed processes (reliable AllReduce) 
+• 
+Implementation: moderate (but identical to the agreement in shrink) 
+• 
+Requirement: agreement algorithm 
+
+
+ULFM Performance in Open MPI 
+• 
+Code complexity is limited 
+• 
+New features are contained: minor 
+changes to the existing MPI layer 
+• 
+more changes in the runtime (to avoid 
+abort behavior) 
+• 
+No performance difference measured 
+on micro-benchmarks 
+• 
+Point-to-point latency/bandwidth 
+unchanged 
+•  Even on shared-memory 
+• 
+Collective communications unchanged 
+•  Code unchanged 
+•  Overhead below standard deviation 
+•  Enabling FT may even increase 
+performance on some runs, wohoo! 
+1-byte Latency (microseconds) (cache hot)
+Interconnect
+Vanilla Std. Dev.
+Enabled Std. Dev.
+Di↵erence
+Shared Memory
+0.8008
+0.0093
+0.8016
+0.0161
+0.0008
+TCP
+10.2564
+0.0946
+10.2776
+0.1065
+0.0212
+OpenIB
+4.9637
+0.0018
+4.9650
+0.0022
+0.0013
+Bandwidth (Mbps) (cache hot)
+Interconnect
+Vanilla Std. Dev.
+Enabled Std. Dev.
+Di↵erence
+Shared Memory 10,625.92
+23.46 10,602.68
+30.73
+-23.24
+TCP
+6,311.38
+14.42
+6,302.75
+10.72
+-8.63
+OpenIB
+9,688.85
+3.29
+9,689.13
+3.77
+0.28
+-5
+-4
+-3
+-2
+-1
+ 0
+ 1
+ 2
+ 3
+ 4
+ 5
+% difference
+ULFM is faster
+Vanilla is faster
+AllReduce 4B
+AllReduce 4MB
+AlltoAll 4B
+AlltoAll 4MB
+Bcast 4B
+Bcast 4MB
+Reduce 4B
+Reduce 4MB
+SendRecv 4B
+SendRecv 4MB
+PingPing 4B
+PingPing 4MB
+PingPong 4B
+PingPong 4MB
+Barrier
+Bandwidth benchmark
+Latency benchmark
+IMB 48 cores 
+Shared 
+memory 
+
+
+ULFM Performance in Open MPI 
+• 
+Application performance 
+• 
+Sequoia AMG: Multigrid 
+solver for unstructured 
+mesh 
+• 
+Application is not fault 
+tolerant 
+• 
+Running FT/No FT MPI  
+• 
+No measured 
+performance difference 
+in any of the computing 
+blocks 
+ 0
+ 10
+ 20
+ 30
+ 40
+ 50
+ 60
+ 70
+ 80
+8
+16
+32
+64
+128
+256
+512
+Cumulated Time (s)
+Number of processes
+FT
+no FT
+FT
+no FT
+FT
+no FT
+FT
+no FT
+FT
+no FT
+FT
+no FT
+FT
+no FT
+Solve
+Setup
+SStruct
+Fig. 2. Comparison of the vanilla and
+ULFM versions of Open MPI running
+Sequoia-AMG at di↵erent scales (Smoky).
+
+
+ULFM Recovery performance 
+•  Benchmark loops Barrier 
+•  Failures are injected at 
+random ranks 
+•  We measure 
+•  Time for Barrier to return 
+PROC_FAILED or REVOKED 
+•  Time to do MPI_Revoke 
+•  Time to repair the 
+communicator with 
+MPI_Shrink 
+ 0
+ 10
+ 20
+ 30
+ 40
+ 50
+ 60
+ 70
+ 80
+8
+16
+32
+64
+128
+256
+Time (ms)
+Number of Processes
+Detection
+Revoke
+Shrink
+Fig. 3. Evaluation of the Fault Injection
+Benchmark with full recovery at di↵erent
+scales (Smoky).
+
+
+Conclusion 
+• 
+Many FT approaches depend on MPI to continue operating after a failure! 
+• 
+Master-worker, Naturally fault tolerant, iterative methods can benefit for free! 
+• 
+ABFT methods have great scaling potential but are more intrusive 
+• 
+Not a silver bullet, each algorithm/application has to care for FT 
+• 
+Even automatic approaches (replication, uncoordinated checkpoint) require it 
+• 
+MPI-3.0 released, but the Forum will continue to work on FT for inclusion in MPI-next standard 
+revision 
+• 
+User Level Failure Mitigation: a proposal for standardized MPI API changes to 
+support FT 
+• 
+Existing MPI functions unchanged (reuse old definitions of MPI_ERR_RETURNS exception 
+handlers) 
+• 
+Code complexity is small, implementation is reasonable 
+• 
+Impact on performance is not measurable 
+• 
+Ongoing/Future works 
+• 
+Porting varied applications to the proposal (SPMD, master-worker, ABFT, etc.)  
+•  Ongoing efforts: Wang Landau Polymer Collapse (Appl. Checkpoint + independent 
+multiple communicator recovery) 
+• 
+Support higher level FT Models (uncoordinated C/R, transactions, etc.) 
+
+
+Real Example: Wang Landau Polymer 
+Freezing and Collapse 
+• 
+Collaboration with UGA 
+• 
+Energy range 
+(temperature) sliced 
+• 
+Groups of processors 
+focus on an energy 
+window 
+• 
+Periodical Allgather 
+inside groups 
+• 
+Energy window overlap 
+• 
+Periodically, energy 
+window exchange 
+condition 
+• 
+Repeat until 
+convergence 
+
+
+Real Example: Wang Landau Polymer 
+Freezing and Collapse 
+• 
+Collaboration with UGA 
+• 
+Energy range 
+(temperature) sliced 
+• 
+Groups of processors 
+focus on an energy 
+window 
+• 
+Periodical Allgather 
+inside groups 
+• 
+Energy window overlap 
+• 
+Periodically, energy 
+window exchange 
+condition 
+• 
+Repeat until 
+convergence 
+
+
+Real Example: Wang Landau Polymer 
+Freezing and Collapse 
+• 
+Long independent 
+computation on each 
+processor 
+• 
+Dataset protected by small, 
+cheap checkpoints (stored on 
+neighbors) 
+• 
+Periodically, an AllReduce on 
+the communicator of the 
+Energy window 
+• 
+Immediately after, a Scatter 
+and many pt2pt on the 
+communicator linking 
+neighboring energy windows 
+
+
+Real Example: Wang Landau Polymer 
+Freezing and Collapse 
+• 
+Long independent 
+computation on each 
+processor 
+• 
+Dataset protected by small, 
+cheap checkpoints (stored on 
+neighbors) 
+• 
+Periodically, an AllReduce on 
+the communicator of the 
+Energy window 
+• 
+Immediately after, a Scatter 
+and many pt2pt on the 
+communicator linking 
+neighboring energy windows 
+
+
+Real Example: Wang Landau Polymer 
+Freezing and Collapse 
+• 
+Long independent 
+computation on each 
+processor 
+• 
+Dataset protected by small, 
+cheap checkpoints (stored on 
+neighbors) 
+• 
+Periodically, an AllReduce on 
+the communicator of the 
+Energy window 
+• 
+Immediately after, a Scatter 
+and many pt2pt on the 
+communicator linking 
+neighboring energy windows 
+Revoke(2) 
+Shrink(2) 
+Spawn(2,spare) 
+Merge(2) Reorder(2) 
+Load checkpoint 
+ 
+ 
+
+
+Real Example: Wang Landau Polymer 
+Freezing and Collapse 
+• 
+Long independent 
+computation on each 
+processor 
+• 
+Dataset protected by small, 
+cheap checkpoints (stored on 
+neighbors) 
+• 
+Periodically, an AllReduce on 
+the communicator of the 
+Energy window 
+• 
+Immediately after, a Scatter 
+and many pt2pt on the 
+communicator linking 
+neighboring energy windows 
+Revoke(2) 
+Shrink(2) 
+Spawn(2,spare) 
+Merge(2) Reorder(2) 
+Load checkpoint 
+Revoke(2) Free(2) 
+Connect(2) Accept(3) 
+Merge(2) Reorder 
+ 

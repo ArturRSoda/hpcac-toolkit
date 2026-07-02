@@ -46,4 +46,5 @@ NPB3.4.4/
 
 # Generated report files (derived from .md sources)
 *.pdf
+!**/main-logo.pdf
 TCC/artifacts/**/*.html

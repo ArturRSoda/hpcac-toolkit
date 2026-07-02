@@ -1,0 +1,366 @@
+UNIVERSIDADE FEDERAL DE SANTA CATARINA
+CENTRO TECNOLÓGICO
+DEPARTAMENTO DE INFORMÁTICA E ESTATÍSTICA
+Artur Luiz Rizzato Toru Soda
+Análise de Viabilidade de Instâncias Burstable e Implementação de
+Tolerância a Falhas em Instâncias Spot para Computação de Alto
+Desempenho na Nuvem
+Florianópolis
+2025
+
+
+Artur Luiz Rizzato Toru Soda
+Análise de Viabilidade de Instâncias Burstable e Implementação de
+Tolerância a Falhas em Instâncias Spot para Computação de Alto
+Desempenho na Nuvem
+Proposta de Trabalho de Conclusão de Curso
+submetido ao programa de graduação em Ciên-
+cia da Computação para a obtenção do Grau de
+Bacharel em Ciência da Computação.
+Orientador: Prof. Márcio Bastos Castro, Dr.
+Florianópolis
+2025
+
+
+FOLHA DE APROVAÇÃO DE PROPOSTA DE TCC
+Acadêmico(s)
+Artur Luiz Rizzato Toru Soda
+Título do trabalho
+Análise de Viabilidade de Instâncias Burstable e Implementação
+de Tolerância a Falhas em Instâncias Spot para Computação de
+Alto Desempenho na Nuvem
+Curso
+Ciência da Computação
+Área de Concentração
+Sistemas de Computação, HPC, Computação em Nuvem
+Instruções para preenchimento pelo ORIENTADOR DO TRABALHO:
+- Para cada critério avaliado, assinale um X na coluna SIM apenas se considerado aprovado. Caso
+contrário, indique as alterações necessárias na coluna Observação.
+Critérios
+Sim
+Parcial/Não
+N/A
+Observação
+1. O trabalho é adequado para um TCC no CCO/SIN?
+2. O título do trabalho é adequado?
+3. O tema de pesquisa está claramente descrito?
+4. O problema/hipóteses de pesquisa está identificado?
+5. A relevância da pesquisa é justificada?
+6. Os objetivos descrevem o que se pretende alcançar?
+7. O método é adequado para um TCC?
+8. O cronograma é coerente?
+9. Custos foram identificados?
+10. Envolvidos foram identificados?
+11. Formas de comunicação foram definidas?
+12. Riscos potenciais foram identificados?
+13. Declaração de ciência (se aplicável)?
+Avaliação
+( ) Aprovado
+( ) Não Aprovado
+Professor Responsável
+1
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+Márcio Bastos Castro
+
+
+Sumário
+1
+INTRODUÇÃO
+3
+1.1
+Problema de Pesquisa . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+3
+1.2
+Hipótese . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+3
+1.3
+Justificativa . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+3
+1.4
+Resultados Esperados . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+3
+2
+OBJETIVOS
+4
+2.1
+Objetivo Geral . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4
+2.2
+Objetivos Específicos . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4
+2.3
+Escopo e Limites do Projeto
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4
+3
+METODOLOGIA
+4
+3.1
+Fase 1: Análise de Instâncias Burstable (Consolidação) . . . . . . . . . . . . . . . . . .
+4
+3.2
+Fase 2: Implementação de Tolerância a Falhas em Spot . . . . . . . . . . . . . . . . . .
+4
+4
+CRONOGRAMA
+5
+5
+CUSTOS
+5
+6
+RECURSOS HUMANOS
+5
+7
+COMUNICAÇÃO
+5
+8
+RISCOS
+5
+2
+
+
+1
+INTRODUÇÃO
+A migração de cargas de trabalho de Computação de Alto Desempenho (HPC) para a nuvem oferece
+elasticidade e acesso sob demanda a recursos computacionais, mas esbarra no alto custo das instâncias
+On-Demand para execuções prolongadas. Para viabilizar a execução de aplicações científicas com or-
+çamentos limitados, provedores de nuvem oferecem modelos alternativos, destacando-se as instâncias
+do tipo Burstable, que operam com um sistema de créditos de CPU, e as instâncias Spot, que oferecem
+capacidade ociosa a custos reduzidos, porém sujeitas a interrupção abrupta [1].
+Este trabalho propõe uma abordagem em duas fases para otimização de custos e resiliência. Primei-
+ramente, consolida-se a investigação sobre o comportamento de instâncias Burstable em clusters distri-
+buídos. Em segundo lugar, propõe-se uma arquitetura resiliente para instâncias Spot, integrando meca-
+nismos de checkpoint/restart transparente baseados no sistema DMTCP [2] e na extensão MANA [3].
+1.1
+Problema de Pesquisa
+A redução de custos em HPC na nuvem geralmente impõe compromissos severos: ou se sacrifica o
+desempenho, usando instâncias Burstable sujeitas a throttling quando os créditos se esgotam [4], ou se
+sacrifica a confiabilidade, usando instâncias Spot que podem ser desligadas a qualquer momento. O
+problema central é: Como viabilizar a execução confiável e econômica de aplicações MPI legadas
+em clusters de instâncias Spot, mitigando a perda de trabalho em caso de preempção, sem exigir
+reescrita de código?
+1.2
+Hipótese
+A hipótese deste trabalho é que a integração da ferramenta de checkpoint transparente DMTCP com o
+plugin MANA, orquestrada pela ferramenta HPC@Cloud [5], permite a execução resiliente de aplicações
+HPC em instâncias Spot. Adicionalmente, postula-se que o uso de uma instância Burstable On-Demand
+para atuar exclusivamente como coordenadora do checkpoint oferece a estabilidade necessária para o
+sistema de tolerância a falhas com um custo residual mínimo, aproveitando o perfil de baixo consumo de
+CPU do coordenador.
+1.3
+Justificativa
+A relevância desta pesquisa baseia-se na necessidade de executar simulações complexas com orçamentos
+restritos. Estudos preliminares do autor demonstraram que instâncias Burstable puras sofrem degradação
+de desempenho em cargas acopladas devido à exaustão de créditos e limitações de banda de rede [1].
+Por outro lado, a implementação de tolerância a falhas transparente via MANA democratiza o acesso
+a instâncias Spot para aplicações MPI que não possuem mecanismos nativos de recuperação, lidando
+inclusive com a troca de endereços IP típica da nuvem [3].
+1.4
+Resultados Esperados
+1. Caracterização detalhada do desempenho e custo de instâncias Burstable sob cargas de trabalho
+HPC, identificando seus limites operacionais conforme avaliado em Soda, Filho e Castro [1].
+2. Extensão da ferramenta HPC@Cloud para suportar a configuração automatizada do DMTCP/MANA.
+3. Validação de uma arquitetura híbrida tolerante a falhas, composta por nós de computação Spot e
+nó coordenador Burstable.
+4. Análise comparativa de overhead e custo monetário entre clusters On-Demand, Burstable puro e
+Spot com Checkpoint.
+3
+
+
+2
+OBJETIVOS
+2.1
+Objetivo Geral
+Analisar estratégias de redução de custos para HPC na nuvem e desenvolver uma solução integrada de
+tolerância a falhas, avaliando a viabilidade técnica e econômica do uso de instâncias Burstable e Spot
+para execução de aplicações paralelas baseadas em MPI.
+2.2
+Objetivos Específicos
+1. Consolidar os dados experimentais sobre o impacto do mecanismo de créditos de CPU e largura
+de banda de rede de instâncias Burstable no tempo de execução de benchmarks HPC.
+2. Analisar a arquitetura split-process do MANA e sua capacidade de virtualização de recursos dis-
+tribuídos [6] para suportar migração de processos MPI.
+3. Implementar scripts de automação no HPC@Cloud para o deploy transparente do ambiente de
+checkpoint.
+4. Realizar experimentos de injeção de falhas em clusters Spot para validar a recuperação automática
+(restart) da aplicação.
+5. Comparar o custo-benefício das abordagens propostas utilizando os NAS Parallel Benchmarks
+(NPB).
+2.3
+Escopo e Limites do Projeto
+Escopo: O estudo foca na nuvem AWS e utiliza os benchmarks NPB para representar cargas de HPC. A
+implementação será realizada sobre o orquestrador HPC@Cloud [5].
+Limites: A solução de tolerância a falhas depende da compatibilidade do MANA com as bibliotecas
+MPI e versões de kernel Linux suportadas pela infraestrutura, conforme limitações discutidas por Garg,
+Price e Cooperman [3].
+3
+METODOLOGIA
+A metodologia é dividida em duas fases principais, combinando análise de desempenho e engenharia de
+sistemas.
+3.1
+Fase 1: Análise de Instâncias Burstable (Consolidação)
+Nesta etapa, utiliza-se a ferramenta HPC@Cloud para instanciar clusters homogêneos de instâncias
+Burstable. Serão analisados os dados de execução de aplicações do NAS Parallel Benchmarks variando-
+se o número de nós. A metodologia baseia-se na coleta de métricas de consumo de créditos de CPU
+e throughput de rede para correlacionar a degradação de desempenho com o esgotamento de recursos,
+conforme metodologia estabelecida em [1].
+3.2
+Fase 2: Implementação de Tolerância a Falhas em Spot
+Nesta etapa, será realizada a integração do middleware DMTCP/MANA. A metodologia consiste em:
+• Estudo do MANA: Análise da técnica de "upper-half/lower-half"para garantir a independência
+da biblioteca MPI e da rede durante o restart [3].
+4
+
+
+• Automação: Desenvolvimento de scripts no HPC@Cloud para configurar o coordenador DMTCP
+em uma instância estável (Burstable On-Demand) e os workers em instâncias voláteis (Spot).
+• Validação Experimental: Execução de jobs longos com injeção de falhas (terminação forçada de
+nós) para medir o tempo de recuperação e o overhead introduzido pelo processo de virtualização,
+comparando com a execução nativa.
+4
+CRONOGRAMA
+Etapas
+Semestre 1 (TCC 1)
+Semestre 2 (TCC 2)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+1. Escrita dos Resultados Burstable
+X
+X
+2. Revisão Bibliográfica (DMTCP/MANA)
+X
+X
+3. Testes manuais / Prova de Conceito
+X
+X
+4. Defesa da Proposta (TCC 1)
+X
+X
+5. Integração no HPC@Cloud
+X
+X
+6. Experimentos Spot (Injeção de Falhas)
+X
+X
+7. Análise de Resultados
+X
+X
+8. Escrita da Monografia Final
+X
+X
+9. Defesa Final (TCC 2)
+X
+5
+CUSTOS
+O projeto utilizará recursos de nuvem da AWS. O financiamento será provido através de créditos de
+pesquisa (Cloud Credits for Research) e recursos do laboratório (Lapesd/UFSC), não havendo custo
+direto para o aluno. As ferramentas de software (DMTCP, HPC@Cloud) são gratuitas.
+6
+RECURSOS HUMANOS
+Nome
+Função
+Artur Luiz Rizzato Toru Soda
+Autor / Pesquisador
+Prof. Márcio Bastos Castro, Dr.
+Orientador
+7
+COMUNICAÇÃO
+Comunicado
+Por quem
+Para quem
+Forma
+Frequência
+Orientação e status
+Autor
+Orientador
+Reunião
+Quinzenal
+Dúvidas técnicas
+Autor
+Orientador
+E-mail/Chat
+Sob demanda
+Entrega de versões
+Autor
+Orientador
+Repositório
+Mensal
+8
+RISCOS
+5
+
+
+Risco
+Prob.
+Imp.
+Pri.
+Estratégia de Resposta
+Ações de Prevenção
+Incompatibilidade
+MANA
+c/
+Kernel
+Média
+Alto
+Alta
+Aplicar patches ou usar contai-
+ners
+Usar versões de software conge-
+ladas
+Tempo excessivo de escrita em
+disco
+Média
+Médio
+Média
+Ajustar frequência de checkpoint
+Usar sistema de arquivos paralelo
+(Lustre)
+Falhas Spot muito frequentes
+Baixa
+Alto
+Alta
+Mudar região AWS
+Checkpoint em intervalos meno-
+res
+Referências
+[1] A. Soda, V. Filho, and M. Castro, “Avaliação preliminar do desempenho e custo financeiro de apli-
+cações de hpc em clusters de instâncias burstable da aws,” in Anais da XXIV Escola Regional de Alto
+Desempenho da Região Sul (ERAD-RS), (Porto Alegre, RS, Brasil), SBC, 2025.
+[2] J. Ansel, K. Arya, and G. Cooperman, “Dmtcp: Transparent checkpointing for cluster computations
+and the desktop,” in 2009 IEEE International Symposium on Parallel & Distributed Processing,
+pp. 1–12, IEEE, 2009.
+[3] R. Garg, G. Price, and G. Cooperman, “Mana for mpi: Mpi-agnostic network-agnostic transparent
+checkpointing,” in Proceedings of the 28th International Symposium on High-Performance Parallel
+and Distributed Computing, pp. 1–12, 2019.
+[4] A. L. R. T. Soda, V. M. P. Filho, and M. Castro, “Performance and cost analysis of aws burstable
+instances for hpc with nas parallel benchmarks,” in WCC 2025, 2025.
+[5] V. Munhoz and M. Castro, “Enabling the execution of hpc applications on public clouds with
+hpc@cloud toolkit,” Concurrency and Computation: Practice and Experience, vol. 36, no. 8,
+p. e7976, 2024.
+[6] K. Arya, R. Garg, A. Y. Polyakov, and G. Cooperman, “Design and implementation for checkpoin-
+ting of distributed resources using process-level virtualization,” in 2016 IEEE International Confe-
+rence on Cluster Computing (CLUSTER), pp. 402–412, IEEE, 2016.
+6

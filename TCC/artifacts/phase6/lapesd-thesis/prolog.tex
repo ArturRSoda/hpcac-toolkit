@@ -1,0 +1,290 @@
+% Assume-se que \pretextual já foi feito
+
+\imprimircapa%
+\imprimirfolhaderosto*
+% \protect\incluirfichacatalografica{ficha.pdf}  % descomentar quando tiver a ficha
+{}% placeholder: evita que \imprimirfolhadecertificacao seja engolido pelo \@ifstar
+\imprimirfolhadecertificacao
+
+
+% \begin{dedicatoria}
+% \end{dedicatoria}
+
+
+\begin{agradecimentos}
+Ao Prof.\ Márcio Bastos Castro, pela orientação cuidadosa, pela liberdade de
+exploração e pelo ambiente de pesquisa que tornou este trabalho possível.
+
+Ao LaPeSD, em especial a Vanderlei Munhoz, cujo desenvolvimento do orquestrador
+HPC@Cloud serviu de base para a integração proposta neste trabalho, e cujas
+contribuições técnicas ao longo do projeto foram determinantes.
+
+Este trabalho foi parcialmente financiado pelo Conselho Nacional de
+Desenvolvimento Científico e Tecnológico (CNPq) e pela Amazon Web Services
+(AWS) por meio da Chamada CNPq/AWS Nº~64/2022 (Cloud Credits for Research).
+
+À minha família, pelo apoio incondicional ao longo de toda a graduação.
+\end{agradecimentos}
+
+
+% \begin{epigrafe}
+% \end{epigrafe}
+
+
+\begin{resumo}[Resumo]
+Instâncias \textit{spot} da Amazon Web Services oferecem descontos de até 90\%
+em relação ao preço convencional, mas podem ser revogadas pelo provedor a
+qualquer momento, com aviso de apenas dois minutos, descartando todo o progresso
+computacional acumulado em aplicações MPI de longa duração. Este trabalho propõe
+e avalia uma arquitetura de execução resiliente para aplicações MPI legadas em
+instâncias \textit{spot}, sem exigir modificação de código, por meio da
+integração do MANA, sistema de \textit{checkpoint/restart} transparente para MPI,
+ao orquestrador HPC@Cloud. A topologia adotada é híbrida: nó coordenador em
+instância \textit{burstable on-demand} e nós de computação em instâncias
+\textit{spot}. Duas estratégias de recuperação são implementadas: a
+\textsc{Replace}, que reprovísiona o nó interrompido e retoma a execução com a
+capacidade original do \textit{cluster}, e a \textsc{Degraded}, que marca o nó
+como inativo e reinicia imediatamente com $N{-}1$ \textit{workers}. A avaliação
+experimental, conduzida com 282 execuções sobre os \textit{benchmarks} NPB
+CG-C, EP-D e LU-C em \textit{clusters} de 2, 4 e 8 \textit{workers}, revelou
+dois regimes de viabilidade: para \textit{jobs} curtos como o CG-C (12 a 35~s),
+o \textit{overhead} de recuperação domina e a abordagem não se justifica; para
+\textit{jobs} de duração moderada a longa como o EP-D e o LU-C, a
+\textsc{Degraded} alcançou menor tempo de execução em 17 das 18 configurações
+avaliadas, com economia de custo de 2 a 38\% em relação à execução equivalente
+em instâncias \textit{on-demand} sem tolerância a falhas.
+
+\vspace{\baselineskip}
+\textbf{Palavras-chave:} Computação em Nuvem. Computação de Alto Desempenho.
+Instâncias \textit{Spot}. Tolerância a Falhas. \textit{Checkpoint/Restart}.
+MANA. HPC@Cloud.
+\end{resumo}
+
+
+\begin{resumo}[Resumo Estendido]
+
+\section*{Introdução}
+
+A computação de alto desempenho (HPC) tem migrado progressivamente para
+ambientes de nuvem pública, atraída pela elasticidade de recursos e pelo modelo
+de cobrança por uso. Nesse contexto, as instâncias \textit{spot} da Amazon Web
+Services representam uma oportunidade econômica relevante: ao adquirir
+capacidade computacional ociosa do provedor, é possível obter descontos de até
+90\% em relação ao preço convencional. Essa vantagem de custo, contudo, vem
+acompanhada de uma restrição operacional significativa: o provedor pode revogar
+as instâncias \textit{spot} a qualquer momento, com aviso mínimo de dois
+minutos antes da terminação efetiva.
+
+Para aplicações de curta duração, a probabilidade de interrupção é baixa e o
+impacto de uma revogação é tolerável. Para aplicações MPI de longa duração,
+porém, uma revogação descarta todo o progresso computacional acumulado, forçando
+a reexecução completa do \textit{job}. Essa característica torna as instâncias
+\textit{spot} impraticáveis para esse tipo de carga sem um mecanismo de
+preservação de estado, especialmente quando as aplicações são legadas e não
+preveem modificação de código.
+
+O MANA (\textit{MPI-Agnostic Network-Agnostic checkpoint/restart}) é um sistema
+de \textit{checkpoint} transparente para aplicações MPI que opera sem qualquer
+modificação no código da aplicação. Baseado no DMTCP (\textit{Distributed
+MultiThreaded CheckPointing}), o MANA captura a imagem completa do estado de
+execução de todos os processos MPI e permite retomá-la a partir do ponto salvo,
+mesmo após uma falha de nó. Essa propriedade cria a oportunidade de combinar a
+economia das instâncias \textit{spot} com a resiliência necessária para
+\textit{jobs} de longa duração.
+
+Este trabalho integra o MANA ao orquestrador HPC@Cloud para construir uma
+arquitetura de execução resiliente e econômica para aplicações MPI legadas em
+instâncias \textit{spot}. A questão central investigada é se e quando essa
+combinação é viável, tanto em termos de tempo de execução quanto de custo
+monetário, em comparação com a alternativa de instâncias \textit{on-demand} sem
+tolerância a falhas.
+
+
+\section*{Objetivos}
+
+O objetivo geral deste trabalho é propor, implementar e avaliar uma arquitetura
+de execução resiliente e econômica para aplicações HPC em instâncias
+\textit{spot} da AWS, integrando o MANA ao HPC@Cloud e quantificando o impacto
+em desempenho e custo em comparação com execução nativa sem tolerância a falhas.
+
+Os objetivos específicos são:
+\begin{enumerate}
+  \item Consolidar a análise de viabilidade de instâncias \textit{burstable}
+        para HPC em nuvem, identificando seus limites operacionais e justificando
+        seu uso restrito ao papel de coordenador de \textit{checkpoint};
+  \item Estender o HPC@Cloud com suporte à topologia híbrida
+        \textit{head}/\textit{worker}, incluindo diferenciação de papéis por
+        tipo de instância e as implicações no processo de provisionamento;
+  \item Implementar o \textit{bootstrap} automatizado do ambiente MANA/DMTCP
+        sobre \textit{clusters} AWS, incluindo configuração do Slurm,
+        implantação dos binários MANA e sincronização de estado via EFS;
+  \item Implementar um mecanismo de detecção de interrupção e duas estratégias
+        de recuperação (\textsc{Replace} e \textsc{Degraded}), com suporte a
+        falhas sintéticas reproduzíveis para fins de avaliação controlada;
+  \item Quantificar o \textit{overhead} do MANA sobre os NAS Parallel
+        Benchmarks (NPB), especificamente CG-C, EP-D e LU-C, em
+        \textit{clusters} com 2, 4 e 8 \textit{workers}, incluindo estudos
+        sintéticos para isolar os mecanismos de \textit{overhead};
+  \item Comparar o custo-benefício das estratégias \textsc{Replace} e
+        \textsc{Degraded} em relação à execução nativa, identificando as
+        condições sob as quais cada estratégia é economicamente vantajosa.
+\end{enumerate}
+
+
+\section*{Metodologia}
+
+A topologia adotada é híbrida: um nó coordenador (\textit{head}) opera como
+instância t3.large \textit{on-demand}, imune a revogações, e os nós de
+computação (\textit{workers}) executam como instâncias m5.xlarge \textit{spot},
+aproveitando os descontos de até 90\%. Essa escolha foi fundamentada na análise
+de viabilidade de instâncias \textit{burstable} conduzida previamente, que
+demonstrou que o perfil intermitente do coordenador de \textit{checkpoint} é
+compatível com as limitações de CPU e rede dessas instâncias, enquanto cargas
+HPC com sincronização frequente sofrem degradação expressiva.
+
+A integração ao HPC@Cloud implementa três componentes. O \textit{bootstrap}
+automatizado configura o ambiente Slurm e implanta os binários do MANA no EFS
+compartilhado, tornando os nós operacionais sem intervenção manual. O
+\textit{watcher} monitora periodicamente o estado das instâncias \textit{spot}
+via API da EC2 e, ao detectar uma revogação iminente, aciona o salvamento do
+estado de todos os processos MPI. Após a confirmação do
+\textit{checkpoint}, o sistema aplica uma das duas estratégias configuráveis: a
+\textsc{Replace}, que reprovísiona o nó interrompido e retoma o \textit{job}
+com a capacidade original do \textit{cluster}, e a \textsc{Degraded}, que marca
+o nó como inativo e reinicia imediatamente com $N{-}1$ \textit{workers}.
+
+Para isolar cada componente do custo de recuperação, a execução é decomposta em
+quatro fases: P0 (computação antes da falha), P1 (escrita do
+\textit{checkpoint}), P2 (reconfiguração do nó, subdividida em P2a$+$P2c
+comuns às duas estratégias e P2b onde elas divergem) e P3 (computação após o
+reinício). Essa decomposição permite atribuir cada segundo observado a uma causa
+específica, separando tempo de computação de tempo de infraestrutura e de
+coordenação.
+
+A avaliação experimental utilizou os \textit{benchmarks} NPB CG-C
+(\textit{Conjugate Gradient}, classe~C), EP-D (\textit{Embarrassingly Parallel},
+classe~D) e LU-C (\textit{Lower-Upper Gauss-Seidel}, classe~C), representando
+respectivamente regimes de comunicação intensiva com buffers por processo,
+operações coletivas sem estado por \textit{rank} e comunicação estruturada com
+vizinhos de cardinalidade fixa. A matriz de experimentos combinou 3
+\textit{benchmarks} por 3 tamanhos de \textit{cluster} (2, 4 e 8
+\textit{workers}) por 3 momentos de falha (10\%, 25\% e 50\% do tempo total)
+por 2 estratégias, além das linhas de base noFT e MANA-noFT, totalizando 282
+execuções válidas com $N{=}3$ repetições por configuração. A injeção de falhas
+foi realizada de forma sintética e reproduzível por meio do mecanismo
+\texttt{auto\_test\_failure} do HPC@Cloud.
+
+
+\section*{Resultados e Discussão}
+
+A avaliação revelou que o \textit{overhead} do MANA em condições normais
+(sem falhas) é aplicação-dependente e emerge da interação entre o padrão de
+execução de cada aplicação e a camada de instrumentação do MANA: varia de 27\%
+no EP-D com 8~\textit{workers} a 222\% no CG-C com 2~\textit{workers}. Os
+estudos sintéticos identificaram que a frequência de chamadas MPI não é o
+mecanismo amplificador; o custo intrínseco medido em programas isolados é de
+apenas 4 a 5~s por execução. A distância entre esse valor e os percentuais
+observados nos \textit{benchmarks} reais indica que o \textit{overhead} relevante
+é específico ao padrão de execução de cada aplicação.
+
+A análise das fases de recuperação revelou onde as estratégias divergem: a fase
+P2b, que compreende a reconfiguração do nó após a falha. A \textsc{Degraded}
+conclui P2b em $\approx$11~s ao atualizar o estado do nó no Slurm; a
+\textsc{Replace} aguarda $\approx$120~s pelo reaprovisionamento de um nó
+substituto na AWS. Essa diferença de $\approx$109~s é o elemento central da
+comparação entre estratégias, e seu peso relativo é modulado por dois fatores
+que interagem: o tamanho do \textit{cluster} ($N$) e o volume de trabalho
+remanescente no momento da falha.
+
+Em \textit{clusters} maiores, a perda de um nó representa uma fração menor da
+capacidade total, reduzindo a penalidade de P3 da \textsc{Degraded} e tornando
+a economia de P2b dominante. Em \textit{clusters} pequenos com falha precoce, o
+custo de P3 com $N{-}1$ \textit{workers} pode superar os $\approx$109~s
+economizados, tornando a \textsc{Replace} mais eficiente. Essa estrutura de
+\textit{crossover} foi observada empiricamente em apenas um dos 18 cenários
+avaliados para EP-D e LU-C: o EP-D com 2~\textit{workers} e falha a 10\% do
+tempo total. Nas demais 17 configurações, a \textsc{Degraded} apresentou menor
+tempo de execução, com vantagem crescente conforme $N$ aumenta.
+
+Os resultados revelam dois regimes econômicos distintos. Para \textit{jobs}
+curtos como o CG-C (12 a 35~s), o \textit{overhead} de recuperação equivale a
+3 a 17 vezes o tempo útil de cálculo, e o desconto \textit{spot} não compensa
+nem em tempo nem em custo. Para \textit{jobs} de duração moderada a longa como
+o EP-D e o LU-C, a \textsc{Degraded} alcança economia de 2 a 38\% em relação
+ao equivalente \textit{on-demand} sem recuperação, com as análises de tempo e
+de custo apontando consistentemente na mesma direção. A viabilidade depende,
+portanto, de forma determinante da duração do \textit{job}: apenas quando o
+custo fixo de recuperação representa uma fração minoritária do tempo total é que
+a combinação de \textit{spot} com tolerância a falhas se torna vantajosa.
+
+
+\section*{Considerações Finais}
+
+A integração proposta demonstra que execução resiliente e econômica de
+aplicações MPI legadas em instâncias \textit{spot} é alcançável sem modificação
+de código, desde que a duração do \textit{job} seja suficiente para amortizar o
+custo de recuperação. Os seis objetivos específicos foram atendidos: a análise
+de instâncias \textit{burstable} fundamentou a topologia adotada; o HPC@Cloud
+foi estendido com \textit{bootstrap} automatizado e dois mecanismos de
+recuperação configuráveis; e a avaliação experimental quantificou o
+\textit{overhead}, caracterizou o comportamento das estratégias e identificou as
+condições de viabilidade econômica.
+
+Como extensões naturais do trabalho, destacam-se: a validação empírica do regime
+de \textit{jobs} de longa duração, com classes mais custosas dos
+\textit{benchmarks}, observando a restrição do limite de dois minutos para
+escrita do \textit{checkpoint}; a avaliação do comportamento das estratégias
+sob múltiplas falhas sequenciais; e a adição de \textit{checkpoints} periódicos
+combinados com predição de revogações baseada em histórico de interrupções de
+instâncias \textit{spot}.
+
+\vspace{\baselineskip}
+\textbf{Palavras-chave:} Computação em Nuvem. Computação de Alto Desempenho.
+Instâncias \textit{Spot}. Tolerância a Falhas. \textit{Checkpoint/Restart}.
+MANA. HPC@Cloud.
+\end{resumo}
+
+
+\begin{abstract}
+AWS spot instances offer discounts of up to 90\% compared to on-demand pricing,
+but may be revoked by the provider at any time with only two minutes of notice,
+discarding all accumulated computational progress in long-running MPI
+applications. This work proposes and evaluates a resilient execution
+architecture for legacy MPI applications on AWS spot instances, without
+requiring code modification, by integrating MANA, a transparent
+\textit{checkpoint/restart} system for MPI, with the HPC@Cloud orchestrator.
+The adopted topology is hybrid: a coordinator node on a \textit{burstable
+on-demand} instance and compute nodes on \textit{spot} instances. Two recovery
+strategies are implemented: \textsc{Replace}, which reprovisions the interrupted
+node and resumes execution with the original cluster capacity, and
+\textsc{Degraded}, which marks the node as inactive and immediately restarts
+with $N{-}1$ workers. The experimental evaluation, conducted with 282 executions
+on the NPB benchmarks CG-C, EP-D, and LU-C on clusters of 2, 4, and 8 workers,
+revealed two viability regimes: for short jobs such as CG-C (12 to 35~s),
+recovery overhead dominates and the approach is not worthwhile; for medium to
+long-running jobs such as EP-D and LU-C, \textsc{Degraded} achieved shorter
+execution times in 17 out of 18 evaluated configurations, with cost savings of
+2 to 38\% compared to the equivalent on-demand execution without fault
+tolerance.
+
+\vspace{\baselineskip}
+\textbf{Keywords:} Cloud Computing. High Performance Computing. Spot Instances.
+Fault Tolerance. Checkpoint/Restart. MANA. HPC@Cloud.
+\end{abstract}
+
+
+\listoffigures*
+\listoftables*
+\listofalgorithms*
+
+%%% Força todas as siglas definidas em acronyms.tex a aparecer na lista,
+%%% mesmo sem uso de \gls{} no texto.
+\glsaddall
+\listadesiglas*[7em]
+
+\tableofcontents*%
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "main"
+%%% End:

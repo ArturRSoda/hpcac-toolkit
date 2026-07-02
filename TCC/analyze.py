@@ -530,9 +530,7 @@ def plot_mana_overhead(df: pd.DataFrame, out_dir: Path):
         return
 
     bench_class = {"CG": "C", "EP": "D", "LU": "C"}
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
-    fig.suptitle("MANA overhead — elapsed time without failures\n"
-                 "(m5.xlarge workers, 2 processes per node)", fontsize=12)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 8))
 
     for ax, bench in zip(axes, ["CG", "EP", "LU"]):
         sub = npb[npb["benchmark"] == bench]
@@ -563,14 +561,14 @@ def plot_mana_overhead(df: pd.DataFrame, out_dir: Path):
                 ax.annotate(f"+{pct:.0f}%",
                             xy=(x[i] + bar_w / 2, mana),
                             xytext=(0, 4), textcoords="offset points",
-                            ha="center", fontsize=8, color="#1a6b1a", fontweight="bold")
+                            ha="center", fontsize=11, color="#1a6b1a", fontweight="bold")
 
         ax.set_xticks(x)
         ax.set_xticklabels([f"{w}w" for w in worker_counts])
         ax.set_xlabel("Worker count")
         ax.set_ylabel("Elapsed time (s)")
-        ax.set_title(f"{bench}-{bench_class[bench]} Class")
-        ax.legend(fontsize=8)
+        ax.set_title(f"{bench}-{bench_class[bench]}")
+        ax.legend()
         ax.grid(axis="y", linestyle="--", alpha=0.4)
         ax.set_ylim(bottom=0)
 
@@ -595,10 +593,7 @@ def plot_synth_calls(df: pd.DataFrame, out_dir: Path):
         return
 
     call_counts = {0: "0", 1: "800", 2: "3,200", 3: "12,800", 4: "51,200"}
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=True)
-    fig.suptitle("Synthetic MPI call frequency study — elapsed time at each call level\n"
-                 "Finding: MANA overhead stays flat regardless of call count",
-                 fontsize=11)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 8), sharey=True)
 
     bench_labels = {"SYNTH_CALLS": "synth_calls  (MPI_Allreduce collectives)",
                     "SYNTH_P2P":   "synth_p2p  (MPI_Send / MPI_Recv point-to-point)"}
@@ -634,17 +629,18 @@ def plot_synth_calls(df: pd.DataFrame, out_dir: Path):
                 ax.annotate(f"{sign}{diff:.1f}s",
                             xy=(x[i] + bar_w / 2, mana),
                             xytext=(0, 4), textcoords="offset points",
-                            ha="center", fontsize=7, color="#555")
+                            ha="center", fontsize=10, color="#555")
 
         ax.set_xticks(x)
         ax.set_xticklabels([f"L{lvl}\n({call_counts.get(lvl,'?')} calls)" for lvl in levels],
-                           fontsize=8)
+                           rotation=20, ha='right')
+
         ax.set_xlabel("Call level")
         ax.set_ylabel("Elapsed time (s)")
         ax.set_title(bench_labels[bench])
-        ax.legend(fontsize=8)
+        ax.legend(loc="upper left")
         ax.grid(axis="y", linestyle="--", alpha=0.4)
-        ax.set_ylim(bottom=0)
+        ax.set_ylim(bottom=40)
 
     plt.tight_layout()
     path = out_dir / "fig2_synth_calls.png"
@@ -674,10 +670,7 @@ def plot_synth_imbalanced(df: pd.DataFrame, out_dir: Path):
     x = np.arange(len(levels))
     bar_w = 0.35
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    fig.suptitle("Communication imbalance study (synth_imbalanced)\n"
-                 "MPI_Irecv + MPI_Wait with controlled sender delay — MANA overhead stays flat",
-                 fontsize=11)
+    fig, ax = plt.subplots(figsize=(8, 5.5))
 
     noft_vals, noft_stds = [], []
     mana_vals, mana_stds = [], []
@@ -703,13 +696,14 @@ def plot_synth_imbalanced(df: pd.DataFrame, out_dir: Path):
             ax.annotate(f"{sign}{diff:.1f}s",
                         xy=(x[i] + bar_w / 2, mana),
                         xytext=(0, 4), textcoords="offset points",
-                        ha="center", fontsize=8, color="#555")
+                        ha="center", fontsize=10, color="#555")
 
+    ax.set_title("synth_imbalanced")
     ax.set_xticks(x)
-    ax.set_xticklabels([delay_labels.get(lvl, str(lvl)) for lvl in levels], fontsize=8)
+    ax.set_xticklabels([delay_labels.get(lvl, str(lvl)) for lvl in levels])
     ax.set_xlabel("Sender delay per exchange")
     ax.set_ylabel("Elapsed time (s)")
-    ax.legend(fontsize=9)
+    ax.legend()
     ax.grid(axis="y", linestyle="--", alpha=0.4)
     ax.set_ylim(bottom=0)
 
@@ -750,7 +744,7 @@ def plot_checkpoint_size(df: pd.DataFrame, out_dir: Path):
     ys = np.array(ys, dtype=float)
     y_errs = np.array(y_errs, dtype=float)
 
-    fig, ax = plt.subplots(figsize=(7, 5))
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
     ax.errorbar(xs, ys, yerr=y_errs, fmt="o", color="#5B9BD5", markersize=9,
                 capsize=5, linewidth=1.5, zorder=5, label="Phase 1")
 
@@ -764,13 +758,13 @@ def plot_checkpoint_size(df: pd.DataFrame, out_dir: Path):
 
     for x_pt, y_pt, y_e in zip(xs, ys, y_errs):
         ax.annotate(f"{int(x_pt)} MB", (x_pt, y_pt + y_e),
-                    textcoords="offset points", xytext=(8, 4), fontsize=9)
+                    textcoords="offset points", xytext=(8, 4), fontsize=11)
 
+    ax.set_title("synth_ckpt")
     ax.set_xlabel("Memory allocated per MPI process (MB)")
     ax.set_ylabel("Time (s)  —  failure detected → phase complete")
-    ax.set_title("Synthetic checkpoint size study\n"
-                 "Phase 1 time scales with checkpoint image size  (mean ±σ, N=3 per size)")
-    ax.legend(fontsize=9)
+
+    ax.legend()
     ax.grid(linestyle="--", alpha=0.4)
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
@@ -828,11 +822,11 @@ def _draw_phase_bars(ax, px, p0_a, p1_a, slurm_a, p2b_a, p3_a,
     b1 = b0 + p0_a
     ax.bar(px, p1_a,    0.32, bottom=b1,                       color=COLOR_P1,    label=lbl(True, "P1 — checkpoint write"))
     b2 = b1 + p1_a
-    ax.bar(px, slurm_a, 0.32, bottom=b2,                       color=COLOR_SLURM, label=lbl(True, "Slurm + MANA overhead\n(drain/cancel + re-alloc + coordinator)"))
+    ax.bar(px, slurm_a, 0.32, bottom=b2,                       color=COLOR_SLURM, label=lbl(True, "P2a+2c — Slurm + MANA"))
     b3 = b2 + slurm_a
-    ax.bar(px, p2b_a,   0.32, bottom=b3,                       color=COLOR_P2B,   label=lbl(True, "P2b — node reconfig\n(EC2 provisioning or scontrol DOWN)"))
+    ax.bar(px, p2b_a,   0.32, bottom=b3,                       color=COLOR_P2B,   label=lbl(True, "P2b — node reconfig"))
     b4 = b3 + p2b_a
-    ax.bar(px, p3_a,    0.32, bottom=b4,                       color=COLOR_P3,    label=lbl(True, "P3 — remaining computation"))
+    ax.bar(px, p3_a,    0.32, bottom=b4,                       color=COLOR_P3,    label=lbl(True, "P3 — post-restart compute"))
 
     totals = b4 + p3_a
 
@@ -846,7 +840,7 @@ def _draw_phase_bars(ax, px, p0_a, p1_a, slurm_a, p2b_a, p3_a,
     for pos, total in zip(px, totals):
         y_txt = max(total * 0.96, total - 3)
         ax.text(pos, y_txt, f"{total:.0f}s",
-                ha="center", va="top", fontsize=6.5,
+                ha="center", va="top", fontsize=9,
                 bbox=dict(boxstyle="round,pad=0.1", facecolor="white",
                           alpha=0.75, edgecolor="none"))
 
@@ -855,7 +849,7 @@ def _draw_phase_bars(ax, px, p0_a, p1_a, slurm_a, p2b_a, p3_a,
         short = "REP" if s == STRATEGY_KEY_REPLACE else "DEG"
         dark  = "#1a5276" if s == STRATEGY_KEY_REPLACE else "#0e3b0e"
         ax.text(pos, max(total * 0.12, 3), short,
-                ha="center", va="center", fontsize=6.5, color=dark, fontweight="bold")
+                ha="center", va="center", fontsize=9, color=dark, fontweight="bold")
 
 
 def plot_timing_phases(df: pd.DataFrame, out_dir: Path):
@@ -892,14 +886,8 @@ def plot_timing_phases(df: pd.DataFrame, out_dir: Path):
 
     fig, axes = plt.subplots(
         len(benchmarks), len(worker_counts),
-        figsize=(5.5 * len(worker_counts), 5.5 * len(benchmarks)),
+        figsize=(5 * len(worker_counts), 7 * len(benchmarks)),
         squeeze=False,
-    )
-    fig.suptitle(
-        "Total FT wall time breakdown by failure timing — REPLACE vs DEGRADED\n"
-        "Teal=P0 (pre-failure)  ·  Blue=P1 (checkpoint write)  ·  Yellow=Slurm+MANA overhead"
-        "  ·  Orange=P2b (node reconfig)  ·  Green=P3 (remaining work)",
-        fontsize=9,
     )
 
     for ri, bench in enumerate(benchmarks):
@@ -951,24 +939,24 @@ def plot_timing_phases(df: pd.DataFrame, out_dir: Path):
             )
 
             bench_cls = "D" if bench == "EP" else "C"
-            ax.set_title(f"{bench}-{bench_cls}  ·  {workers} workers", fontsize=10)
+            ax.set_title(f"{bench}-{bench_cls}  ·  {workers}w")
             ax.set_xticks(group_ticks)
-            ax.set_xticklabels(group_xlbls, fontsize=8)
-            ax.set_ylabel("Wall time (s)", fontsize=8)
+            ax.set_xticklabels(group_xlbls)
+            ax.set_ylabel("Wall time (s)")
             ax.set_ylim(bottom=0)
             ax.grid(axis="y", linestyle="--", alpha=0.4)
 
-    # Figure-level legend placed outside the grid to avoid covering bars
+    # Figure-level legend placed below the grid
     handles, labels = [], []
     for ax in axes.flat:
         for h, l in zip(*ax.get_legend_handles_labels()):
             if l not in labels and not l.startswith("_"):
                 handles.append(h); labels.append(l)
     if handles:
-        fig.legend(handles, labels, fontsize=7.5, loc="upper right",
-                   bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
+        fig.legend(handles, labels, fontsize=11, loc="lower center",
+                   bbox_to_anchor=(0.5, 0.01), ncol=5, framealpha=0.9)
 
-    plt.tight_layout(rect=[0, 0, 0.82, 0.96])
+    plt.tight_layout(rect=[0, 0.05, 1.0, 1.0])
     path = out_dir / "fig4_timing_phases.png"
     plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -998,12 +986,7 @@ def plot_cg_short_job(df: pd.DataFrame, out_dir: Path):
     bar_gap = 0.06
     group_gap = 0.55
 
-    fig, ax = plt.subplots(figsize=(3.5 * len(worker_counts), 5))
-    fig.suptitle(
-        "CG-C short benchmark — total FT wall time (REPLACE vs DEGRADED)\n"
-        "For short jobs, recovery overhead dominates; P0 (pre-failure compute) is nearly zero",
-        fontsize=10,
-    )
+    fig, ax = plt.subplots(figsize=(10, 8))
 
     positions, group_ticks, group_xlbls = [], [], []
     p0_v, p1_v, slurm_v, p2b_v, p3_v   = [], [], [], [], []
@@ -1045,18 +1028,19 @@ def plot_cg_short_job(df: pd.DataFrame, out_dir: Path):
         total_stds=np.array(total_stds_v),
     )
 
+    ax.set_title("CG-C")
     ax.set_xticks(group_ticks)
-    ax.set_xticklabels(group_xlbls, fontsize=9)
-    ax.set_ylabel("Wall time (s)", fontsize=9)
+    ax.set_xticklabels(group_xlbls)
+    ax.set_ylabel("Wall time (s)")
     ax.set_ylim(bottom=0)
     ax.grid(axis="y", linestyle="--", alpha=0.4)
 
-    # Legend outside the axes to avoid covering bars
+    # Legend below the axes to avoid covering bars
     handles, labels = ax.get_legend_handles_labels()
-    fig.legend(handles, labels, fontsize=8, loc="upper right",
-               bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
+    fig.legend(handles, labels, fontsize=11, loc="lower center",
+               bbox_to_anchor=(0.5, 0.01), ncol=5, framealpha=0.9)
 
-    plt.tight_layout(rect=[0, 0, 0.78, 1])
+    plt.tight_layout(rect=[0, 0.07, 1.0, 1.0])
     path = out_dir / "fig5_cg_short_job.png"
     plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -1080,14 +1064,9 @@ def plot_mana_scalability(df: pd.DataFrame, out_dir: Path):
     bench_class = {"CG": "C", "EP": "D", "LU": "C"}
     benchmarks  = [b for b in ["CG", "EP", "LU"] if b in npb["benchmark"].unique()]
 
-    fig, axes = plt.subplots(1, len(benchmarks), figsize=(5 * len(benchmarks), 4.5))
+    fig, axes = plt.subplots(1, len(benchmarks), figsize=(5 * len(benchmarks), 8))
     if len(benchmarks) == 1:
         axes = [axes]
-    fig.suptitle(
-        "Strong scaling — wall time vs worker count  (no failures)\n"
-        "Solid = native MPI (noFT)   ·   Dashed = with MANA checkpoint layer (MANA-noFT)",
-        fontsize=11,
-    )
 
     strat_lines = [
         (STRATEGY_KEY_NONE,      {"ls": "-",  "marker": "o"}),
@@ -1117,14 +1096,14 @@ def plot_mana_scalability(df: pd.DataFrame, out_dir: Path):
             for x, y in zip(xs, ys):
                 ax.annotate(f"{y:.1f}s", (x, y),
                             textcoords="offset points", xytext=(0, 8),
-                            ha="center", fontsize=8.5)
+                            ha="center", fontsize=11)
 
-        ax.set_title(f"{bench}-{bench_class[bench]}", fontsize=11)
-        ax.set_xlabel("Worker count", fontsize=9)
-        ax.set_ylabel("Wall time (s)", fontsize=9)
+        ax.set_title(f"{bench}-{bench_class[bench]}")
+        ax.set_xlabel("Worker count")
+        ax.set_ylabel("Wall time (s)")
         ax.set_xticks(workers_sorted)
         ax.set_xticklabels([str(w) for w in workers_sorted])
-        ax.legend(fontsize=8.5)
+        ax.legend()
         ax.grid(linestyle="--", alpha=0.4)
         ax.set_ylim(bottom=0)
 
@@ -1164,13 +1143,8 @@ def plot_strategy_comparison(df: pd.DataFrame, out_dir: Path):
 
     fig, axes = plt.subplots(
         len(benchmarks), len(worker_counts),
-        figsize=(5.5 * len(worker_counts), 5 * len(benchmarks)),
+        figsize=(5 * len(worker_counts), 8 * len(benchmarks)),
         squeeze=False,
-    )
-    fig.suptitle(
-        "Total FT wall time — MANA-noFT (no failure) vs REPLACE vs DEGRADED  (lower = better)\n"
-        "The gap between MANA-noFT and the FT bars shows the cost of the spot interruption",
-        fontsize=10,
     )
 
     seen_labels: set = set()
@@ -1226,13 +1200,13 @@ def plot_strategy_comparison(df: pd.DataFrame, out_dir: Path):
                        yerr=sd if sd > 0 else None, capsize=3,
                        error_kw={"elinewidth": 1, "ecolor": "black"})
                 ax.text(pos, total + (sd or 0) + 1, f"{total:.0f}s",
-                        ha="center", va="bottom", fontsize=6, rotation=45)
+                        ha="center", va="bottom", fontsize=9, rotation=45)
 
             bench_cls = "D" if bench == "EP" else "C"
-            ax.set_title(f"{bench}-{bench_cls}  ·  {workers} workers", fontsize=10)
+            ax.set_title(f"{bench}-{bench_cls}  ·  {workers}w")
             ax.set_xticks(group_ticks)
-            ax.set_xticklabels(group_xlbls, fontsize=8)
-            ax.set_ylabel("Wall time (s)", fontsize=8)
+            ax.set_xticklabels(group_xlbls)
+            ax.set_ylabel("Wall time (s)")
             ax.set_ylim(bottom=0)
             ax.grid(axis="y", linestyle="--", alpha=0.4)
 
@@ -1243,10 +1217,10 @@ def plot_strategy_comparison(df: pd.DataFrame, out_dir: Path):
                 handles.append(h)
                 labels.append(l)
     if handles:
-        fig.legend(handles, labels, fontsize=8.5, loc="upper right",
-                   bbox_to_anchor=(0.99, 0.99), framealpha=0.9)
+        fig.legend(handles, labels, fontsize=11, loc="lower center",
+                   bbox_to_anchor=(0.5, 0.01), ncol=3, framealpha=0.9)
 
-    plt.tight_layout(rect=[0, 0, 0.88, 1])
+    plt.tight_layout(rect=[0, 0.04, 1.0, 1.0])
     path = out_dir / "fig8_strategy_comparison.png"
     plt.savefig(path, dpi=150)
     plt.close()
@@ -1278,14 +1252,8 @@ def plot_recovery_overhead_ratio(df: pd.DataFrame, out_dir: Path):
 
     fig, axes = plt.subplots(
         len(benchmarks), len(worker_counts),
-        figsize=(5 * len(worker_counts), 4.5 * len(benchmarks)),
+        figsize=(5 * len(worker_counts), 7 * len(benchmarks)),
         squeeze=False,
-    )
-    fig.suptitle(
-        "Recovery overhead as % of total FT wall time — REPLACE vs DEGRADED\n"
-        "= (ft_wall_time − pre-failure compute) / ft_wall_time × 100\n"
-        "Lower % means the failure had less relative impact on the total job",
-        fontsize=10,
     )
 
     COLOR_REP = STRATEGY_COLOR[STRATEGY_KEY_REPLACE]
@@ -1339,24 +1307,34 @@ def plot_recovery_overhead_ratio(df: pd.DataFrame, out_dir: Path):
             for x, y in zip(xs, rep_ys):
                 ax.annotate(f"{y:.0f}%", (x, y),
                             textcoords="offset points", xytext=(0, 8),
-                            ha="center", fontsize=8, color=COLOR_REP)
+                            ha="center", fontsize=10, color=COLOR_REP)
             for x, y in zip(xs, deg_ys):
                 ax.annotate(f"{y:.0f}%", (x, y),
                             textcoords="offset points", xytext=(0, -14),
-                            ha="center", fontsize=8, color=COLOR_DEG)
+                            ha="center", fontsize=10, color=COLOR_DEG)
 
             bench_cls = "D" if bench == "EP" else "C"
-            ax.set_title(f"{bench}-{bench_cls}  ·  {workers} workers", fontsize=10)
+            ax.set_title(f"{bench}-{bench_cls}  ·  {workers}w")
             ax.set_xticks(pcts)
             ax.set_xticklabels([f"{p}%" for p in pcts])
-            ax.set_xlabel("Failure timing (% of noFT run)", fontsize=8)
-            ax.set_ylabel("Recovery overhead (%)", fontsize=8)
+            ax.set_xlabel("Failure timing (% of noFT run)")
+            ax.set_ylabel("Recovery overhead (%)")
             ax.set_ylim(0, 105)
             ax.grid(linestyle="--", alpha=0.4)
-            if show_legend:
-                ax.legend(fontsize=9, loc="upper right", framealpha=0.9)
 
-    plt.tight_layout()
+    # Collect legend handles from any subplot and place below the grid
+    handles, labels = [], []
+    for ax in axes.flat:
+        if not ax.get_visible():
+            continue
+        for h, l in zip(*ax.get_legend_handles_labels()):
+            if l not in labels and not l.startswith("_"):
+                handles.append(h); labels.append(l)
+    if handles:
+        fig.legend(handles, labels, fontsize=11, loc="lower center",
+                   bbox_to_anchor=(0.5, 0.01), ncol=2, framealpha=0.9)
+
+    plt.tight_layout(rect=[0, 0.04, 1.0, 1.0])
     path = out_dir / "fig9_recovery_overhead_ratio.png"
     plt.savefig(path, dpi=150)
     plt.close()
@@ -1387,11 +1365,7 @@ def plot_cost(df: pd.DataFrame, out_dir: Path):
         print("  Skipping fig7 (no cost data)")
         return
 
-    fig, axes = plt.subplots(2, 3, figsize=(14, 9))
-    fig.suptitle(
-        "Cost per run — spot workers with FT vs on-demand without FT\n"
-        "(noFT requires on-demand; FT strategies use ~70%-cheaper spot instances)",
-        fontsize=11)
+    fig, axes = plt.subplots(2, 3, figsize=(15, 11))
 
     for row_i, strat in enumerate(ft_strats):
         for col_i, bench in enumerate(benchmarks):
@@ -1439,7 +1413,7 @@ def plot_cost(df: pd.DataFrame, out_dir: Path):
                             ax.annotate(f"${val:.3f}",
                                         xy=(bar.get_x() + bar.get_width() / 2, val),
                                         xytext=(0, 3), textcoords="offset points",
-                                        ha="center", fontsize=6, rotation=50)
+                                        ha="center", fontsize=8, rotation=50)
             else:
                 # CG: 2 bars per x: noFT + FT (no timing variation)
                 bar_w = 0.3
@@ -1468,21 +1442,129 @@ def plot_cost(df: pd.DataFrame, out_dir: Path):
                             ax.annotate(f"${val:.3f}",
                                         xy=(bar.get_x() + bar.get_width() / 2, val),
                                         xytext=(0, 3), textcoords="offset points",
-                                        ha="center", fontsize=6.5, rotation=45)
+                                        ha="center", fontsize=8, rotation=45)
 
+            strat_label = "Replace" if strat == STRATEGY_KEY_REPLACE else "Degraded"
+            ax.set_title(f"{strat_label} — {bench}-{bench_class[bench]}")
             ax.set_xticks(x)
             ax.set_xticklabels([f"{w}w" for w in worker_counts])
             ax.set_xlabel("Worker count")
             if col_i == 0:
                 ax.set_ylabel("Estimated cost per run (USD)")
-            ax.set_title(f"{bench}-{bench_class[bench]} — {_label(strat)}")
-            ax.legend(fontsize=7)
+            ax.legend(loc="lower center")
             ax.grid(axis="y", linestyle="--", alpha=0.4)
             ax.set_ylim(bottom=0)
 
     plt.tight_layout()
     path = out_dir / "fig7_cost.png"
     plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Saved: {path}")
+
+
+def plot_crossover(df: pd.DataFrame, out_dir: Path):
+    """
+    Fig 10: Heat map of Delta = T_Replace - T_Degraded across (N, fault timing).
+    Two panels: EP-D (left) and LU-C (right).
+    X-axis: worker count N (2, 4, 8) — dominant factor (left = fewer workers).
+    Y-axis: fault timing % (10% top = early fault; 50% bottom = late fault).
+    Color: diverging RdYlGn centred at 0.
+    Shows the tendency: small N + early fault -> REPLACE gains ground.
+    """
+    from matplotlib.colors import TwoSlopeNorm
+
+    ft_df = df[
+        df["benchmark"].isin(["EP", "LU"]) &
+        df["strategy"].isin([STRATEGY_KEY_REPLACE, STRATEGY_KEY_DEGRADED]) &
+        df["timing_pct"].notna()
+    ].copy()
+    if ft_df.empty:
+        print("  Skipping fig10 (no crossover data)")
+        return
+
+    pcts        = [10, 25, 50]      # rows top->bottom: early->late fault
+    worker_vals = [2, 4, 8]         # cols left->right: small->large N
+    benchmarks  = ["EP", "LU"]
+    bench_label = {"EP": "EP-D", "LU": "LU-C"}
+
+    # Build Delta matrix per benchmark  [row=timing, col=workers]
+    matrices = {}
+    for bench in benchmarks:
+        mat = np.full((len(pcts), len(worker_vals)), np.nan)
+        for r, pct in enumerate(pcts):
+            for c, N in enumerate(worker_vals):
+                rep = ft_df[(ft_df["benchmark"] == bench) &
+                            (ft_df["config_workers"] == N) &
+                            (ft_df["strategy"] == STRATEGY_KEY_REPLACE) &
+                            (ft_df["timing_pct"] == pct)]
+                deg = ft_df[(ft_df["benchmark"] == bench) &
+                            (ft_df["config_workers"] == N) &
+                            (ft_df["strategy"] == STRATEGY_KEY_DEGRADED) &
+                            (ft_df["timing_pct"] == pct)]
+                if rep.empty or deg.empty:
+                    continue
+                t_rep, _ = _mean_std(rep, "ft_wall_time_s")
+                t_deg, _ = _mean_std(deg, "ft_wall_time_s")
+                mat[r, c] = t_rep - t_deg
+        matrices[bench] = mat
+
+    # Shared diverging colormap centred at Delta=0
+    all_vals = np.concatenate([matrices[b].flatten() for b in benchmarks])
+    valid    = all_vals[~np.isnan(all_vals)]
+    norm     = TwoSlopeNorm(vmin=valid.min(), vcenter=0.0, vmax=valid.max())
+    cmap     = "RdYlGn"
+
+    fig, axes = plt.subplots(1, 2, figsize=(8.5, 3.2),
+                             gridspec_kw={"wspace": 0.30})
+
+    for ax, bench in zip(axes, benchmarks):
+        mat = matrices[bench]
+        ax.imshow(mat, cmap=cmap, norm=norm,
+                  aspect="auto", origin="upper",
+                  interpolation="nearest")
+
+        # Cell value annotations
+        for r in range(len(pcts)):
+            for c in range(len(worker_vals)):
+                val = mat[r, c]
+                if np.isnan(val):
+                    continue
+                fg   = "white" if abs(val) > 55 else "black"
+                sign = "+" if val >= 0 else ""
+                ax.text(c, r, f"{sign}{int(round(val))} s",
+                        ha="center", va="center",
+                        fontsize=9, fontweight="bold", color=fg)
+
+        # Dark border on REPLACE-wins cell(s)
+        for r in range(len(pcts)):
+            for c in range(len(worker_vals)):
+                if not np.isnan(mat[r, c]) and mat[r, c] < 0:
+                    ax.add_patch(plt.Rectangle(
+                        (c - 0.5, r - 0.5), 1, 1,
+                        fill=False, edgecolor="#7a1a1a",
+                        linewidth=2.5, zorder=4))
+
+        ax.set_xticks(range(len(worker_vals)))
+        ax.set_xticklabels([f"{w}w" for w in worker_vals], fontsize=10)
+        ax.set_yticks(range(len(pcts)))
+        ax.set_yticklabels([f"{p}%" for p in pcts], fontsize=10)
+        ax.set_xlabel("Workers ($N$)", fontsize=10)
+        ax.set_ylabel("Timing da falha", fontsize=10)
+        ax.set_title(bench_label[bench], fontsize=12, pad=6)
+
+    # Colour legend as patches below the panels (no numeric colorbar)
+    from matplotlib.patches import Patch
+    legend_handles = [
+        Patch(facecolor="#4daf4a", label="DEGRADED mais rápida"),
+        Patch(facecolor="#e41a1c", label="REPLACE mais rápida"),
+    ]
+    fig.legend(handles=legend_handles, loc="lower center", ncol=2,
+               fontsize=9, bbox_to_anchor=(0.45, -0.12), framealpha=0.9,
+               handlelength=1.2, handleheight=0.9)
+
+    plt.tight_layout()
+    path = out_dir / "fig10_crossover.png"
+    plt.savefig(path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"  Saved: {path}")
 
@@ -1739,6 +1821,17 @@ def main():
     plots_dir   = out_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
 
+    plt.rcParams.update({
+        'font.size': 14,
+        'axes.titlesize': 15,
+        'axes.labelsize': 14,
+        'xtick.labelsize': 12,
+        'ytick.labelsize': 12,
+        'legend.fontsize': 12,
+        'lines.markersize': 8,
+        'lines.linewidth': 2.0,
+    })
+
     print(f"\nScanning: {results_dir.resolve()}")
     df = load_all_results(results_dir)
 
@@ -1767,6 +1860,7 @@ def main():
     plot_cost(df, plots_dir)                 # fig7: spot+FT vs on-demand cost
     plot_strategy_comparison(df, plots_dir)  # fig8: REPLACE vs DEGRADED total time (winner)
     plot_recovery_overhead_ratio(df, plots_dir)  # fig9: recovery overhead % by timing
+    plot_crossover(df, plots_dir)               # fig10: crossover analysis
 
     print(f"\nDone. Outputs in: {out_dir.resolve()}")
 

@@ -1,0 +1,269 @@
+Press Release
+Newsroom
+STAMFORD Conn. June 2 2022
+Gartner Says Worldwide IaaS Public Cloud
+Services Market Grew 41.4% in 2021
+Top Five IaaS Providers Account for Over 80% of Total Market
+The worldwide infrastructure as a service (IaaS) market grew 41.4% in 2021 to total $90.9 billion up from $64.3
+billion in 2020 according to Gartner Inc. Amazon retained the No. 1 position in the IaaS market in 2021 followed by
+Microsoft Alibaba Google and Huawei.
+The IaaS market continues to grow unabated as cloud-native (https://www.gartner.com/en/newsroom/press-
+releases/2021-11-10-gartner-says-cloud-will-be-the-centerpiece-of-new-digital-experiences) becomes the primary
+architecture for modern workloads said Sid Nag (https://www.gartner.com/en/experts/sid-nag) VP analyst at
+Gartner. Cloud supports the scalability and composability (https://www.gartner.com/en/newsroom/press-
+releases/2021-10-18-gartner-survey-of-over-2000-cios-reveals-the-need-for-enterprises-to-embrace-business-
+composability-in-2022) that advanced technologies and applications require while also enabling enterprises to
+address emerging needs such as sovereignty data integration and enhanced customer experience.
+In 2021 the top ive IaaS providers accounted for over 80% of the market. Amazon continued to lead the worldwide
+IaaS market with revenue of $35.4 billion in 2021 and 38.9% market share (see Table 1).
+Table 1. Worldwide IaaS Public Cloud Services Market Share 2020-2021 (Millions of U.S. Dollars)
+Company
+2021 
+Revenue
+2021 Market 
+Share (%)
+2020 
+Revenue
+2020 Market
+Share (%)
+2020-2021
+Growth (%)
+Amazon
+35380
+38.9
+26201
+40.8
+35.0
+Microsoft
+19153
+21.1
+12659
+19.7
+51.3
+Alibaba
+8679
+9.5
+6117
+9.5
+41.9
+Google
+6436
+7.1
+3932
+6.1
+63.7
+Huawei
+4190
+4.6
+2681
+4.2
+56.3
+Others
+17056
+18.8
+12697
+19.8
+34.3
+Total
+90894
+100.0
+64286
+100.0
+41.4
+Source: Gartner (June 2022)
+Microsoft followed in the No. 2 position with 21.1% share and above-market growth reaching over $19 billion in IaaS
+revenue in 2021. With many organizations already relying on Microsofts enterprise software and services Azure has
+been positioned to capture opportunities across nearly every vertical market.
+Alibaba was again the No. 3 IaaS public cloud provider worldwide with 9.5% market share and revenue of $8.7 billion
+for 2021. While Alibaba continues to lead the Chinese cloud market it is also poised to be the leading regional
+provider in Indonesia Malaysia and other emerging cloud markets given its local market understanding and ability
+to serve as a bridge to digital commerce.
+Regional cloud ecosystems (https://www.gartner.com/en/newsroom/press-releases/2022-04-19-gartner-forecasts-
+worldwide-public-cloud-end-user-spending-to-reach-nearly-500-billion-in-2022) are becoming increasingly
+important amidst growing geopolitical fragmentation and emerging regulatory and compliance requirements
+presenting an opportunity for providers with a strong regional presence said Nag.
+Google Cloud saw the highest growth rate of the top ive IaaS vendors growing 63.7% in 2021 to reach $6.4 billion
+in revenue. This growth was driven by steadily increased adoption for traditional enterprise workloads as well as
+Googles innovation in more cutting-edge capabilities such as artiicial intelligence and Kubernetes container
+technologies supported by an expansion of their partner ecosystem to reach a wider customer base.
+While Huaweis growth tempered in 2021 after two straight years of over 200% growth it still maintained the No. 5
+market share position with $4.2 billion in revenue. Huawei has made signiicant investments in its IaaS ecosystem in
+the past two years and through an enhanced strategy of open hardware open-source software and partner
+enablement it has been able to provide expanded oﬀerings for universities developers and startups.
+The next phase of IaaS growth will be driven by customer experience digital outcomes and the virtual-irst world
+said Nag. Emerging technologies that can help businesses bring experiences closer to their customers such as the
+metaverse (https://www.gartner.com/en/newsroom/press-releases/2022-02-07-gartner-predicts-25-percent-of-
+Gartner Says Worldwide IaaS Public Cloud Serv...
+https://www.gartner.com/en/newsroom/press-rel...
+1 of 3
+6/10/26, 16:45
+
+
+Related Gartner Research
+people-will-spend-at-least-one-hour-per-day-in-the-metaverse-by-2026) chatbots and digital twins will require
+hyperscale infrastructure to meet growing demands for compute and storage power.
+Gartner clients can read more in Market Share: IT Services Worldwide 2021. (https://www.gartner.com/
+document/4013377) Learn how to create a strong cloud strategy in the complimentary Gartner webinar "The
+Gartner Cloud Strategy Cookbook 2022."  (https://www.gartner.com/en/webinars/4012947/the-gartner-cloud-
+strategy-cookbook-2022)
+Gartner IT Infrastructure Operations & Cloud Strategies Conference 
+Gartner analysts will provide additional analysis on cloud strategies and infrastructure and operations trends at the
+Gartner IT Infrastructure Operations & Cloud Strategies Conferences taking place November 21-22 in London
+(https://www.gartner.com/en/conferences/emea/infrastructure-operations-cloud-uk) December 6-8 in Las Vegas
+(https://www.gartner.com/en/conferences/na/infrastructure-operations-cloud-us) and December 13-14 in (https://
+www.gartner.com/jp/conferences/apac/infrastructure-operations-cloud-japan)Tokyo (https://www.gartner.com/en/
+conferences/apac/infrastructure-operations-cloud-japan). Follow news and updates from these conferences on
+Twitter using #GartnerIO (https://twitter.com/search?q=%23GartnerIO&src=typed_query).
+About Gartner for High Tech Leaders
+Gartner for High Tech Leaders provides actionable objective insight to tech leaders and their teams with role-based
+best practices industry insights and strategic views into emerging trends and market changes to achieve their
+mission-critical priorities and build the successful organizations of tomorrow. Additional information is available
+at www.gartner.com/en/industries/high-tech (https://www.gartner.com/en/industries/high-tech).
+Follow news and updates from Gartner for High Tech Leaders on Twitter (https://twitter.com/
+Gartner_HT) and LinkedIn (https://www.linkedin.com/showcase/gartner-for-high-tech). Visit the IT Newsroom
+(https://www.gartner.com/en/newsroom/topics/information-technology) for more information and insights.
+Media Contacts
+Meghan Rimol
+Gartner
+Meghan.Rimol@Gartner.com (mailto:Meghan.Rimol@Gartner.com)
+Share this:
+(https://
+twitter.com/
+share?
+text=.
+%40Gartner_IT+says+that+the+worldwide+IaaS+public+
+%23cloud+services+market+grew+41.4%25+in+2021.
++Learn+more+here.
++
+%23GartnerIO+
+%23IT&url=https%3A%2F%2Fwww.gartner.com%2Fen%2Fnewsroom%2Fpress-
+releases%2F2022-
+06-
+02-
+gartner-
+says-
+worldwide-
+iaas-
+public-
+cloud-
+services-
+market-
+grew-
+41-
+percent-
+in-
+2021&via=Gartner_Inc)
+(https://
+www.linkedin.com/
+shareArticle?
+mini=true&url=https%3A%2F%2Fwww.gartner.com%2Fen%2Fnewsroom%2Fpress-
+releases%2F2022-
+06-
+02-
+gartner-
+says-
+worldwide-
+iaas-
+public-
+cloud-
+services-
+market-
+grew-
+41-
+percent-
+in-
+2021&title=Gartner+Says+Worldwide+IaaS+Public+Cloud+Services+Market+Grew+41.4%25+in+2021&summary=Gartner+says+that+the+worldwide+IaaS+public+
+%23cloud+services+market+grew+41.4%25+in+2021.
++See+more+here.
++
+%23GartnerIO+
+%23IT&source=Gartner)
+(https://
+www.facebook.com/
+sharer/
+sharer.php?
+u=https%3A%2F%2Fwww.gartner.com%2Fen%2Fnewsroom%2Fpress-
+releases%2F2022-
+06-
+02-
+gartner-
+says-
+worldwide-
+iaas-
+public-
+cloud-
+services-
+market-
+grew-
+41-
+percent-
+in-
+2021)
+Newsroom (/en/newsroom)
+View all press releases (/en/newsroom/archive)
+Latest Releases
+Gartner Marketing Symposium/Xpo: Day 3 Highlights (/en/newsroom/press-releases/2026-06-10-gartner-marketing-symposium-xpo-day-3-highlights)
+June 10 2026
+Gartner Marketing Survey Finds 84% of Companies Are Stuck in a Brand Doom Loop (/en/newsroom/press-releases/2026-06-10-gartner-marketing-survey-inds-84-of-
+companies-are-stuck-in-a-brand-doom-loop)
+June 10 2026
+Gartner Says Data Center Electricity Consumption to Grow 26% in 2026 (/en/newsroom/press-releases/2026-06-10-gartner-says-data-center-electricity-demand-to-grow-26-
+percent-in-2026)
+June 10 2026
+Article
+AI Governance Requires More Than Policies
+Read Now
+(/en/articles/ai-governance-trism)
+eBook
+IT Score for Security & Risk Management
+Download eBook
+(/en/cybersecurity/products/it-score-cybersecurity-and-risk)
+Article
+AI Talent Gaps Stall Enterprise Value: 4 CIO Blind Spots
+Read Now
+(/en/articles/ai-talent)
+About Gartner
+Gartner Inc. (NYSE: IT) delivers actionable objective insight to executives and their teams. Our expert guidance and
+tools enable faster smarter decisions and stronger performance on an organizations mission critical priorities. To
+learn more visit gartner.com (http://gartner.com/).
+Gartner Says Worldwide IaaS Public Cloud Serv...
+https://www.gartner.com/en/newsroom/press-rel...
+2 of 3
+6/10/26, 16:45
+
+
+(https://
+www.youtube.com/
+user/
+Gartnervideo)
+(https://
+twitter.com/
+Gartner_inc)
+(https://
+www.linkedin.com/
+company/
+gartner)
+(https://
+www.facebook.com/
+GartnerInc)
+(https://
+www.instagram.com/
+gartner_inc/)
+(/en)
+About Gartner
++
+Get in Touch
++
+Latest Insights
++
+POLICIES (/EN/ABOUT/POLICIES/OVERVIEW)
+PRIVACY POLICY (/EN/ABOUT/POLICIES/PRIVACY)
+TERMS OF USE (/EN/ABOUT/POLICIES/TERMS-OF-USE)
+OMBUDS (/EN/ABOUT/OMBUDS)
+SITE MAP (/
+EN/SITE-MAP)
+©2026 Gartner Inc. and/or its ailiates. All rights reserved.
+Gartner Says Worldwide IaaS Public Cloud Serv...
+https://www.gartner.com/en/newsroom/press-rel...
+3 of 3
+6/10/26, 16:45

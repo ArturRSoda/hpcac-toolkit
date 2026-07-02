@@ -1,0 +1,1970 @@
+DOI: 10.4018/JGIM.287610
+Journal of Global Information Management
+Volume 29 • Issue 6 
+This article published as an Open Access article distributed under the terms of the Creative Commons Attribution License
+(http://creativecommons.org/licenses/by/4.0/) which permits unrestricted use, distribution, and production in any medium,
+provided the author of the original work and original publication source are properly credited.
+*Corresponding Author
+1
+Efficiency or Innovation?
+The Long-Run Payoff of Cloud Computing
+Zhenghua Li, Jiangsu University of Science and Technology, China
+Huigang Liang, The University of Memphis, USA
+Nianxin Wang, Jiangsu University of Science and Technology, China
+ https://orcid.org/0000-0002-0461-6318
+Yajiong Xue, East Carolina University, USA
+Shilun Ge, Jiangsu University of Science and Technology, China
+ABSTRACT
+Considering the mixed arguments and uncertainty about the payoff of cloud computing, this paper 
+empirically studies the long-term cloud computing impact on the financial performance, specifically 
+from the perspective of efficiency and innovation. Taking 253 pairs of listed companies in China as 
+the research sample, propensity score matching and difference in differences techniques combined 
+with OLS regression are conducted to analyze a rolling 5-year panel data. The analysis results show 
+that cloud computing adoption leads to years of financial performance decline followed by an upturn. 
+The downward trend is more pronounced when it is adopted with innovation. This paper contributes 
+to the existing literature by leveraging archival performance data to verify the long-term business 
+value and revealing the value realization difference between efficiency- and innovation-oriented cloud 
+computing adoptions. The findings remind the managers to see the two sides of cloud computing 
+and make rational adoption decisions, especially cloud-based innovation, according to their actual 
+situations.
+Keywords
+Business Value, Cloud Computing, Efficiency, Financial Performance, Information Technology, Innovation, 
+Listed Companies, Long-Term Payoff
+INTRODUCTION
+Cloud computing (CC), an Internet-based and on-demand IT service model, was first put forward 
+by the Google CEO, Eric Schmidt, at the 2006 Search Engine Conference. In the CC model, the 
+development, deployment, update, maintenance, and payment of IT services undergo fundamental 
+changes (Marston et al., 2011). With the rapid development, the business value of CC, which has 
+always been a topic of great concern in the IT domain (Anandhi et al., 1999; Dewan & Ren, 2011; 
+Steelman et al., 2019; Weill, 1992), has attracted the interest of academic and industry. CC is believed 
+to have the advantages of reducing the cost of information infrastructure, providing fast and convenient 
+access to hardware and software, lowering the barriers to IT innovation, facilitating the expansion of 
+the service scale, and promoting new applications and services (Marston et al., 2011). However, the 
+centralized nature of CC also causes some shortcomings (Bayramusta & Nasir, 2016; Joe-Wong & 
+Sen, 2018; Euripidis et al., 2019; Marston et al., 2011). The primary obstacles of cloud adoption are 
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+2
+the privacy and security issues, which bring risks to the adopters and hinder the dissemination of CC 
+(Wang et al., 2019). The essential high speed internet access brings additional cost to cloud adoption 
+(Bayramusta & Nasir, 2016). Further, the migration of the legacy system to the cloud increases the 
+integration requirement because of the unified data and interface standards that are different from that 
+of the legacy system (Joe-Wong & Sen, 2018; Loukis et al., 2019). It was reported that, for instance, 
+Symantec clients were prevented from administering some email and web security services lasted 
+for 24 hours due to the disruption caused by integration defect (Tsidulko, 2015). Another example 
+is that the data entered by Salesforce customers into Customer Relationship Management (CRM) 
+systems were wiped out also resulted from integration issues and took days to fix it (Lauchlan, 2016). 
+These positive and negative studies and reports focusing on the impact of CC just show one 
+side of the coin. The regular pattern of CC value achievement in the long-run is still not clear. Since 
+firms invest an amount of capital on CC, maybe at the cost of the legacy systems, it is fair to question 
+what will a firm experience after investing in CC and whether the firm receives its investment’s 
+worth? Therefore, considering the uncertainty, the CC pay-off in the long-run needs more empirical 
+investigation.
+In particular, firms may invest in CC for efficiency or innovation (Berman et al., 2012; Loukis et 
+al., 2019). Due to the low-cost and extensible IT services, CC is leveraged to improve the IT efficiency 
+and enhance the operational efficiency (Iyer & Henderson, 2012). Some legacy systems migrate to 
+the cloud to build cloud-based systems such as cloud desktop and cloud storage during this process. 
+This relatively uncomplicated process does not affect the core business significantly. Alternatively, 
+as an important technical base for innovation, CC may be leveraged to create cloud-based new 
+business model such as cloud ecosystem, which is an important competitive advantage source to the 
+focal firm (Berman et al., 2012). This innovative process impacts the focal firm profoundly (The 
+Boston Consulting Group, 2009) and brings more benefit opportunities and competitive advantages 
+together with more risks than that for efficiency. The standard processes and interfaces provided by 
+CC service vendors are different from the focal firms’ internal information systems. Besides, a CC 
+vendor generally limited its service to a single domain such as project management service or CRM 
+system and does not provide integrated enterprise information system (Li et al., 2011). As a result, the 
+more complex the cloud-based business system, the more cloud vendors and more participants and 
+stakeholders need to be collaborated and integrated. The adopters are under regulatory, technological, 
+and collaborative risks in this new multi-partner business model (Dellermann et al., 2017). To sum 
+up, how different cloud adoption purposes influence the performances of the focal firms is not clear. 
+It is essential to empirically exam how is CC investment for innovation benefits the adopters different 
+from that for efficiency. 
+Motivated by these gaps, this paper examines the long-run impact of CC adoption on corporate 
+financial performance. It makes up for the shortage by empirically analyzing the differences on how 
+CC adoptions for efficiency versus innovation purposes affect the performance based on the data of 
+Chinese listed companies. The CC industry in China has shown rapid growth in recent years, reaching 
+RMB 133.4 billion at the end of 2019, and is expected to reach RMB 400 billion by 2023 (CAICT, 
+2019). In 2015, the Chinese State Council issued a national policy to actively promote strategic 
+adoption of CC. Thus, China provides appropriate context for this study.
+To the best of the authors’ knowledge, this paper departs from the prior literature by being the 
+first to empirically examine the long-run payoff of CC based on archival data. This research makes 
+two notable contributions. First, it enriches the research stream of IT value by shedding light on the 
+controversy over the business value of CC due to the lack of empirical evidence (Brynjolfsson et al., 
+2010). The analysis of the performance data helps to verify the long-run payoff of CC. Second, the 
+paper revealed the value realization difference between efficiency- and innovation-oriented adoptions 
+of CC through their impact on the focal firms’ financial performance. The findings of this study can 
+help enterprises clarify the payoff of CC and make rational cloud adoption decisions.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+3
+LITERATURE REVIEW AND HYPOTHESIS
+This study follows Armbrust et al. (2010) and defines CC as “both the applications delivered as 
+services over the Internet and the hardware and system software in the data center that provides those 
+services” (p.50). The moderating effect of CC types classified into IaaS, PaaS and SaaS, which is 
+from the technical perspective, is eschewed for three reasons. First, “the accepted definition for them 
+is still vary widely. The line between low-level infrastructure and higher-level platform is not crisp” 
+(Armbrust et al., 2010, p.50). Second, most of the CC vendors in China, such as ALI (aliyun.com), 
+TENCENT (cloud.tencent.com) and BAIDU (cloud.baidu.com), provide overall solutions, instead 
+of XaaS, for various industries and domains such as Internet of Things, Artificial Intelligence and 
+cloud-safety. Third, almost no searching result was collected with XaaS as the keywords (see below). 
+Instead, most of the CC investment announcements focus on the business strategies without paying 
+much attention to the technical issues, which is conductive to separate efficiency oriented CC adoption 
+from innovation. Additionally, from the perspective of deployment models, since private cloud is 
+essentially the same to traditional enterprise information system, this paper focus only on public cloud.
+Business Value of IT and CC
+The business value of IT is investigated by a rich stream of studies that largely focus on the relationship 
+between IT investment and performance (Masli et al., 2011). Although the academic has reached a 
+consensus that IT enhances the productivity, improves market performance and financial performance, 
+also brings intangible benefits to the enterprise (Melville et al., 2004), the early studies about IT 
+business value sought to explain the “productivity paradox”, which means IT investments during the 
+1980’s did not result in significant productivity increases (Brynjolfsson, 1993). Brynjolfsson et al. 
+(1996) find firms with substantial IT investments reported significant increases in firm value after 1991. 
+The subsequent empirical studies fully investigate the long-run payoff of IT investments and whether 
+the impact is lagged over long period of years in firm organization, financial structure or activities 
+(Bharadwaj et al., 1999; Korovnikov et al. 2013; Mithas et al., 2012; Sedera & Lokuge, 2019; Shea 
+et al., 2019). These studies concluded that it takes long time to realize the effect of IT investments 
+on productivity, and the financial benefits are more likely to materialize in the long-term rather than 
+short-term (Shea et al., 2019; Wang, 2010). Markus argues that the enterprise system experiences 
+four stages from adoption to success: Chartering, Project (Configure & Rollout), Shakedown, and 
+Onward and Upward (Markus & Tanis, 2000). According to this 4-stage framework, from adoption 
+to success, an enterprise system will experience 1) decisions defining the business case and solution 
+constraints, 2) getting the system and end users “up and running”, 3) stabilizing, eliminating “bugs”, 
+and getting to normal operations, and 4) maintaining the system, supporting users, getting results, 
+and upgrading (Markus & Tanis, 2000). Only in the fourth stage can the enterprise benefits from IT 
+investment.
+There is no unified definition about the term of long-term. Nevertheless, all studies focus on 
+long-term business value of IT explore the performance changes over several years (typically 1–5 
+years) (Bremer et al., 2010). Further, different types of IT artifacts vary greatly on so called long-
+run. For instance, Mahmood et al. (2005) find that 3 years pass before an organization achieve value 
+from its IT investments. Brynjolfsson and Hitt (2003) find the productivity and output contributions 
+associated with computerization are up to 5 to 7 years. Chang and Gurbaxani (2012) observe the impact 
+of IT-related spillovers on long-run productivity based on the panel data set over 8 years. Hendricks 
+et al. (2007) examine the long-term stock returns and profitability changes over a 5-year period for 
+Enterprise Resource Planning (ERP) systems and a 4-year period for Supply Chain Management 
+(SCM) and CRM system implementations and yield mixed results. As to the CC payoff in this study, 
+which has not been fully studied, on the account of short time frame of CC adoption on large-scale, 
+the performance changes from adoption to when the data was collected is explored to indicate the 
+long-run business value of CC.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+4
+As a specific type of IT investment, CC significantly impacts the focal firms’ IT strategies in 
+many ways (Ge et al., 2014). Compared to the general IT forms, the rental model of CC transforms 
+the utilization of IT resources into IT services. CC brings the adopters lower IT costs (The Boston 
+Consulting Group, 2009; Accenture, 2010; Mohammed et al., 2009; Son et al., 2011), better IT services 
+(The Boston Consulting Group, 2009), and higher IT performance (Marston et al., 2011) that derived 
+from flexible IT resources and a pay-as-you-go model (Mohammed et al., 2009; Son et al., 2011). The 
+enterprises also can optimize or create the business processes using public and extensible CC (The 
+Boston Consulting Group, 2009), which enhances the agility of enterprise operations (Accenture, 
+2010; Iyer & Henderson, 2012), help managers focus more on business strategy issues (Malladi & 
+Krishnan, 2012), assist managers in making decisions (Accenture, 2010), improve business process 
+performance and organizational performance. It also enhances, expands, and redefines products and 
+services in an integrated manner (Kathuria et al., 2018), which help the adopters create new business 
+models, increase customer engagement and better access to new markets (Chen & Wu, 2013; Etro, 
+2011; Accenture, 2010) by connecting, sharing, and pooling of resources throughout the business 
+ecosystem (The Boston Consulting Group, 2009).
+Some researchers have found that the market significantly and positively reacts to CC adoption 
+and the market value is increased, thus demonstrated the high expectation of future returns from 
+shareholders (Che & Liu, 2014; Parameswaran et al., 2011; Son et al., 2011; Son et al., 2014). 
+However, the market performance represents the reactions and expectations of the investors to an 
+event and reflects the short-run value of the event. IT does not fully explore the long-run regularity 
+of performance changes. In contrast, there is few study on the return of investment in CC focus on 
+the ultimate realized payoff based on financial performance measures, which reflect the performance 
+enhancing effects of CC in the long-run (Barua & Mani, 2018). 
+Exploration and Exploitation Through IT and CC
+One notable research stream about business value of IT, among many others, is the impact on efficiency 
+and innovation performance (Winarno & Tjahjadi, 2017; Xue et al., 2012). The business strategies 
+of firms involve two distinctive processes of exploitation and exploration based on the organizational 
+learning theory (March, 1991). Firms use existing knowledge to improve organizational efficiency 
+in the process of exploitation (Benner & Tushman, 2003). On the other hand, firms search for new 
+knowledge to develop new products and services for emerging customers and markets and improve 
+their innovative performance in the exploration process (Benner & Tushman, 2003). Accordingly, 
+the companies invest in IT to improve the efficiency of their operations through exploitation by, such 
+as, eliminating waste and reducing inventory. Alternatively, firms invest in IT to innovate through 
+exploration by supporting developing new products or processes for the new markets (Xue et al., 2012). 
+Existing empirical research has investigated the impact of IT investments on increasing 
+efficiency output such as increased inventory turnover ratio (Banker et al., 2006) and labor force 
+saving (Brynjolfsson & Yang, 1996) while some other studies also reported the impact of IT on 
+organizational innovation (Kleis et al., 2012). Some studies also have contradictorily noticed the 
+efficiency and innovation payoff of IT investments. Xue et al. (2012) and Winarno et al. (2017) argue 
+that the IT assets portfolios are related to efficiency improvement when the environment is relatively 
+stable and less complex and to innovation growth in complex environment. Weill (1992) reports that 
+there is a significant and consistent correlation between the transactional IT investment and corporate 
+performance while the strategic IT is found to be neutral in the long-run.
+CC can also be adopted with efficiency or innovation (Loukis et al., 2019). Firms adopt CC to 
+improve the IT efficiency and enhance the operation agility (Iyer & Henderson, 2012) by low-cost 
+and extensible IT services (The Boston Consulting Group, 2009; Mohammed et al., 2009) resulted 
+from flexible IT resource and a pay-as-you-go mode (The Boston Consulting Group, 2009). This is 
+an operational level efficiency improvement realizing CC value through exploitation. Alternatively, 
+firms invest in CC to build the cloud-based business models by connecting, sharing and combining 
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+5
+information resources from connected people and organizations (The Boston Consulting Group, 
+2009). It increases the customers’ participation and drives innovation of customer value proposition 
+and industry value chains (Berman et al., 2012). It also facilitates the inter-organizational innovations 
+that completely change the competition patterns (Loukis et al., 2017). This, contrast to the former, 
+is a strategic innovation achieving the value of CC through exploration.
+CC is one of the important technical basis of strategic innovation. Because of the unified interface 
+and service standards in CC environment, more enterprise systems can be integrated and coordinated, 
+thus to build cloud-based business model such as business ecosystem. Consequently, CC functionally 
+distinguishes from traditional IT in promoting innovation. CC adoptions with efficiency improvement 
+and innovation purposes are differently affect the operations of the focal firms. How the firms benefit 
+from CC adoptions with efficiency or innovation is also supposed to be different. However, existing 
+empirical literatures have not provided evidence of such contingent effects.
+More precisely, efficiency and innovation are not mutually exclusive (Wang et al., 2019; Xue et 
+al., 2012). Firms do not invest in CC either for efficiency or innovation, but to balance them. Existing 
+research has confirmed firm’s ability to balance efficiency and innovation (Gibson & Birkinshaw, 
+2004). However, efficiency is separated from innovation in this study according to the firm’s strategic 
+focus that declared in the CC adoption announcements.
+Long-Run Payoff of CC
+The enterprises adopt CC to cope with the mismatch between current information systems and business 
+development. The legacy systems are usually customized to address idiosyncratic structural and 
+operational issues of the organization. Fragmentation, redundancy, and process and data uncertainty 
+are common in these legacy systems (Karunakaran, 2014). The migration process to the cloud 
+requires an overall reconstruction of the legacy system on a unified platform. In order to adopt CC, 
+the previous business processes and the responsibility of the IT department need to be adjusted. 
+The adopters have to adapt to the new routines, which will increase the cost of conversion. Lack 
+of uniform standard between cloud-based system and legacy system increases the complexity of 
+integration (Borgman et al., 2013). There are difficulties in data model construction, IT governance 
+structure transformation, and finding human resources with experience in both the traditional 
+information systems and the cloud systems (Benlian & Hess, 2011; Markus & Tanis, 2000). Overall, 
+the adoption of CC redefines the functions of the IT department and changes the business process 
+of the adopters. The challenges enterprise facing in the initial stage of CC migration process hinder 
+the value achievement. CC implementation hence also goes through the shakedown stage, when the 
+financial performance is likely to decline. Overtime, as the organization gradually gains experience 
+and expertise with the features and functions of the new cloud-based system due to the learning 
+curve, users can routinize their tasks in the cloud. The firm enters the onward and upward stage 
+that CC can realize its full potential advantages and eventually improves the overall performance. 
+Altogether, when the adopters successfully implement the cloud migration, the enterprises go from 
+a period of abrupt changes to stability and the performance is improved in the onward and upward 
+phase. It therefore hypothesizes that:
+H1: CC adoption initially leads to decline on the performance for a period of time and then increases it.
+Long-Run Payoff of Cc With Efficiency Versus Innovation
+The implementation processes and the challenges organizations might face are different between 
+CC adoption with efficiency and innovation. The main tasks during the CC implementation process 
+include cloud migration planning, cloud vendor selecting, migrating and relationship governing 
+(Salim, 2016). The firm needs to clarify the necessity of cloud migration considering the internal and 
+external environmental factors and makes migrating plan in the first phase. Then, selects a qualified 
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+6
+cloud vendor and signs service contracts. After that, migrates the data to the cloud and transforms 
+the function of IT department. Finally, maintains and governs the cloud vendor relationship. In 
+contrast, in the implementation process of CC with innovation, a wide range of Internet-based 
+infrastructure for economic and social development it built (Loukis et al., 2017), which creates cloud-
+based business model that enables ecosystem connectivity (Hyunsun & Sanghyun, 2014) including 
+providers, customers, employers, administrators and other participants (Berman et al., 2012). These 
+disparate groups and people are brought together to collaborate and share resources, information and 
+processes so as to reshape traditional industries by revolutionizing business processes and models 
+and forming new value chains among enterprises. This process is accompanied by both technological 
+and management reform, the enterprises need to focus not only on their core businesses, but also on 
+integrating with partners network, new markets, customer relationships and value propositions, supply 
+chains and distribution channels (Stamas et al., 2014) that need to be reconstructed.
+CC adoption with efficiency and innovation is accompanied by different opportunities and 
+hindrances that lead to different performance changes eventually. This adopts the Technology–
+Organization–Environment (TOE) framework to explain the opportunities and constrains in the process 
+of CC implementation with efficiency versus innovation. TOE framework is an organization-level 
+theory that “explains the different elements of a firm’s context influence adoption decisions” (Baker, 
+2011, p.232). Each context contains both constraints and opportunities for the adoption of innovative 
+technology (Tornatzky & Fleischer, 1990) such as CC. In turn, some of the inherent attributes of 
+technology, organization and environment contexts promote or hinder the value achievement of CC. 
+Table 1 lists the hindrances and promotors of CC value achievement with efficiency versus innovation 
+based on TOE framework.
+CC implementation with innovation impacts the core business process more profoundly than 
+that with efficiency. The hindrance factors indicate that, compared with CC adoption with efficiency, 
+innovation-CC adoption is a disruptive transaction that requires more complementary resources 
+and capabilities to cope with the challenges. Due to the hindrances, the firms undergo more chaotic 
+experiences in the shakedown phase (Eden et al., 2014) caused by substantial disruptions to the existing 
+business process (Lokuge et al., 2019), organizational structure and business model. The limited 
+knowledge and experience of the new business model’s features further hamper the firm’s overall 
+performance (Polites & Karahanna, 2012). Therefore, in the context of cloud adoption with innovation, 
+the shakedown phase of the cloud migration process is more pronounced and the performance decline 
+is more severe in magnitude than that with efficiency. In contrast, the opportunity factors indicate 
+that cloud-based business model, which is built in the process of innovation-CC adoption, brings 
+more competitive advantages to the focal firm than efficiency-CC adoption (Dehning et al., 2003; 
+Kyriakou & Loukis, 2017). With the transparent, flexible and agile business model, the industry 
+chain expands from the core enterprise to the upstream and downstream by innovating the business 
+process, thereby creating and sharing value through a dynamic and two-way interactive value network 
+coordinating with other stakeholders (Benlian et al., 2018). It therefore hypothesizes the following:
+H2: Compared with efficiency-CC adoption, innovation-CC adoption leads to more severe decline 
+and then more substantial increase on the performance.
+Research Design
+Methodology
+The performance volatility of a cloud-adopted enterprise in a given period is not necessarily caused by 
+the adoption of CC but a combination of many factors. Therefore, it is necessary to take an enterprise 
+that did not adopt CC as a reference. The reference enterprise is similar in all aspects to the adopter 
+except CC adoption. The Propensity Score Matching (PSM) method is leveraged to match samples, 
+and then used the Difference in Differences (DID) and OLS regression to analyze the effect of CC 
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+7
+adoption and the moderating effect of efficiency/innovation on financial performances (Rishika et 
+al., 2013). The Matched Sample Comparison Group (MSCG) method has been used to analyze the 
+sources of variation between the treatment and control groups based on specific events in such areas 
+as accounting, finance, and marketing (Bharadwaj, 2000; Chae et al., 2014; Santhanam & Hartono, 
+2003). The PSM was based on multiple factors, and the nearest control group was selected by the 
+propensity score (PS value) because it resulted in the lowest mean differences between groups. The 
+paired control group could be used as a benchmark for comparison, which eliminated the influence 
+of exogenous variables on financial performance and selection bias. 1-to-1 matching method is used 
+for the control group. The treatment group consisted of enterprises adopting CC. Following the 
+prior IT value literatures (Bharadwaj, 2000; Hendricks & Singhal, 2005; Santhanam & Hartono, 
+2003; Wu et al., 2017), the samples in the control group were paired in terms of size, industry type, 
+market-to-book ratio, and prior performance close to that of the treatment samples. Because these 
+factors are considered to be the important predictors of stock returns according to the consensus on 
+appropriate factors that one should control for in computing long-run abnormal returns (Hendricks & 
+Singhal, 2005). The DID model was based on data from natural experiments to construct a difference 
+in differences estimator. The results of the event were separated by the combination of a simple 
+before-and-after intervention comparison and a simple cross-section comparison (the treatment and 
+control groups). The DID method was used to evaluate the difference between the treatment group 
+Table 1. Hindrances and promotors of cc value achievement with efficiency versus innovation
+ 
+Efficiency
+Innovation
+Technological 
+context
+Hindrances
+Migration of legacy 
+systems to the cloud, data 
+and interface standards 
+(Armbrust et al., 2010), 
+security and privacy (N. 
+Wang et al., 2019)
+Integration requirements (Marston et al., 2011), 
+multiple cloud vendors, multiple stakeholders, higher 
+security and privacy requirements,relatively simple 
+single cloud service (Dellermann et al., 2017)
+Promotors
+Flexible and extendable IT 
+resources, wide Internet 
+access, less IT maintenance 
+(Marston et al., 2011)
+More information and knowledge from the other 
+participants (Kathuria et al., 2018)
+Organizational 
+context
+Hindrances
+Sunk cost of legacy 
+systems (N. Wang et al., 
+2019), additional internet 
+cost, benefit uncertainty, 
+transformation of IT 
+department (Benlian et al., 
+2018)
+Loose inter-organization connections, radical 
+and complex transformation including business 
+model, processes and operational environment 
+(Brook, Feltkamp, & van der Meer, 2014), more 
+complex management requirement (Kathuria et 
+al., 2018), complementary investments including 
+human resources, capital, organization culture 
+construction,R&D investment (Basole & Park, 2018) 
+Promotors
+IT cost advantages, limited 
+impact on the core business 
+process (Marston et al., 
+2011), convenient inter 
+communication, flexible 
+business process (Joe-Wong 
+& Sen, 2018)
+More connections across organizations, wider 
+organization boundaries, decentralized organization 
+structure (Benlian et al., 2018), innovative business 
+model and competitive advantages (Berman et al., 
+2012)
+Environmental 
+context
+Hindrances
+Relationship governance 
+with cloud vendors (N. Wang 
+et al., 2019)
+More complex relationships of competition and 
+cooperation (N. Wang et al., 2019)
+Promotors
+Development of cloud 
+industries, more cloud 
+vendors, government support
+Wider market, social innovation, cooperation 
+advocation (Euripidis Loukis et al., 2019)
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+8
+and the control group before and after the event. The combination of the PSM and DID methods was 
+selected because it simulates a randomized controlled experiment, reduces the confounding effect of 
+the observable and unobservable factors on the dependent variable, improves the consistency of the 
+validation results, and produces unbiased estimate of performance improvement resulted from CC 
+adoption (Rishika et al., 2013).
+Measurements
+The overall performance, instead of direct performance, is measured to investigate the payoff of CC 
+investment. Following prior research on the business value of IT (Bharadwaj, 2000; Chae et al., 2014; 
+Che & Liu, 2014; Wang, 2010; Wu et al., 2017), return on assets (ROA), return on equities (ROE), 
+return on sales (ROS), operating income to assets (OI/A), operating income to sales (OI/S), and 
+operating income to employees (OI/E) are selected to measure the financial performance. ROA is the 
+return on an assets unit investment that is a widely used to measure the profitability of an enterprise 
+(Bharadwaj, 2000). ROE is the ratio of net profit to stockholders’ equity, which is an important index 
+to measure the profitability of an enterprise. ROS is the ratio of the net profit to operating income 
+and is another measure of a firm’s net profit margin. Operating income is the profit before interest 
+and tax (EBIT). OI/A and OI/S ratios focus on operating returns only and exclude incomes earned 
+by the firm from other sources. The OI/E ratio is used as a measure of the relative profitability per 
+employee (Bharadwaj, 2000).
+Sample and Data Collection
+The samples in the treatment group are companies that adopted CC and operated normally between 
+January 1, 2010 and October 31, 2016. According to the regulations of China Securities Regulatory 
+Commission, the listed companies should halt the stock trading if they are running poorly and 
+have financial problems or there are some major events to the focal firms such as restructuring and 
+new stocks issuance. Consequently, in order to minimize the impact of other factors on long-run 
+performance, some sample companies were excluded if they have had halted trading through adopting 
+CC to their data was collected. 
+The following criteria were used to select the control group samples: 1) did not adopt CC from 
+early 2010 to the end of June 2019 (different from the time frame of treatment group so as to exclude 
+the firms adopting CC through November, 2016 to the end of June 2019); 2) had the same industry 
+category code as the counterpart in the treatment group (The Guidance Note on Industry Classification 
+of Listed Companies was used and the samples were classified by the Second Level Code of China 
+Securities Regulatory Commission Industry and represented with 1 letter and 2 digits); 3) showed 
+the closest PS value (implemented with the MatchIt package of R) to the counterpart in the treatment 
+group based on the feature variables, including the total assets, total number of employees, and revenue 
+of the year before CC adoption (Bharadwaj, 2000; Chae et al., 2014; Santhanam & Hartono, 2003). 
+The adoption behavior (or lack thereof), the adoption time, and the adoption types were from 
+the widely used search engine, CC portals, China Knowledge Resource Integrated Database, and the 
+companies’ official websites using cloud computing, cloud services, cloud platform, IaaS, PaaS, or 
+SaaS, together with the firms’ names as the keywords. The industry codes, financial performance, 
+and other control variables data were obtained from the China Stock Market & Accounting Research 
+Database (CSMAR). The outliers were removed according to the Pauta Criterion. Observations with 
+missing or uncertain values for the key independent variables were discarded. Missing values for 
+other independent variables are replaced by industry average. The final sample consists 253 pairs of 
+listed companies. The adoption year and industry distribution of the samples is reported in Table 2.
+The purposes of CC adoptions were stated in the announcements or news. The quantitative and 
+qualitative methods were combined to distinguish efficiency- and innovation-oriented CC investments. 
+Quantitatively, text analysis was conducted as follows to separate exploration from exploitation in 
+the company’s business activities following the prior study (Uotila et al., 2009). Since the efficiency 
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+9
+and innovation are separately associated with the process of exploration and exploitation, based on 
+the quoted conceptual definition of exploration as ‘things captured by terms such as search, variation, 
+risk taking, experimentation, play, flexibility, discovery, innovation’ (March, 1991) and exploitation 
+as ‘such things as refinement, choice, production, efficiency, selection, implementation, execution’ 
+(March, 1991), these lists of words, after being translated into Chinese and together with their 
+synonyms according to a authoritative dictionary, were used to operationalize exploration versus 
+exploitation orientation of firms’ CC investments by the appearance amount of corresponding words 
+in the investment announcements. The CC investment was classified into innovation if there were 
+more words from the definition of exploration than that from exploitation in the announcement, 
+vice versa. The samples were removed if none of these words was in the announcements (there is no 
+announcement sample groups with the same amount of words related to efficiency and innovation). 
+Qualitatively, each announcement was read carefully by three well-recognized scholars who both 
+research and teach in IT strategy area. Each judge was required to divide the cloud investments into 
+innovation or efficiency separately. The principles for the classification are as follows: the investments 
+that do not essentially transform the firms are classified as efficiency. Such as cloud desktop, cloud 
+storage, cloud printing (fax, scanning) and other new office tools that can effectively improve the use 
+of resources and operational efficiency. Alternatively, the investments were classified as innovation 
+if they are for expanding the industrial chain, providing value-added services and changing the 
+traditional profit model. Such as cloud-based online shops that reform the profit model and cloud-
+based intelligent products that provide value-add services to the customers.
+Table 2. Year and industry distribution of samples (in pairs)
+Code and Industry
+2010
+2011
+2012
+2013
+2014
+2015
+2016
+Total
+B-Mining
+ 
+1
+ 
+ 
+ 
+1
+ 
+2
+C-Manufacturing
+2
+4
+6
+7
+24
+73
+43
+159
+D-Electricity, Heat, Gas, and Water Production, and 
+Supply
+ 
+ 
+ 
+ 
+ 
+1
+1
+2
+E-Construction
+ 
+ 
+1
+ 
+3
+3
+3
+10
+F-Wholesale and Retail Trade
+ 
+1
+ 
+2
+4
+12
+3
+22
+G-Transport, Storage, and Postal Services
+ 
+1
+1
+2
+1
+3
+2
+10
+H-Accommodation and Catering
+ 
+ 
+ 
+ 
+ 
+1
+ 
+1
+I-Information Transmission, Software, and IT Services
+ 
+ 
+1
+ 
+2
+2
+1
+6
+J-Financial
+ 
+ 
+ 
+ 
+2
+2
+ 
+4
+K-Real Estate
+ 
+ 
+2
+1
+1
+3
+2
+9
+L-Leasing and Business Services
+ 
+ 
+ 
+ 
+1
+2
+3
+6
+M-Scientific Research and Technology Services
+ 
+ 
+ 
+ 
+ 
+ 
+2
+2
+N-Water, Environment, and Utilities Management
+ 
+ 
+ 
+ 
+1
+ 
+1
+2
+O-Residential Services, Repairs, and Other Services
+ 
+ 
+1
+ 
+ 
+ 
+ 
+1
+Q-Health and Social Work
+ 
+ 
+ 
+ 
+1
+1
+ 
+2
+R-Culture, Sports, and Entertainment
+ 
+1
+ 
+2
+1
+5
+4
+13
+S-Synthesis
+ 
+ 
+1
+ 
+1
+ 
+ 
+2
+Total
+2
+8
+13
+14
+42
+109
+65
+253
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+10
+Metrological Model
+The following DID model is established for all performance indicators for each sample of the treatment 
+and control groups to determine the main effect of CC adoption (Pippel & Seefeld, 2016; Rishika 
+et al., 2013):
+Y
+adopt
+after
+adopt
+after
+X
+ijt
+ij
+ijt
+ij
+ijt
+ij
+it
+
+
+
+
+
+
+
+
+
+
+
+
+1
+2
+3
+*
+*
+*
+*
+	
+where Y  is the indicator to measure an enterprise’s financial performance, i  denotes a matched pair 
+of companies, j  denotes a treatment group or a control group company, and t  denotes the time.
+adoptij  is a treatment dummy variable (that equals 1 if the company is in the treatment group and 
+0 in the control group), afterijt  indicates a binary variable before or after adoption (the value after 
+adoption is 1, otherwise 0). X ij  stands for control variables. The adoption purposes, enterprise size, 
+research and development (R&D) investment, and industry type are controlled in this DID model, 
+where adoption purpose is a dummy variable (1 means the company adopted CC with innovation 
+and 0 means with efficiency), firm size is measured as the logarithm of the total assets, R&D investment 
+is the ratio of R&D input to operating income, and the industry type is a binary variable (1 for service 
+industries, 0 for others) (Oh et al., 2006). The coefficient mainly concerned with is the significance 
+of β3 , which represents the difference between the treatment group and the control group in firm 
+performance improvement after controlling for other factors. The annual performance data is regarded 
+as occurring after the adoption if the adoption time was in or before June, while it is regarded as 
+before the adoption if the adoption time was in or after July, so as to distinguish the data of the cloud-
+adoption year. As the small sample size that have adopted CC more than 5 years by late 2019, the 
+annual performance data 2 years before and up to 5 years after adoption is analyzed.
+Results
+DID Analysis 
+Table 3 provides the raw difference-in-differences values of the treatment and control groups for the 
+previous year and 5 years after adoption. The year1-5 rows are the average of the measurements from 
+1 year through 5 years after adoption, the year-1 rows are the average of the indicators for the previous 
+year, and the Diff1-5 rows are the differences between each year after adoption and the previous year. 
+The DID1-5 lines are the DID values between each year after adoption and the previous year. The 
+sample size decreases as the adoption period get longer. The samples corresponding to the reduced 
+ones are also excluded from the previous year’s, so the data in the year-1 line is also slightly different.
+All the measurements of DID values, except OI/E, keep falling from 1 year through 4 years after 
+adoption. However, the downward trend of the DID values slowed down in the fourth year except 
+OI/S. The fifth year’s DID values, though still negative, show an upturn trend (Figure 1). This lends 
+prima facie credence to the fact that adopting CC decreases the adopter’s performance. 
+After considering the multiple collinearity, heteroscedasticity and sequence correlation, to 
+benchmark the results and statistical fit of the DID model, the control variables are added step by 
+step to analyze the DID of each indicator. In view of the results analyzed above, the dependent 
+variables in the DID regression analysis are the measurements from the previous 2 years to 4 years 
+after adoption so as to better analyze the main factors of the negative impact. The analysis of ROA 
+shows the process of gradually adding control variables as shown in Table 4. Model 1 is the basic 
+DID model without any control variables. Model 2 is the analysis result of adding demographic 
+variables of sample enterprises, and model 3 is the analysis result of adding demographic variables 
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+11
+and behavior variables with the best fit statistics. With the addition of the control variables, the 
+coefficient β3  in the different models is still negative.
+Table 5 presents the analysis results of all performance indicators using Model 3. All the β3  
+values of the other indexes are negative except OI/E. Thus, the hypothesis that there is a period of 
+performance decline after the CC adoption is supported. However, the assumption of improved 
+performance is not fully validated due to the limited time frame.
+Moderating Effects of Efficiency Versus Innovation
+A major focus of this study is to investigate the moderating effect of efficiency/innovation. The 
+samples are divided into two subgroups with one consists of enterprises adopting innovation-CC 
+Table 3. Difference in differences: performance measurements of treatment and control groups
+ 
+Treatment Group
+Control Group
+ 
+year1
+year2
+year3
+year4
+year5
+year1
+year2
+year3
+year4
+year5
+ROA
+year1-5
+5.361
+4.643
+3.789
+2.943
+2.522
+3.967
+3.956
+2.957
+2.233
+1.162
+year-1
+6.036
+6.053
+6.174
+6.290
+6.640
+4.245
+4.326
+4.114
+4.279
+4.030
+n
+241
+235
+230
+189
+113
+241
+235
+230
+189
+113
+Diff1-5
+-0.811
+-1.410
+-2.217
+-3.347
+-4.117
+-0.278
+-0.370
+-1.157
+-2.045
+-2.868
+t-test
+-3.862***
+-5.116***
+-6.657***
+-9.285***
+-8.732***
+-1.033
+-1.198
+-2.935***
+-5.764***
+-7.046***
+DID1-5
+-0.534
+-1.040
+-1.228
+-1.302
+-1.249
+ 
+ 
+ 
+ 
+ 
+ROS
+year1-5
+10.758
+10.850
+7.992
+7.388
+9.711
+8.500
+8.615
+7.570
+6.941
+6.826
+year-1
+11.776
+9.470
+10.907
+11.111
+11.851
+8.656
+8.533
+8.168
+8.361
+8.893
+n
+228
+225
+201
+153
+54
+228
+225
+201
+153
+54
+Diff1-5
+-1.018
+-1.379
+-2.914
+-4.898
+-2.141
+-0.156
+-0.081
+-0.598
+-1.419
+-2.067
+t-test
+-2.546**
+-2.286**
+-4.317***
+-5.561***
+-1.504
+-0.298
+-0.152
+-1.046
+-2.039**
+-1.655
+DID1-5
+-0.863
+-1.298
+-2.316
+-3.479
+-0.073
+ 
+ 
+ 
+ 
+ 
+ROE
+year1-5
+8.925
+8.150
+6.653
+5.173
+4.440
+7.497
+7.242
+5.986
+4.349
+2.566
+year-1
+10.054
+9.767
+9.944
+10.004
+10.608
+7.696
+7.659
+7.548
+7.316
+7.041
+n
+220
+216
+207
+183
+105
+220
+216
+207
+183
+105
+Diff1-5
+-1.129
+-1.617
+-3.291
+-4.831
+-6.618
+-0.199
+-0.417
+-1.562
+-2.968
+-4.475
+t-test
+-3.954***
+-3.756***
+-6.742***
+-8.392***
+-8.768***
+-0.492
+-0.948
+-3.069***
+-5.515***
+-8.202***
+DID1-5
+-0.929
+-1.200
+-1.729
+-1.863
+-1.693
+ 
+ 
+ 
+ 
+ 
+OI/A
+year1-5
+6.745
+6.103
+5.025
+3.528
+2.983
+5.469
+5.419
+4.449
+3.340
+2.250
+year-1
+7.730
+7.583
+7.932
+8.058
+8.322
+5.808
+5.917
+5.713
+5.915
+5.698
+n
+236
+233
+225
+189
+111
+236
+233
+225
+189
+111
+Diff1-5
+-0.985
+-1.480
+-2.907
+-4.530
+-5.338
+-0.339
+-0.497
+-1.264
+-2.575
+-3.448
+t-test
+-4.243***
+-4.896***
+-7.282***
+-10.328***
+-9.648***
+-1.114
+-1.376
+-3.039***
+-6.308***
+-7.552***
+DID1-5
+-0.646
+-0.983
+-1.643
+-1.955
+-1.891
+ 
+ 
+ 
+ 
+ 
+OI/S
+year1-5
+13.162
+12.252
+10.827
+10.250
+12.095
+10.720
+10.730
+9.914
+10.372
+10.313
+year-1
+14.013
+13.589
+13.561
+14.125
+14.789
+10.685
+10.906
+10.402
+10.446
+9.290
+n
+226
+230
+213
+189
+110
+226
+230
+213
+189
+110
+Diff1-5
+-0.851
+-1.337
+-2.735
+-3.875
+-2.694
+0.035
+-0.176
+-0.488
+0.074
+1.023
+t-test
+-1.81*
+-2.085**
+-3.722***
+-4.502***
+-2.841**
+0.051
+-0.255
+-0.611
+-0.098
+0.938
+DID1-5
+-0.886
+-1.161
+-2.246
+-3.801
+-3.717
+ 
+ 
+ 
+ 
+ 
+OI/E
+year1-5
+5.053
+5.051
+5.013
+5.131
+5.107
+4.959
+4.983
+4.986
+4.971
+5.054
+year-1
+5.078
+5.056
+5.028
+5.065
+5.022
+4.938
+4.914
+4.845
+4.845
+4.869
+n
+161
+171
+136
+86
+37
+161
+171
+136
+86
+37
+Diff1-5
+-0.025
+-0.004
+-0.015
+0.066
+0.085
+0.022
+0.069
+0.140
+0.126
+0.185
+t-test
+-1.389
+-0.206
+-0.468
+1.955*
+1.219
+1.079
+2.703**
+4.043***
+2.448**
+2.013*
+DID1-5
+-0.046
+-0.073
+-0.155
+-0.060
+-0.100
+ 
+ 
+ 
+ 
+ 
+∗p≤0.010, ∗∗p≤0.005, ∗∗∗p≤0.001.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+12
+and the other with efficiency-CC, together with their counterparts. The DID analysis is conducted 
+to each subgroup. Because the tests detecting the differences in coefficients, which is designed for 
+testing changes in parameters across time series data, assume that there is no heteroscedasticity in 
+the resulting residuals. However, they are not appropriate in this study because the error terms of 
+metrological model above for panel data likely to violate the required assumptions (Sean & Cleary, 
+1999). Further, the potential heterogeneity between efficiency- and innovation-CC adopting firms is 
+are able to be reduced by splitting the sample based on the adoption orientations (Chang & Gurbaxani, 
+2012). Conclusions regarding the differences in the interactive item across groups are largely based 
+on observing differences in magnitude and level of significance of the coefficient in regression 
+estimates (Sean & Cleary, 1999). 
+As shown in Figure 2, the DID values of both groups decreased from 1 to 3 years after cloud 
+adoption, and the decrease of innovation group is more severe than that of efficiency group. However, 
+the decreasing trend of the fourth year’s DID values of the most indicators in innovation group is 
+slower and then exceeds that in efficiency group.
+Since the DID values for the CC-Innovation adopters are lower than those for the CC-Efficiency 
+adopters, Hypothesis 2 is thus preliminarily partly supported because there is no more substantial 
+performance in the innovation group according to Figure 2 due to time constraints.
+Figure 1. Trend chart of the did value of each measurement
+Table 4. Regulation analysis of CC adoption on ROA
+Variables
+Model 1: 
+No controls
+Model 2: 
+Control for demographic 
+variables
+Model 3: 
+Control for demographic and 
+behavior variables
+Estimate
+SD
+Estimate
+SD
+Estimate
+SD
+Intercept
+4.255***
+0.284
+8.310***
+2.422
+3.278***
+3.970
+adopt
+2.652***
+0.402
+2.689***
+0.419
+4.252
+0.780
+after
+-0.968***
+0.367
+-0.543
+0.404
+-0.505
+0.584
+adopt*after
+-1.377***
+0.518
+-1.211**
+0.567
+-2.083***
+0.799
+Size
+ 
+ 
+-0.396
+0.245
+0.101
+0.399
+Industry
+ 
+ 
+-0.412
+0.325
+-0.757
+0.582
+Innovation
+ 
+ 
+ 
+ 
+-0.105
+0.682
+R&D
+ 
+ 
+ 
+ 
+0.011
+0.066
+Adjusted R2
+0.077
+0.085
+0.130
+N
+1760
+1616
+1070
+∗p≤0.010, ∗∗p≤0.005, ∗∗∗p≤0.001.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+13
+The coefficients and significances of the DID analysis results for all the measurements except OI/E 
+listed in Table 6 show that CC with innovation has a significant negative effect on firm performance. 
+The impact of CC with efficiency on firm performance is also negative, but not significant. It hence 
+supports that cloud adoption with innovation will lead to a more significant decline in the performance.
+Robustness Checks
+Several robustness checks are conducted to address the possible concerns regarding the measurement 
+of the focal variables and a series of potential biases. Considering the importance of sample pairing to 
+this study, some robustness checks focus on the sample pairing from such aspects as feature variable 
+selection and matching mode. The feature variables for matching include industry categories, total 
+assets, number of employees and the operating income. The authors also tried to match by the First 
+Level Code of the China Securities Regulatory Commission Industry, which is a 1-letter code, total 
+assets, and the number of employees in the previous year as the feature variables. The DID analysis 
+results are similar. As to the matching mode, 1-to-3 matching and synthetic control methods (Abadie et 
+al., 2010) are conducted beside 1-to-1 matching. In the 1-to-3 matching process, the mean performance 
+of the three firms with nearest PS value to the treating sample is calculated for the control group. In 
+the synthetic control methods, a virtual control sample is created for each treating sample by giving 
+the feature variables different weights so as to make sure that the virtual control group has the same 
+time trend as the treatment group before the event (Abadie et al., 2010). All the findings of these 
+checks are similar.
+In order to test the possible bias caused by sample selection, two robustness checks are conducted. 
+First, the national policy promoting CC adoption with innovation was issued in 4 July, 2015. The 
+samples are divided into two subgroups according to this time point and analyzed separately so as 
+to test the possible bias caused by this policy. Event though the overall duration between these two 
+subgroups varies, the general trends after adoption are similar. Second, as shown in table 2 that 159 out 
+of 253 sample firms are from manufacturing industry. In order to test the potential sample selection bias 
+caused by this dominant industry type, the rest 94 sample firms are analyzed. The results are similar.
+Finally, the performance declines continuously since adoption compared with the previous year 
+according to figure 1 and 2. The regression analysis used the performance data from the previous 2 
+years. The researchers also used performance data from the previous year to 3 years after adoption 
+for the regression analysis, and the findings are similar.
+Table 5. DID analysis results of performance measurements
+Variables
+ROA
+ROS
+ROE
+OI/A
+OI/S
+OI/E
+Estimate
+SD
+Estimate
+SD
+Estimate
+SD
+Estimate
+SD
+Estimate
+SD
+Estimate
+SD
+Intercept
+3.278***
+3.970
+9.253***
+3.170
+-20.512***
+5.052
+-3.184
+4.569
+1.789
+8.580
+2.465
+0.866
+adopt
+4.252
+0.780
+8.000***
+1.503
+4.240***
+0.968
+3.864***
+0.865
+7.250***
+1.570
+0.394
+0.157
+after
+-0.505
+0.584
+-0.244
+1.146
+-0.862
+0.735
+-0.651
+0.645
+-0.378
+1.196
+-0.027
+0.125
+adopt*after
+-2.083***
+0.799
+-3.917**
+1.590
+-2.133**
+1.012
+-2.280***
+0.877
+-3.675**
+1.629
+-0.114
+0.165
+Size
+0.101
+0.399
+0.381
+0.299
+2.845***
+0.509
+1.014**
+0.469
+1.150
+0.885
+0.245
+0.093
+Industry
+-0.757
+0.582
+-9.344***
+1.119
+-0.985
+0.689
+-1.098*
+0.655
+-7.635***
+1.184
+-0.202
+0.136
+Innovation
+-0.105
+0.682
+-2.953**
+1.307
+0.233
+0.841
+0.280
+0.751
+-1.090
+1.354
+-0.463
+0.136
+R&D
+0.011
+0.066
+0.927***
+0.128
+0.274***
+0.086
+-0.069
+0.073
+0.886***
+0.136
+0.010
+0.011
+Adjusted R2
+0.130
+0.210
+0.148
+0.126
+0.188
+0.307
+N
+1070
+1088
+1050
+1061
+1055
+841
+∗p≤0.010, ∗∗p≤0.005, ∗∗∗p≤0.001.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+14
+These robustness tests indicate that the results of this study are neither specific to the sample 
+firms, neither to the matching method, nor to the variable measurements. These consistent robustness 
+results across all tests provide further support and confidence in the findings. 
+CONCLUSION AND DISCUSSION
+More and more enterprises have adopted CC since its advent more than a decade ago. Because of 
+the created IT service mode instead of IT resources ownership, firms may adopt CC for efficiency 
+improvement or innovation promotion. Despite the CC benefit to the adopters in many aspects, there 
+are different voices. Existing literatures neither provide sufficient evidence of the long-run payoff 
+nor investigate the contingent effect of different adoption purposes. This paper mainly argues that 
+the economic, technical, and organizational advantages of CC are not necessarily lead to instant 
+performance achievements. Further, CC adopting orientations impact the performance achievement 
+regular pattern differently.
+The results show that cloud adoption leads to a general continuous decline in financial performance 
+for years, but then the trend reverses. The performance decline after the adoption implies that CC, 
+as an innovation of the IT service model, requires the adopters to face a series of challenges in the 
+migration process of legacy systems to the cloud. Among them, the security, privacy and integration 
+are the most important issues. Despite the lowered IT infrastructure cost and flexible IT resources, 
+the adopters need to transform the IT departments’ responsibilities and business processes to adapt to 
+the cloud-based IT service model. The subsequent financial performance increase indicates that CC 
+can bring a flexible IT resource utilization mode to the adopters, improve operational performances, 
+enhance enterprise agilities, create more value for customers, and ultimately increase the financial 
+performance. In short, it takes a period of time to achieve the business value of CC. This is consistent 
+with Markus’ 4-stage theory from adoption to success (Markus & Tanis, 2000) and also validates the 
+shareholders’ positive expectations of the CC adoption announcements (Parameswaran et al., 2011; 
+Son et al., 2011; Son et al., 2014).
+Further, based on the TOE framework, this paper displays the promotors and hindrances for 
+the CC value achievement when it is adopted for efficiency versus innovation. The analysis results 
+Figure 2. DID Values Trend of Efficiency and Innovation Groups
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+15
+Table 6. DID analysis of moderating effect of efficiency/innovation
+Variables
+ROA
+ROS
+ROE
+OI/A
+OI/S
+OI/E
+inn
+eff
+inn
+eff
+inn
+eff
+inn
+eff
+inn
+eff
+inn
+eff
+Intercept
+0.005
+3.457
+9.922***
+-34.651**
+-24.443***
+-13.045
+-4.291
+-12.752
+-1.370
+5.042
+3.963***
+1.675
+adopt
+4.265***
+3.632***
+5.469***
+6.239***
+4.636***
+3.190*
+4.348***
+2.784**
+6.008***
+7.389***
+-0.049
+0.337
+after
+-0.309
+-0.712
+0.623
+-2.802
+-0.803
+-0.724
+-0.303
+-1.622
+0.292
+-1.404
+-0.086
+0.175
+adopt*after
+-2.624***
+-0.741
+-4.951***
+-0.928
+-2.874***
+-0.147
+-2.817***
+-0.774
+-5.074***
+0.451
+-0.058
+-0.288
+size
+0.455
+-0.107
+0.099
+5.539***
+3.304***
+1.904
+1.126**
+1.860
+1.590
+-0.322
+0.079
+0.326
+industry
+-0.508
+-1.702
+-6.929***
+-18.391***
+-1.012
+-1.856
+-0.798
+-2.383
+-7.736***
+-0.724
+-0.198
+-0.289
+R&D
+-0.062
+0.954***
+0.866***
+1.812***
+0.201**
+1.035***
+-0.158**
+1.068***
+0.759***
+1.693***
+0.008
+0.037
+Adjusted R2
+0.134
+0.291
+0.162
+0.545
+0.179
+0.124
+0.159
+0.172
+0.163
+0.357
+0.009
+-0.012
+N
+451
+619
+455
+633
+422
+628
+450
+611
+430
+625
+358
+483
+Note: inn indicates Innovation, eff indicates efficiency.
+∗p≤0.010, ∗∗p≤0.005, ∗∗∗p≤0.001.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+16
+of the moderating effect show that CC adoption with innovation has a more negative effect on 
+firm performance than efficiency. This implies that when enterprises adopt CC with innovation 
+as a disruptive innovation, new business models are created, the operation environment changes 
+profoundly and the focal firms’ core business operations undergo major transformation. In the 
+process of CC implementation with innovation, more information and knowledge are shared between 
+the stakeholders, which help to build the business ecosystem and promote product and service 
+innovation. This enhances the competitive advantage of the focal firms. However, this kind of CC 
+adoption is risky and complex and fiercely shocks the organizations leading to remarkable financial 
+performance decline. Due to the radical and complex transformation related to business model, 
+process and operational environment, the adopters need more effort and complementary investments 
+to cope with the integration requirements, not only the integration between the legacy systems and 
+cloud-based systems, what’s more is the integration between the focal firm and other participants in 
+the ecosystem. To summarize, the performance improvement takes more time and is determined by 
+the value co-creation of all the members in the cloud-based ecosystem. Therefore, while Son argued 
+that there were additional benefits from CC when it provides value-added services to customers or 
+results in better collaboration with partners (Son et al., 2011), the conclusions of this paper imply 
+that the adopters need additional resources to cope with the serious performance decline before they 
+get more benefits. 
+IMPLICATIONS
+Implications For Theory
+The study makes several contributions to the academia. First, this paper explores the long-run payoff 
+of CC based on the archival data, which enriches the business value studies of CC. Although existing 
+researches have explored the CC benefit to a range of organizational performance indicators, most 
+studies ignored the long-run law of CC value realization. This study compensates the gaps of existing 
+researches that only focus on one side of CC business value. This paper proposed that the positive and 
+negative impacts dominate different stages and CC adoption is likely to be associated with greater 
+performance increase. However, the empirical analysis does not support for the hypothesis clearly. 
+This suggests that it takes more than 5 years to achieve the performance increases on average. Even 
+though this paper only finds the sign of performance rebound and does not prove the positive payoff 
+of CC in the long-run due to the short time frame, it is also important to know the extent to which 
+the firm performance declines. Further, the findings of the performance changes from the shakedown 
+phase to the onward and upward phase help to strengthen the understanding of Markus’s theory 
+employed to explain the changing nature of IT performance in CC section (Markus & Tanis, 2000).
+Second, drawing upon organizational learning theory of exploitation and exploration processes, 
+this paper argues that CC investments support exploitation and exploration initiatives for efficiency 
+and innovation separately. Prior research has provided evidence that it took a period of time before 
+IT benefit the focal firm’s performance, most studies assumed that the trends of value realization 
+were universalistic. Drawing on the TOE framework, the pros and cons of CC adoption are fully 
+expounded when supporting efficiency improvement and innovation promotion specifically. This 
+paper demonstrates that efficiency improving oriented CC adoption causes relative minor performance 
+decline in magnitude and then smaller performance rebound than that with innovation. These results 
+extend the prevailing insights about IT business value achievement pattern (Markus & Tanis, 2000). 
+Implications for Practice
+This paper implies the executives that they need to decide not only whether to adopt cloud, but also the 
+purpose of adoption. This study finds that adopting CC negatively impacts on enterprise performance, 
+which is especially pronounced when implemented with innovation. However, it does not mean to 
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+17
+persuade the firms to reject CC or cloud-based innovation. Instead, with the conclusions of this paper 
+about the performance decline in the years after CC adoption, the managers should be fully prepared 
+for the adoption of CC and innovation, which is a major reform but risky strategic decision. Whether 
+to adopt CC is closely related to the development strategies of the enterprises and the managers should 
+make rational decisions based on its actual situation. Taking the advantage and disadvantages of CC 
+into consideration, the CIOs should carefully judge and weigh the business develop requirements 
+and the abilities and resources, such as the IT talent pool with dual IT and business skills, to meet the 
+challenges posed by CC. Once CC is adopted and implemented with innovation, the combination of 
+the IT service model and business model results in a significant strategic transformation, organization 
+and process innovation. Adopting these new models is not a brief process, but a series of related 
+linked actions causing years of performance decline. The managers need to take into account such 
+factors as system flexibility, integration requirement and business complexity before adopting CC and 
+strategy transformation. Adequate integration plans for legacy and cloud-based information systems 
+are needed to clarify the original intent, purpose and procedure of cloud migration and business model 
+innovation. New cloud-based business model increases the business partners, enriches the information 
+and knowledge available to the adopter and quire more R&D investment to take full advantage of 
+it. In addition, the adopter should make more effort to collaborate with the other participants in the 
+ecosystem because the successful implementation of CC requires the joint coordination of all partners 
+in the supply network (Blomqvist et al., 2008). In a word, when an organization decides to adopt CC 
+with innovation, the adopter must undergo process reorganization, cultural reconstruction, or strategic 
+adjustment to match the organizational context to adapt to the new models as quickly as possible to 
+obtain a competitive advantage (Jin et al., 2018).
+LIMITATIONS AND FUTURE RESEARCH
+This study also has some limitations that need further study based on additional data. First, the 
+conclusions of this paper raise doubts about the suitability of unlisted companies. The unlisted 
+companies may gain the advantage of lower IT costs by adopting CC (), which may affect their 
+financial performance differently. Second, the adoption of CC will affect firm performance may be 
+influenced by many other factors, such as the scale of investment in CC, the ratio of investment to 
+operating costs, the enterprise’s own information technology capability, and the ability to control 
+partner enterprises. Future research needs to control for those factors to get deeper result. Finally, 
+CC may not only brings financial benefits to adopters, but also intangible benefits () that may not 
+necessarily lead to overall firm-level measures of financial performance improvement. Hence, the 
+non-financial impacts on enterprises need further investigation.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+18
+REFERENCES
+Abadie, A., Diamond, A., & Hainmueller, J. (2010). Synthetic control methods for comparative case studies: 
+Estimating the effect of california’s tobacco control program. Journal of the American Statistical Association, 
+105(490), 493–505. doi:10.1198/jasa.2009.ap08746
+Accenture. (2010). Cloudrise: rewards and risks at the dawn of cloud computing. Author.
+Armbrust, M., Stoica, I., Zaharia, M., Fox, A., Griffith, R., Joseph, A. D., Katz, R., Konwinski, A., Lee, G., 
+Patterson, D., & Rabkin, A. (2010). A view of cloud computing. Communications of the ACM, 53(4), 50–58. 
+doi:10.1145/1721654.1721672
+Baker, J. (2012). Information systems theory: Explaining and predicting our digital society. Springer.
+Banker, R. D., Bardhan, I. R., Chang, H., & Lin, S. (2006). Plant Information Systems, Manufacturing Capabilities, 
+and Plant Performance. Management Information Systems Quarterly, 30(2), 315–337. doi:10.2307/25148733
+Barua, A., & Mani, D. (2018). Reexamining the market value of information technology events. Information 
+Systems Research, 29(1), 225–240. doi:10.1287/isre.2017.0718
+Basole, R. C., & Park, H. (2019). Interfirm collaboration and firm value in software ecosystems: Evidence 
+from cloud computing. IEEE Transactions on Engineering Management, 66(3), 368–380. doi:10.1109/
+TEM.2018.2855401
+Bayramusta, M., & Nasir, V. A. (2016). A fad or future of IT?: A comprehensive literature review on the 
+cloud computing research. International Journal of Information Management, 36(4), 635–644. doi:10.1016/j.
+ijinfomgt.2016.04.006
+Benlian, A., & Hess, T. (2011). Opportunities and risks of software-as-a-service: Findings from a survey of IT 
+executives. Decision Support Systems, 52(1), 232–246. doi:10.1016/j.dss.2011.07.007
+Benlian, A., Kettinger, W., Sunyaev, A., & Winkler, T. J. (2018). The transformative value of cloud computing: 
+A decoupling, platformization, and recombination theoretical framework. Journal of Management Information 
+Systems, 35(3), 719–739. doi:10.1080/07421222.2018.1481634
+Benner, M. J., & Tushman, M. L. (2003). Exploitation, exploration, and process management: The productivity 
+dilemma revisited. Academy of Management Review, 28(2), 238–256. doi:10.5465/amr.2003.9416096
+Berman, S. J., Kesterson-Townes, L., Marshall, A., & Srivathsa, R. (2012). How cloud computing enables process 
+and business model innovation. Strategy and Leadership, 40(4), 27–35. doi:10.1108/10878571211242920
+Bharadwaj, A. S. (2000). A resource-based perspective on information technology capability and firm performance: 
+An empirical investigation. Management Information Systems Quarterly, 24(1), 169–196. doi:10.2307/3250983
+Bharadwaj, A. S., Bharadwaj, S. G., & Konsynski, B. R. (1999). Information technology effects on firm 
+performance as measured by Tobin’s q. Management Science, 45(7), 1008–1024. doi:10.1287/mnsc.45.7.1008
+Blomqvist, K., Hurmelinna-Laukkanen, P., Nummela, N., & Saarenketo, S. (2008). The role of trust and contracts 
+in the internationalization of technology-intensive Born Globals. Journal of Engineering and Technology 
+Management, 25(1-2), 123–135. doi:10.1016/j.jengtecman.2008.01.006
+Borgman, H. P., Bahli, B., Heier, H., & Schewski, F. (2013). Cloudrise: exploring cloud computing adoption and 
+governance with the TOE framework. Proceedings of the Hawaii International Conference on System Sciences. 
+doi:10.1109/HICSS.2013.132
+Bremer, R., Buchanan, B. G., & English, P. C. II. (2010). The advantages of using quarterly returns for long-term 
+event studies. Review of Quantitative Finance and Accounting, 36(4), 491–516. doi:10.1007/s11156-010-0191-2
+Brook, J. W., Feltkamp, V., & van der Meer, M. (2014). Cloud enabled business model innovation: Gaining 
+strategic competitive advantage as the market emerges. International Journal of Technology Marketing, 9(2), 
+211–229. doi:10.1504/IJTMKT.2014.060095
+Brynjolfsson, E. (1993). The productivity paradox of information technology. Communications of the ACM, 
+36(12), 66–77. doi:10.1145/163298.163309
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+19
+Brynjolfsson, E., Hofmann, P., & Jordan, J. (2010). Cloud computing and electricity: Beyond the utility model. 
+Communications of the ACM, 53(5), 32–34. doi:10.1145/1735223.1735234
+Brynjolfsson, E., & Yang, S. (1996). Information technology and productivity: a review of the literature. In 
+Advances in computers. Elsevier.
+CAICT. (2019). White Paper on Cloud Computing Development (2019). http://www.caict.ac.cn/kxyj/qwfb/
+bps/201907/t20190702_202162.htm
+Chae, H.-C., Koh, C. E., & Prybutok, V. R. (2014). Information technology capability and firm performance: 
+Contradictory findings and their possible causes. Management Information Systems Quarterly, 38(1), 305–326. 
+doi:10.25300/MISQ/2014/38.1.14
+Chang, Y. B., & Gurbaxani, V. (2012). The impact of IT-related spillovers on long-run productivity: An empirical 
+analysis. Information Systems Research, 23(3-part-2), 868-886. 10.1287/isre.1110.0381
+Che, P., & Liu, J. (2014). The effect of cloud computing investment announcements on market performance. 
+Management Science and Engineering, 3(3), 79–86. doi:10.12677/MSE.2014.33011
+Chen, P.-y., & Wu, S.-y. (2013). The impact and implications of on-demand services on market structure. 
+Information Systems Research, 24(3), 750–767. doi:10.1287/isre.1120.0451
+Dehning, B., Richardson, V. J., & Zmud, R. W. (2003). The value relevance of announcements of transformational 
+information technology investments. Management Information Systems Quarterly, 27(4), 637–656. 
+doi:10.2307/30036551
+Dellermann, D., Fliaster, A., & Kolloch, M. (2017). Innovation risk in digital business models: The German 
+energy sector. The Journal of Business Strategy, 38(5), 35–43. doi:10.1108/JBS-07-2016-0078
+Dewan, S., & Ren, F. (2011). Information technology and firm boundaries: Impact on firm risk and return 
+performance. Information Systems Research, 22(2), 369–388. doi:10.1287/isre.1090.0261
+Eden, R., Sedera, D., & Tan, F. (2014). Sustaining the momentum: Archival analysis of enterprise resource 
+planning systems (2006–2012). Communications of the Association for Information Systems, 35, 39–82. 
+doi:10.17705/1CAIS.03503
+Erik, B. (1996). Paradox lost? Firm-level evidence on the returns to information systems spending. Management 
+Science, 42(4), 541–558. doi:10.1287/mnsc.42.4.541
+Erik, B. (2003). Computing productivity: Firm-level evidence. The Review of Economics and Statistics, 85(4), 
+793–808. doi:10.1162/003465303772815736
+Etro, F. (2011). The economics of cloud computing. The IUP Journal of Managerial Economics, 9(2), 7–22.
+Ge, S., Wang, N., Miao, H., Yin, J., Zhang, H., & Li, B. (2014). A literature review of cloud-based management 
+information system reengineering. China Journal of Information Systems, (01), 82–97.
+Gibson, C. B., & Birkinshaw, J. (2004). The antecedents, consequences, and mediating role of organizational 
+ambidexterity. Academy of Management Journal, 47(2), 209–226. doi:10.2307/20159573
+Hendricks, K. B., & Singhal, V. R. (2005). An empirical analysis of the effect of supply chain disruptions on 
+long‐run stock price performance and equity risk of the firm. Production and Operations Management, 14(1), 
+35–52. doi:10.1111/j.1937-5956.2005.tb00008.x
+Hendricks, K. B., Singhal, V. R., & Stratman, J. K. (2007). The impact of enterprise systems on corporate 
+performance: A study of ERP, SCM, and CRM system implementations. Journal of Operations Management, 
+25(1), 65–82. doi:10.1016/j.jom.2006.02.002
+Hyunsun, P., & Sanghyun, K. (2014). An empirical study on factors affecting the assimilation of inter-
+organizational cloud computing and performance and the moderating effect of trust. Journal of Information 
+Technology Services, 13(3), 1–23. doi:10.9716/KITS.2014.13.3.001
+Iyer, B., & Henderson, J. C. (2012). Business value from clouds: Learning from users. MIS Quarterly Executive, 
+11(1), 51–60.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+20
+Jin, J., Guo, M., Chen, X., & Zhou, W. (2018). RFID adoption and its long-term impact on firm value: An 
+empirical research based on global public companies. Journal of Management Engineering, 32(1), 212–219. 
+doi:10.13587/j.cnki.jieem.2018.01.026
+Joe-Wong, C., & Sen, S. (2018). Harnessing the power of the cloud: Revenue, fairness, and cloud neutrality. 
+Journal of Management Information Systems, 35(3), 813–836. doi:10.1080/07421222.2018.1481639
+Karunakaran, A. (2014). Digital platform modernization: a case study of enterprise’s journey to the cloud. MIT 
+Sloan Management.
+Kathuria, A., Mann, A., Khuntia, J., Saldanha, T., & Kauffman, R. (2018). A strategic value appropriation path 
+for cloud computing. Journal of Management Information Systems, 35(3), 740–775. doi:10.1080/07421222.2
+018.1481635
+Kleis, L., Chwelos, P., Ramirez, R. V., & Cockburn, I. (2012). Information technology and intangible output: 
+The impact of IT investment on innovation productivity. Information Systems Research, 23(1), 42–59. Advance 
+online publication. doi:10.1287/isre.1100.0338
+Korovnikov, I., Sennikov, N., Obut, O., & Pouille, L. (2013). Business value of information technology: 
+Testing the interaction effect of IT and R&D on Tobin’s Q. Information Systems Research, 24(4), 1147–1161. 
+doi:10.1287/isre.2013.0481
+Kyriakou, N., & Loukis, E. (2017). Cloud computing business value and human determinants: An 
+empirical investigation. Proceedings of the 21st Pan-Hellenic Conference on Informatics, Larisa. 
+doi:10.1145/3139367.3139485
+Lauchlan, S. (2016). Customer data lost as Salesforce US outage rumbles on with degraded performance. https://
+diginomica.com/customer-data-lost-as-salesforce-us-outage-rumbles-on-with-degraded-performance
+Li, Q., Wang, C., Wu, J., Li, J., & Wang, Z.-Y. (2011). Towards the business–information technology alignment 
+in cloud computing environment: An approach based on collaboration points and agents. International Journal 
+of Computer Integrated Manufacturing, 24(11), 1038–1057. doi:10.1080/0951192X.2011.592994
+Lokuge, S., Sedera, D., Grover, V., & Dongming, X. (2019). Organizational readiness for digital innovation: 
+Development and empirical calibration of a construct. Information & Management, 56(3), 445–461. doi:10.1016/j.
+im.2018.09.001
+Loukis, E., Janssen, M., & Mintchev, I. (2019). Determinants of software-as-a-service benefits and impact on 
+firm performance. Decision Support Systems, 117, 38–47. doi:10.1016/j.dss.2018.12.005
+Loukis, E., Kyriakou, N., Pazalos, K., & Popa, S. (2017). Inter-organizational innovation and cloud computing. 
+Electronic Commerce Research, 17(3), 379–401. doi:10.1007/s10660-016-9239-2
+Mahmood, M. A., & Mann, G. J. (2005). Information technology investments and organizational productivity 
+and performance: An empirical investigation. Journal of Organizational Computing and Electronic Commerce, 
+15(3), 185–202. doi:10.1207/s15327744joce1503_1
+Malladi, S., & Krishnan, M. S. (2012). Cloud computing adoption and its implications for CIO strategic focus 
+- an empirical analysis. Proceedings of the ICIS.
+March, J. G. (1991). Exploration and exploitation in organizational learning. Organization Science, 2(1), 71–87. 
+doi:10.1287/orsc.2.1.71
+Markus, M. L., & Tanis, C. (2000). Framing the domains of IT research: Glimpsing the future through the past. 
+Pinnaflex Educational Resources, Inc.
+Marston, S., Li, Z., Bandyopadhyay, S., Zhang, J., & Ghalsasi, A. (2011). Cloud computing— The business 
+perspective. Decision Support Systems, 51(1), 176–189. doi:10.1016/j.dss.2010.12.006
+Masli, A., Richardson, V. J., Sanchez, J. M., & Smith, R. E. (2011). Returns to IT excellence: Evidence from 
+financial performance around information technology excellence awards. International Journal of Accounting 
+Information Systems, 12(3), 189–205. doi:10.1016/j.accinf.2010.10.001
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+21
+Melville, N., Kraemer, K., & Gurbaxani, V. (2004). Review: Information technology and organizational 
+performance: An integrative model of IT business value. Management Information Systems Quarterly, 28(2), 
+283–322. doi:10.2307/25148636
+Mithas, S., Tafti, A. R., Bardhan, I., & Goh, J. M. (2012). Information technology and firm profitability: 
+Mechanisms and empirical evidence. Management Information Systems Quarterly, 36(1), 205–224. 
+doi:10.2307/41410414
+Mohammed, A. B., Altmann, J., & Hwang, J. (2009). Economic models and algorithms for distributed systems. 
+Springer.
+Oh, W., Gallivan, M. J., & Kim, J. W. (2006). The market’s perception of the transactional risks of information 
+technology outsourcing announcements. Journal of Management Information Systems, 22(4), 271–303. 
+doi:10.2753/MIS0742-1222220410
+Ojala, A., & Tyrväinen, P. (2011). Value networks in cloud computing. The Journal of Business Strategy, 32(6), 
+40–49. doi:10.1108/02756661111180122
+Parameswaran, S., Venkatesan, S., Gupta, M., Sharman, R., & Rao, H. R. (2011). Impact of cloud computing 
+announcements on firm valuation. Proceedings of the AMCIS.
+Pippel, G., & Seefeld, V. (2016). R&D cooperation with scientific institutions: A difference-in-difference 
+approach. Economics of Innovation and New Technology, 25(5), 455–469. doi:10.1080/10438599.2015.1073480
+Polites, G. L., & Karahanna, E. (2012). Shackled to the status quo: The inhibiting effects of incumbent system 
+habit, switching costs, and inertia on new system acceptance. Management Information Systems Quarterly, 
+36(1), 21–42. doi:10.2307/41410404
+Rishika, R., Kumar, A., Janakiraman, R., & Bezawada, R. (2013). The effect of customers’ social media 
+participation on customer visit frequency and profitability: An empirical investigation. Information Systems 
+Research, 24(1), 108–127. doi:10.1287/isre.1120.0460
+Salim, S. A. (2013). Cloud ERP adoption-A process view approach. Proceedings of the Pacific Asia Conference 
+on Information Systems.
+Santhanam, R., & Hartono, E. (2003). Issues in linking information technology capability to firm performance. 
+Management Information Systems Quarterly, 27(1), 125–153. doi:10.2307/30036521
+Sean & Cleary. (1999). The relationship between firm investment and financial status. Journal of Finance, 54(2), 
+673-692. 10.1111/0022-1082.00121
+Sedera, D., & Lokuge, S. (2020). Does it get better over time? A longitudinal assessment of enterprise system 
+user performance. Information Technology & People, 33(4), 1098–1123. doi:10.1108/ITP-01-2019-0005
+Shea, V. J. II, Dow, K. E., Chong, Y. L., & Ngai, E. W. T. (2019). An examination of the long-term business 
+value of investments in information technology. Information Systems Frontiers, 22(1), 213–227. doi:10.1007/
+s10796-017-9735-5
+Son, I., Lee, D., Lee, J.-N., & Chang, Y.-B. (2011). Understanding the impact of IT service innovation on firm 
+performance: the case of cloud computing. Proceedings of the PACIS.
+Son, I., Lee, D., Lee, J.-N., & Chang, Y. B. (2014). Market perception on cloud computing initiatives in 
+organizations: An extended resource-based view. Information & Management, 51(6), 653–669. doi:10.1016/j.
+im.2014.05.006
+Stamas, P. J., Kaarst-Brown, M. L., & Bernard, S. A. (2014). The business transformation payoffs of cloud 
+services at mohawk. MIS Quarterly Executive, 13(4), 177–192.
+Steelman, Z. R., Havakhor, T., Sabherwal, R., & Sabherwal, S. (2019). Performance consequences of information 
+technology investments: Implications of emphasizing new or current information technologies. Information 
+Systems Research, 30(1), 204–218. doi:10.1287/isre.2018.0798
+The Boston Consulting Group. (2009). Capturing the value of cloud computing. Author. 
+Tornatzky, L. G., & Fleischer, M. (1990). The processes of technological innovation. Lexington Books.
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+22
+Tsidulko, J. (2015). The 10 Biggest Cloud Outages Of 2015 (So Far). Retrieved from https://www.crn.com/
+slide-shows/cloud/300077635/the-10-biggest-cloud-outages-of-2015-so-far.htm
+Uotila, J., Maula, M., Keil, T., & Zahra, S. A. (2009). Exploration, exploitation, and financial performance: 
+Analysis of S&P 500 corporations. Strategic Management Journal, 30(2), 221–231. doi:10.1002/smj.738
+Wang, N., Liang, H., Ge, S., Xue, Y., & Ma, J. (2019). Enablers and inhibitors of cloud computing assimilation: 
+An empirical study. Internet Research, 29(6), 1344–1369. doi:10.1108/INTR-03-2018-0126
+Wang, P. (2010). Chasing the hottest IT: Effects of information technology fashion on organizations. Management 
+Information Systems Quarterly, 34(1), 63–85. doi:10.2307/20721415
+Wang, Y., Chen, Y., Wang, N., Nevo, S., Kou, G., & Alsaadi, F. E. (2019). Impact of the strategic role of IT on 
+explorative and exploitative innovation activities: The role of environmental uncertainty. Decision Sciences, 
+51(3), 542–574. doi:10.1111/deci.12377
+Weill, P. (1992). The relationship between investment in information technology and firm performance: A 
+study of the valve manufacturing sector. Information Systems Research, 3(4), 307–333. doi:10.1287/isre.3.4.307
+Winarno, W. A., & Tjahjadi, B. (2017). The moderating effect of industry environments on the relationship 
+between IT asset portfolios, efficiency and innovation in the ERP context. European Research Studies Journal, 
+20(2), 3–15.
+Winkler, T. J., Benlian, A., Piper, M., & Hirsch, H. (2014). Bayer healthcare delivers a dose of reality for cloud 
+payoff mantras in multinationals. MIS Quarterly Executive, 13(4), 193–208.
+Wu, J., Wang, N., & Wang, Z. (2017). Impact of information technology capability on financial performance 
+during the period of economic downturn: The case of Chinese listed companies. Electronic Commerce Research, 
+17(3), 403–423. doi:10.1007/s10660-016-9248-1
+Xue, L., Ray, G., & Sambamurthy, V. (2012). Efficiency or Innovation: How do Industry Environments 
+Moderate the Effects of Firm’s IT Asset portfolio. Management Information Systems Quarterly, 36(2), 509–528. 
+doi:10.2307/41703465
+
+
+Journal of Global Information Management
+Volume 29 • Issue 6
+23
+Zhenghua Li is a lecturer and also a Ph.D. candidate of Management Information Systems in the College of 
+Economics and Management at Jiangsu University of Science and Technology. His current research interests 
+include cloud computing management, IT business value, and business model innovation. 
+Huigang Liang is a Professor of MIS Department of Business Information and Technology of University of Memphis. 
+He gained his PhD in Health-care Information Systems from Auburn University. His research interests focus on 
+IT issues at both individual and organizational levels, and include IT strategy, assimilation, decision process, IT 
+avoidance, adoption, compliance, and health-care informatics. His research has appeared in scholarly journals, 
+including MIS Quarterly, Information Systems Research, Decision Support Systems, Journal of the Association for 
+Information Systems, and Communications of the ACM. He is serving an associate editor for ISR and Information 
+& Management, and SE for JAIS. 
+Nianxin Wang is a professor of Management Information Systems in the College of Economics and Management 
+at Jiangsu University of Science and Technology. He received his Ph.D. from Southeast University of China. His 
+current research interests include crowdfunding, IT business value, business-IT alignment, IT use, and cloud 
+computing management. His research has been appeared in such journals as Information Systems Research, 
+Journal of Management Information Systems, Journal of the Association for Information Systems, Decision 
+Support Systems, and Communications of the Association for Information Systems. He is serving a senior editor 
+for Information Technology & People and on the editorial board of Internet Research. 
+Yajiong Xue is a professor of Information Systems in the College of Business at East Carolina University. She holds 
+a Ph.D. in management information technology and innovation from Auburn University. Her research appears in 
+MIS Quarterly, Information Systems Research, Journal of the Association for Information Systems, Communications 
+of the ACM, Communications of the Association for Information Systems, Decision Support Systems, IEEE 
+Transactions on Information Technology in Biomedicine, Journal of Strategic Information Systems, International 
+Journal of Production Economics, Drug Discovery Today, and International Journal of Medical Informatics. Her 
+current research interests include strategic management of IT, IT governance, IT security, and healthcare information 
+systems. She is serving an associate editor for Communications of the Association for Information Systems. 
+Shilun Ge is Chair Professor of MIS in the School of Economics and Management at Jiangsu University of Science 
+and Technology. His research has focused on issues of enterprise modeling, enterprise data model, and IT project 
+management. He received his PhD in the School of Economics and Management at Nanjing University of Science 
+and Technology. He has authored and co-authored more than 100 papers.

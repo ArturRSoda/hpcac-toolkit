@@ -1,0 +1,585 @@
+%% =========================================================
+%% Referencias do TCC
+%% Artur Luiz Rizzato Toru Soda -- UFSC 2026
+%% =========================================================
+%%
+%% Convencao de chaves: sobrenome1AnoCurto (ex.: ansel2009dmtcp)
+%% NUNCA usar arroba em linhas de comentario '%' -- BibTeX interpreta
+%% como inicio de entrada mesmo dentro de comentarios.
+%%
+%% Campos suprimidos por nao serem usados pelo abntex2-alf.bst:
+%% abstract, keywords, numpages, articleno, eprint, archivePrefix,
+%% primaryClass (para arXiv: usar note = {arXiv:XXXX.XXXXX}).
+%%
+%% Para entradas misc de paginas web: usar howpublished = {\url{...}} e
+%% note = {Acesso em: DD mmmm AAAA}.
+%% =========================================================
+
+
+%% ---------------------------------------------------------
+%% AWS -- plataforma, EFS, instancias
+%% ---------------------------------------------------------
+
+@article{dancheva2023efa,
+  author  = {Dancheva, Tamara and Alonso, Unai and Barton, Michael},
+  title   = {Cloud benchmarking and performance analysis of an {HPC} application
+             in {Amazon EC2}},
+  journal = {Cluster Computing},
+  volume  = {27},
+  number  = {2},
+  pages   = {2273--2290},
+  year    = {2023},
+  doi     = {10.1007/s10586-023-04060-4}
+}
+
+@manual{aws2026efs,
+  author       = {{Amazon Web Services}},
+  title        = {What is Amazon Elastic File System?},
+  organization = {Amazon Web Services, Inc.},
+  year         = {2026},
+  url          = {https://docs.aws.amazon.com/efs/latest/ug/whatisefs.html},
+  note         = {Accessed: 2026-06-15}
+}
+
+
+%% ---------------------------------------------------------
+%% burstable-and-spot-instances
+%% ---------------------------------------------------------
+
+@misc{aws2026burstable,
+  author       = {{Amazon Web Services}},
+  title        = {Burstable performance instances -- {Amazon Elastic Compute Cloud}},
+  howpublished = {\url{https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances.html}},
+  year         = {2026},
+  note         = {Amazon EC2 User Guide. Acesso em: 15 jun. 2026}
+}
+
+@misc{aws2026spot_termination,
+  author       = {{Amazon Web Services}},
+  title        = {Spot Instance interruption notices -- {Amazon Elastic Compute Cloud}},
+  howpublished = {\url{https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-instance-termination-notices.html}},
+  year         = {2026},
+  note         = {Amazon EC2 User Guide. Acesso em: 15 jun. 2026}
+}
+
+@misc{aws2018spot,
+  author       = {{Amazon Web Services}},
+  title        = {New {Amazon EC2 Spot} pricing model: simplified purchasing without bidding
+                  and fewer interruptions},
+  howpublished = {\url{https://aws.amazon.com/blogs/compute/new-amazon-ec2-spot-pricing/}},
+  year         = {2018},
+  month        = {mar},
+  note         = {AWS Compute Blog. Acesso em: 15 jun. 2026}
+}
+
+@article{wang2017burstable,
+  author  = {Wang, Cheng and Urgaonkar, Bhuvan and Nasiriani, Neda and Kesidis, George},
+  title   = {Using Burstable Instances in the Public Cloud: Why, When and How?},
+  journal = {Proceedings of the {ACM} on Measurement and Analysis of Computing Systems},
+  volume  = {1},
+  number  = {1},
+  year    = {2017},
+  month   = {jun},
+  doi     = {10.1145/3084448}
+}
+
+
+%% ---------------------------------------------------------
+%% cloud-computing
+%% ---------------------------------------------------------
+
+@inproceedings{guidi2021cloud,
+  author    = {Guidi, Giulia and Ellis, Marquita and Bulu\c{c}, Aydin and
+               Yelick, Katherine and Culler, David},
+  title     = {10 Years Later: Cloud Computing is Closing the Performance Gap},
+  booktitle = {Companion of the {ACM/SPEC} International Conference on Performance Engineering},
+  series    = {ICPE '21},
+  pages     = {41--48},
+  year      = {2021},
+  publisher = {ACM},
+  doi       = {10.1145/3447545.3451183}
+}
+
+@article{netto2018hpccloud,
+  author  = {Netto, Marco A. S. and Calheiros, Rodrigo N. and Rodrigues, Eduardo R. and
+             Cunha, Renato L. F. and Buyya, Rajkumar},
+  title   = {{HPC} Cloud for Scientific and Business Applications: Taxonomy, Vision,
+             and Research Challenges},
+  journal = {{ACM} Computing Surveys},
+  volume  = {51},
+  number  = {1},
+  year    = {2018},
+  doi     = {10.1145/3150224}
+}
+
+@article{buyya2018manifesto,
+  author  = {Buyya, Rajkumar and Srirama, Satish Narayana and Casale, Giuliano and
+             others},
+  title   = {A Manifesto for Future Generation Cloud Computing: Research Directions
+             for the Next Decade},
+  journal = {{ACM} Computing Surveys},
+  volume  = {51},
+  number  = {5},
+  year    = {2018},
+  doi     = {10.1145/3241737}
+}
+
+@inproceedings{aljamal2018hpc,
+  author    = {Aljamal, Rawan and El-Mousa, Ali and Jubair, Fahed},
+  title     = {A Comparative Review of High-Performance Computing Major Cloud Service Providers},
+  booktitle = {2018 9th International Conference on Information and Communication Systems},
+  series    = {ICICS 2018},
+  pages     = {181--186},
+  year      = {2018},
+  publisher = {IEEE},
+  doi       = {10.1109/IACS.2018.8355463}
+}
+
+@book{buyya2011cloud,
+  author    = {Buyya, Rajkumar and Broberg, James and Goscinski, Andrzej M.},
+  title     = {Cloud Computing: Principles and Paradigms},
+  publisher = {John Wiley \& Sons},
+  address   = {Hoboken, NJ},
+  year      = {2011},
+  isbn      = {978-0-470-88799-8}
+}
+
+@misc{richter2016cloud,
+  author = {Richter, Harald},
+  title  = {About the Suitability of Clouds in High-Performance Computing},
+  year   = {2016},
+  note   = {arXiv:1601.01910}
+}
+
+@misc{saini2021enablehpc,
+  author       = {Saini, Reena and Sainis, Nachiket},
+  title        = {Enable High Performance Computing in Cloud: A Review},
+  year         = {2021},
+  howpublished = {International Journal of Scientific Research},
+  doi          = {10.36106/ijsr/4230701}
+}
+
+@article{shalf2020moores,
+  author  = {Shalf, John},
+  title   = {The future of computing beyond {Moore}'s Law},
+  journal = {Philosophical Transactions of the Royal Society A},
+  volume  = {378},
+  number  = {2166},
+  year    = {2020},
+  doi     = {10.1098/rsta.2019.0061}
+}
+
+@misc{gartner2022iaas,
+  author       = {{Gartner}},
+  title        = {Gartner Says Worldwide {IaaS} Public Cloud Services Market Grew
+                  41 Percent in 2021},
+  howpublished = {Gartner Press Release},
+  year         = {2022},
+  month        = {jun},
+  note         = {Acesso em: 15 jun. 2026}
+}
+
+@techreport{mell2011nist,
+  author      = {Mell, Peter and Grance, Timothy},
+  title       = {The {NIST} Definition of Cloud Computing},
+  institution = {National Institute of Standards and Technology},
+  type        = {Special Publication},
+  number      = {800-145},
+  year        = {2011},
+  doi         = {10.6028/NIST.SP.800-145}
+}
+
+
+%% ---------------------------------------------------------
+%% cost-study
+%% ---------------------------------------------------------
+
+@misc{teylo2020bot,
+  author        = {Teylo, Luan and Arantes, Luciana and Sens, Pierre and Drummond, L{\'u}cia Maria de A.},
+  title         = {Scheduling Bag-of-Tasks in Clouds Using Spot and Burstable Virtual Machines},
+  year          = {2020},
+  note          = {arXiv:2011.05042}
+}
+
+@article{zhou2022farspot,
+  author  = {Zhou, Amelie Chi and Lao, Jianming and Ke, Zhoubin and Wang, Yi and Mao, Rui},
+  title   = {{FarSpot}: Optimizing Monetary Cost for {HPC} Applications in the Cloud Spot Market},
+  journal = {{IEEE} Transactions on Parallel and Distributed Systems},
+  volume  = {33},
+  number  = {11},
+  pages   = {2955--2967},
+  year    = {2022},
+  doi     = {10.1109/TPDS.2021.3134644}
+}
+
+@incollection{ferretti2020cloudvsonprem,
+  author    = {Ferretti, Marco and Santangelo, Luigi},
+  title     = {Cloud vs On-Premise {HPC}: A Model for Comprehensive Cost Assessment},
+  booktitle = {Advances in Parallel Computing},
+  year      = {2020},
+  doi       = {10.3233/APC200026}
+}
+
+
+%% ---------------------------------------------------------
+%% fault-tolerance
+%% ---------------------------------------------------------
+
+@ARTICLE{avizienis2004taxonomy,
+  author={Avizienis, A. and Laprie, J.-C. and Randell, B. and Landwehr, C.},
+  journal={IEEE Transactions on Dependable and Secure Computing},
+  title={Basic concepts and taxonomy of dependable and secure computing},
+  year={2004},
+  volume={1},
+  number={1},
+  pages={11-33},
+  keywords={Taxonomy;Availability;Fault tolerance;Safety;Maintenance;Communication system security;Uncertainty;Standardization;Books;Index Terms- Dependability;security;trust;faults;errors;failures;vulnerabilities;attacks;fault tolerance;fault removal;fault forecasting.},
+  doi={10.1109/TDSC.2004.2}
+}
+
+@article{elnozahy2002survey,
+author = {Elnozahy, E. N. (Mootaz) and Alvisi, Lorenzo and Wang, Yi-Min and Johnson, David B.},
+title = {A survey of rollback-recovery protocols in message-passing systems},
+year = {2002},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {34},
+number = {3},
+issn = {0360-0300},
+doi = {10.1145/568522.568525},
+journal = {ACM Comput. Surv.},
+month = sep,
+pages = {375--408}
+}
+
+@article{chandy1985snapshots,
+  author  = {Chandy, K. Mani and Lamport, Leslie},
+  title   = {Distributed Snapshots: Determining Global States of Distributed Systems},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {3},
+  number  = {1},
+  year    = {1985},
+  month   = feb,
+  pages   = {63--75},
+  doi     = {10.1145/214451.214456}
+}
+
+@incollection{camargo2017ftmpi,
+  author    = {Camargo, Edson and {Duarte Jr.}, Elias},
+  title     = {T{\'e}cnicas para a Constru{\c{c}}{\~a}o de Sistemas {MPI} Tolerantes
+               a Falhas},
+  booktitle = {Minicursos do Simp{\'o}sio em Sistemas Computacionais de Alto
+               Desempenho ({WSCAD} 2017)},
+  publisher = {Sociedade Brasileira de Computa{\c{c}}{\~a}o},
+  year      = {2017},
+  isbn      = {978-85-7669-418-2}
+}
+
+@inproceedings{posner2020syslevel,
+  author    = {Posner, Jonas},
+  title     = {System-Level vs. Application-Level Checkpointing},
+  booktitle = {2020 {IEEE} International Conference on Cluster Computing ({CLUSTER})},
+  pages     = {404--405},
+  year      = {2020},
+  publisher = {IEEE},
+  doi       = {10.1109/CLUSTER49012.2020.00051}
+}
+
+@article{amoon2019checkpoint,
+  author  = {Amoon, Mohammed and El-Bahnasawy, Nirmeen and Sadi, Samy and Wagdi, Manar},
+  title   = {On the Design of Reactive Approach with Flexible Checkpoint Interval to
+             Tolerate Faults in Cloud Computing Systems},
+  journal = {Journal of Ambient Intelligence and Humanized Computing},
+  volume  = {10},
+  year    = {2019},
+  doi     = {10.1007/s12652-018-1139-y}
+}
+
+@article{hargrove2006blcr,
+  author  = {Hargrove, Paul H. and Duell, Jason C.},
+  title   = {Berkeley Lab Checkpoint/Restart ({BLCR}) for Linux Clusters},
+  journal = {Journal of Physics: Conference Series},
+  volume  = {46},
+  number  = {1},
+  pages   = {494--499},
+  year    = {2006},
+  doi     = {10.1088/1742-6596/46/1/067}
+}
+
+@article{bland2013ulfm,
+  author  = {Bland, Wesley and Bouteiller, Aurelien and Herault, Thomas and
+             Bosilca, George and Dongarra, Jack},
+  title   = {Post-failure Recovery of {MPI} Communication Capability: Design and Rationale},
+  journal = {International Journal of High Performance Computing Applications},
+  volume  = {27},
+  number  = {3},
+  pages   = {244--254},
+  year    = {2013},
+  doi     = {10.1177/1094342013488238}
+}
+
+@inproceedings{gong2015cost,
+  author    = {Gong, Yifan and He, Bingsheng and Zhou, Amelie Chi},
+  title     = {Monetary Cost Optimizations for {MPI}-Based {HPC} Applications on
+               {Amazon} Clouds: Checkpoints and Replicated Execution},
+  booktitle = {SC '15: Proceedings of the International Conference for High Performance
+               Computing, Networking, Storage and Analysis},
+  pages     = {1--12},
+  year      = {2015},
+  publisher = {ACM},
+  doi       = {10.1145/2807591.2807612}
+}
+
+@inproceedings{marathe2014hpdc,
+  author    = {Marathe, Aniruddha and Harris, Rachel and Lowenthal, David and
+               de Supinski, Bronis R. and Rountree, Barry and Schulz, Martin},
+  title     = {Exploiting Redundancy for Cost-Effective, Time-Constrained Execution
+               of {HPC} Applications on {Amazon EC2}},
+  booktitle = {Proceedings of the 23rd International Symposium on High-Performance
+               Parallel and Distributed Computing},
+  series    = {HPDC '14},
+  pages     = {279--290},
+  year      = {2014},
+  publisher = {ACM},
+  doi       = {10.1145/2600212.2600226}
+}
+
+@inproceedings{ghavamipour2020reliability,
+  author    = {Ghavamipoor, Hoda and Mousavi, Sayyed Ali Kianian and
+               Faragardi, Hamid Reza and Rasouli, Nayereh},
+  title     = {A Reliability Aware Algorithm for Workflow Scheduling on Cloud Spot
+               Instances Using Artificial Neural Network},
+  booktitle = {2020 10th International Symposium on Telecommunications},
+  series    = {IST 2020},
+  pages     = {67--71},
+  year      = {2020},
+  publisher = {IEEE},
+  doi       = {10.1109/IST50524.2020.9345896}
+}
+
+@inproceedings{moody2010scr,
+  author    = {Moody, Adam and Bronevetsky, Greg and Mohror, Kathryn and
+               Supinski, Bronis R. de},
+  title     = {Design, Modeling, and Evaluation of a Scalable Multi-level
+               Checkpointing System},
+  booktitle = {SC '10: Proceedings of the 2010 {ACM/IEEE} International Conference
+               for High Performance Computing, Networking, Storage and Analysis},
+  pages     = {1--11},
+  year      = {2010},
+  publisher = {IEEE},
+  doi       = {10.1109/SC.2010.18}
+}
+
+@inproceedings{wang2007partial,
+  author    = {Wang, Chao and Mueller, Frank and Engelmann, Christian and Scott, Stephen L.},
+  title     = {A Job Pause Service under {LAM/MPI}+{BLCR} for Transparent Fault Tolerance},
+  booktitle = {2007 IEEE International Parallel and Distributed Processing Symposium},
+  series    = {IPDPS 2007},
+  pages     = {1--10},
+  year      = {2007},
+  publisher = {IEEE},
+  doi       = {10.1109/IPDPS.2007.370307}
+}
+
+
+%% ---------------------------------------------------------
+%% HPCatCloud
+%% ---------------------------------------------------------
+
+@article{munhoz2024hpccloud,
+  author  = {Munhoz, Vanderlei and Castro, M{\'a}rcio Bastos},
+  title   = {Enabling the Execution of {HPC} Applications on Public Clouds with
+             {HPC@Cloud} Toolkit},
+  journal = {Concurrency and Computation: Practice and Experience},
+  volume  = {36},
+  number  = {8},
+  pages   = {e7976},
+  year    = {2024},
+  doi     = {10.1002/cpe.7976}
+}
+
+@mastersthesis{munhoz2023thesis,
+  author = {Munhoz, Vanderlei Pereira Filho},
+  title  = {{HPC@Cloud}: A Provider-Agnostic Toolkit to Enable the Execution of
+            {HPC} Applications on Public Clouds},
+  school = {Universidade Federal de Santa Catarina},
+  year   = {2023},
+  type   = {Disserta{\c{c}}{\~a}o (Mestrado em Ci{\^e}ncia da Computa{\c{c}}{\~a}o)}
+}
+
+@inproceedings{munhoz2022hpc,
+  author    = {Munhoz, Vanderlei and Castro, M{\'a}rcio Bastos},
+  title     = {{HPC@Cloud}: A Provider-Agnostic Toolkit to Enable the Execution of
+               {HPC} Applications on Public Clouds},
+  booktitle = {Anais do XXIII Simp{\'o}sio em Sistemas Computacionais de Alto
+               Desempenho (SSCAD 2022)},
+  pages     = {217--228},
+  year      = {2022},
+  publisher = {SBC},
+  doi       = {10.5753/sscad.2022.226343}
+}
+
+
+%% ---------------------------------------------------------
+%% MANAandDMTCP
+%% ---------------------------------------------------------
+
+@misc{xu2024mana,
+  author = {Xu, Yao and Cooperman, Gene},
+  title  = {Enabling Practical Transparent Checkpointing for {MPI}: A Topological
+            Sort Approach},
+  year   = {2024},
+  note   = {arXiv:2408.02218}
+}
+
+@inproceedings{xu2023mana,
+  author    = {Xu, Yao and Belyaev, Leonid and Jain, Twinkle and Schafer, Derek and
+               Skjellum, Anthony and Cooperman, Gene},
+  title     = {Implementation-Oblivious Transparent Checkpoint-Restart for {MPI}},
+  booktitle = {Proceedings of the {SC} '23 Workshops of the International Conference
+               on High Performance Computing, Network, Storage, and Analysis},
+  series    = {SC-W '23},
+  pages     = {1738--1747},
+  year      = {2023},
+  publisher = {ACM},
+  doi       = {10.1145/3624062.3624255}
+}
+
+@inproceedings{garg2019mana,
+  author    = {Garg, Rohan and Price, Gregory and Cooperman, Gene},
+  title     = {{MANA} for {MPI}: {MPI}-Agnostic, Network-Agnostic Transparent Checkpointing},
+  booktitle = {Proceedings of the 28th International Symposium on High-Performance
+               Parallel and Distributed Computing},
+  series    = {HPDC '19},
+  pages     = {1--12},
+  year      = {2019},
+  publisher = {ACM},
+  doi       = {10.1145/3307681.3325962}
+}
+
+@inproceedings{arya2016split,
+  author    = {Arya, Kapil and Garg, Rohit and Polyakov, Artem Y. and Cooperman, Gene},
+  title     = {Design and Implementation for Checkpointing of Distributed Resources
+               Using Process-Level Virtualization},
+  booktitle = {2016 {IEEE} International Conference on Cluster Computing},
+  series    = {CLUSTER '16},
+  pages     = {402--412},
+  year      = {2016},
+  publisher = {IEEE},
+  doi       = {10.1109/CLUSTER.2016.50}
+}
+
+@inproceedings{ansel2009dmtcp,
+  author    = {Ansel, Jason and Arya, Kapil and Cooperman, Gene},
+  title     = {{DMTCP}: Transparent Checkpointing for Cluster Computations and the Desktop},
+  booktitle = {2009 {IEEE} International Symposium on Parallel \& Distributed Processing},
+  series    = {IPDPS 2009},
+  pages     = {1--12},
+  year      = {2009},
+  publisher = {IEEE},
+  doi       = {10.1109/IPDPS.2009.5161063}
+}
+
+
+%% ---------------------------------------------------------
+%% MPI-and-parallel-programming
+%% ---------------------------------------------------------
+
+@inproceedings{filho2022mpi,
+  author    = {Filho, Vanderlei Munhoz Pereira and Castro, M{\'a}rcio Bastos},
+  title     = {Benchmarking the Scalability of {MPI}-Based Parallel Solvers for
+               Fluid Dynamics in Low-Budget Cloud Infrastructure},
+  booktitle = {Anais da Escola Regional de Alto Desempenho da Regi{\~a}o Sul
+               (ERAD-RS 2022)},
+  pages     = {77--78},
+  year      = {2022},
+  publisher = {SBC},
+  doi       = {10.5753/eradrs.2022.19170}
+}
+
+@inproceedings{hursey2020containers,
+  author    = {Hursey, Joshua},
+  title     = {Design Considerations for Building and Running Containerized {MPI}
+               Applications},
+  booktitle = {2020 2nd International Workshop on Containers and New Orchestration
+               Paradigms for Isolated Environments in {HPC} (CANOPIE-HPC)},
+  pages     = {35--44},
+  year      = {2020},
+  publisher = {IEEE},
+  doi       = {10.1109/CANOPIEHPC51917.2020.00010}
+}
+
+@techreport{mpi2009spec,
+  author      = {{Message Passing Interface Forum}},
+  title       = {{MPI}: A Message-Passing Interface Standard, Version 2.2},
+  type        = {Specification},
+  year        = {2009},
+  month       = {sep},
+  institution = {Message Passing Interface Forum}
+}
+
+@inproceedings{jette2003slurm,
+  author    = {Jette, Morris A. and Yoo, Andy B. and Grondona, Mark},
+  title     = {{SLURM}: Simple Linux Utility for Resource Management},
+  booktitle = {Job Scheduling Strategies for Parallel Processing (JSSPP 2002)},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {2537},
+  pages     = {44--60},
+  year      = {2003},
+  publisher = {Springer},
+  doi       = {10.1007/10968987_3}
+}
+
+
+%% ---------------------------------------------------------
+%% nas-parallel-benchmarks
+%% ---------------------------------------------------------
+
+@article{bailey1991nas,
+  author  = {Bailey, D. H. and Barszcz, E. and Barton, J. T. and Browning, D. S. and
+             Carter, R. L. and Dagum, L. and Fatoohi, R. A. and Frederickson, P. O. and
+             Lasinski, T. A. and Schreiber, R. S. and Simon, H. D. and
+             Venkatakrishnan, V. and Weeratunga, S. K.},
+  title   = {The {NAS} Parallel Benchmarks},
+  journal = {International Journal of High Performance Computing Applications},
+  volume  = {5},
+  number  = {3},
+  pages   = {63--73},
+  year    = {1991},
+  doi     = {10.1177/109434209100500306}
+}
+
+
+%% ---------------------------------------------------------
+%% scientific-initiation (trabalhos do proprio autor)
+%% ---------------------------------------------------------
+
+@inproceedings{soda2025erad,
+  author    = {Soda, Artur Luiz Rizzato Toru and
+               Filho, Vanderlei Munhoz Pereira and
+               Castro, M{\'a}rcio Bastos},
+  title     = {Avalia{\c{c}}{\~a}o Preliminar do Desempenho e Custo Financeiro de
+               Aplica{\c{c}}{\~o}es de {HPC} em Clusters de Inst{\^a}ncias Burstable
+               da {AWS}},
+  booktitle = {Anais da XXV Escola Regional de Alto Desempenho da Regi{\~a}o Sul},
+  series    = {ERAD-RS 2025},
+  pages     = {45--48},
+  year      = {2025},
+  publisher = {SBC},
+  issn      = {2595-4164},
+  doi       = {10.5753/eradrs.2025.6397}
+}
+
+@inproceedings{soda2025wcc,
+  author    = {Soda, Artur Luiz Rizzato Toru and
+               Filho, Vanderlei Munhoz Pereira and
+               Castro, M{\'a}rcio Bastos},
+  title     = {Performance and Cost Analysis of {AWS} Burstable Instances for {HPC}
+               with {NAS} Parallel Benchmarks},
+  booktitle = {2025 {IEEE/SBC} 37th International Symposium on Computer Architecture
+               and High Performance Computing Workshops (SBAC-PADW)},
+  pages     = {84--91},
+  year      = {2025},
+  publisher = {IEEE},
+  doi       = {10.1109/SBAC-PADW69789.2025.00020}
+}

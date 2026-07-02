@@ -1,0 +1,1157 @@
+Vol.:(0123456789)
+1 3
+Journal of Ambient Intelligence and Humanized Computing 
+https://doi.org/10.1007/s12652-018-1139-y
+ORIGINAL RESEARCH
+On the design of reactive approach with flexible checkpoint interval 
+to tolerate faults in cloud computing systems
+Mohammed Amoon1,2   · Nirmeen El‑Bahnasawy2 · Samy Sadi3 · Manar Wagdi2
+Received: 22 July 2018 / Accepted: 12 November 2018 
+© Springer-Verlag GmbH Germany, part of Springer Nature 2018
+Abstract
+The likelihood of failures rises in cloud computing systems as a result of their unstable nature. Additionally, the size of 
+a cloud computing system varies with time and thus failures become a common incident. Failures have a high impact on 
+cloud performance and the expected benefits for both customers and providers. Fault tolerance is an essential challenge 
+facing cloud providers in order to mitigate the effects of failures and maintaining the Service Level Agreement (SLA) satis‑
+fied. Checkpointing is one of the most known reactive fault tolerance techniques used in distributed computing. However, 
+it can incur considerable overheads that depend on the interval of the checkpoint applied and these overheads put down the 
+performance of the cloud. In this paper, a reactive fault tolerance approach in the context of checkpointing is proposed and 
+evaluated with the aim of getting better performance. The approach depends on applying a flexible interval of the checkpoint 
+to reduce overheads. Simulation experiments indicate superior performance of the approach in terms of power consumption, 
+response time, monetary cost and cloud capacity.
+Keywords  Cloud computing · Fault tolerance · Checkpointing · Checkpoint interval · Cloud capacity
+1  Introduction
+Cloud computing is the use of computer technology to pro‑
+vide different services to clients or customers over the inter‑
+net on demand. The main purpose of cloud computing is to 
+provide IT services to customers without the high cost of 
+installing and maintaining equipment and software applica‑
+tions. With cloud computing, any user can access computing 
+resources from anywhere as long as a network connection 
+is available (Buyya et al. 2009). Cloud computing has many 
+advantages and characteristics that can improve the avail‑
+ability of resources, save the cost and make users get ser‑
+vices and share resources anytime and anywhere (Kumar and 
+Goudar 2012; Singh and Jain 2014).
+Most cloud applications are executed on remote comput‑
+ing nodes, so there is a high probability of failures occur‑
+rence that highly influences the performance of the cloud 
+(Patel and Singh 2013). With the highly unstable nature of 
+clouds, failures become recurrent and not incident. Clouds 
+are negatively affected by occurrence of failures. This com‑
+prises both customers and providers. For customers, failures 
+can increase the response time for their services. For provid‑
+ers, failures can lead to more power consumption and loss 
+of money.
+The Cloud Down report (Lloyd’s 2018) issued in 2018 
+by LLOYD’s, a world specialist market for insurance, ana‑
+lyzes the fiscal influence of cloud services outage in U.S. 
+The report affirms that an outage for 3–6 days of the 15 
+top cloud systems would cause around $6.9 bn to $14.7 bn 
+of economic losses. The economic losses include multiple 
+essential sectors such as manufacturing, information, trans‑
+portation, finance and insurance. The report determines the 
+ *	 Mohammed Amoon 
+	
+mamoon@ksu.edu.sa
+	
+Nirmeen El‑Bahnasawy 
+	
+nermeen.abd@el‑eng.menofia.edu.eg
+	
+Samy Sadi 
+	
+samy.sadi.contact@gmail.com
+	
+Manar Wagdi 
+	
+engmanar20@yahoo.com
+1	
+Department of Computer Science, RCC, King Saud 
+University, P. O. Box: 28095‑11437, Riyadh, Saudi Arabia
+2	
+Computer Science and Engineering Department, Faculty 
+of Electronic Engineering, Menoufia University, Menouf, 
+Egypt
+3	
+Department of Computer Science, University of Oran1 
+Ahmed Ben Bella, Oran, Algeria
+
+
+	
+M. Amoon et al.
+1 3
+three most causes of the unavailability of cloud services as 
+malicious attacks, internal employees’ errors and failures of 
+software or hardware entities. Therefore, it is important for 
+cloud providers to determine risks that cause failures and 
+devise plans to avoid these failures or to recover from them, 
+if occurred, as fast as possible. Outages of some top cloud 
+providers are shown in Table 1.
+The above discussion reveals that fault tolerance is an 
+important property for cloud computing. A fault tolerant 
+computing system can proceed to complete its assigned 
+tasks correctly when failures occur. Fault tolerance tech‑
+niques are used to predict these failures and know how to 
+handle them (BaLa and Chana 2012). Checkpointing is a 
+well-known technique that helps tolerate faults in distributed 
+computing. It aims to minimize the amount of lost data and 
+time because of failure occurrence by saving the whole state 
+of the system at specified checkpoints, periodically. In case 
+of failure, it allows resumption of work from the last saved 
+checkpoint rather than from the beginning (Alshayeji et al. 
+2018). Therefore, the cloud maintains the required perfor‑
+mance levels.
+The efficiency of the checkpoint mechanism depends on 
+the time and resources used to accomplish the checkpoint 
+that are known as the overheads of the checkpoint (Limam 
+and Belalem 2011). Therefore, it should induce a low over‑
+head on the application’s execution to obtain optimal check‑
+point interval. The checkpoint interval is the time duration 
+between two successive checkpoints (Sadi and Yagoubi 
+2016). Fixed length or constant change of checkpoint inter‑
+val produces unwanted overheads that put down the cloud 
+performance (Amoon 2015).
+The essential contribution of this work is to develop a 
+checkpoint-based approach that has a flexible or inconstant 
+length of checkpoint interval. The length of the check‑
+point interval for an application will depend on the per‑
+centage of server failures that accommodates the virtual 
+machine, which executes the application. Thus, the length 
+of the checkpoint interval will vary (increase or decrease) 
+according to this percentage value. In addition, the amount 
+of increase or decrease in the checkpoint’s length will be 
+dynamic or unfixed.
+This article is divided as: Sect. 2 explains some prelimi‑
+naries and previous work related to checkpointing approach; 
+Sect. 3 presents our proposed approach; Sect. 4 describes 
+the simulation environment; Sect. 5 shows experimental 
+setup and results; and finally Sect. 6 shows some conclud‑
+ing remarks.
+2  Background and related work
+2.1  Background
+The possibilities of failures increase in cloud computing 
+because of their inconstant manner resulting from resources 
+quitting, joining or dropping during execution of customers’ 
+Table 1   Cloud outages
+Provider
+Outage
+Description
+Period
+Date
+IBM
+Management portal went down
+Customers cannot access the Bluemix 
+cloud infrastructure. Customers were 
+frustrated in finding resources. They 
+couldn’t manage their applications or 
+add or remove resources workloads
+Several hours Jan. 26, 2017
+Facebook
+Some Facebook accounts around the 
+world were locked
+A defense function against hackers 
+transmitted without intension a recovery 
+screen to users. Users expected a hacker 
+tried to hack their accounts. Facebook 
+locked out the affected users
+3 h
+Feb. 24, 2017
+Amazon Web Services Internet was down
+During the debug process of one of the 
+S3 storage centers, an employee typed 
+the debugging command in an incorrect 
+way. The command resulted a large set 
+of servers came done
+4 h
+Feb. 28, 2017
+Microsoft Azure
+Storage availability problems in Eastern 
+US
+Customers cannot access or provide 
+storage resources because of the unavail‑
+ability of a storage cluster in the Azure 
+cloud
+8 h
+March 16, 2017
+Google
+Resource unavailability
+Newly created resources were unavailable 
+for customers because of inefficient code 
+path
+2 h
+Jan. 30, 2017
+
+
+On the design of reactive approach with flexible checkpoint interval to tolerate faults in cloud…
+1 3
+applications. These resources can be software resources 
+or hardware. The occurrence of failures causes a negative 
+influence on the cloud performance especially in terms of 
+response time, power consumption and fiscal cost. There‑
+fore, applied mechanisms should be fault tolerant in order 
+to prevent or reduce the effects of failures to the most pos‑
+sible limit.
+In general, there are two basic classifications for fault 
+tolerant mechanisms used in large-scale distributed systems 
+such as grid and cloud computing systems. These classifi‑
+cations are proactive and reactive mechanisms (Rampratap 
+2016). In proactive mechanisms, the main principle is to 
+predict the occurrence of failures and take some preven‑
+tive actions to avoid failures. Usually, the preventive actions 
+are taken during the scheduling step. Examples of proac‑
+tive mechanisms include rejuvenation and migration based 
+mechanisms.
+On the other hand, reactive mechanisms are applied to 
+reduce the effects of failures when taking place. Examples 
+of reactive mechanisms include space-based and time-based 
+mechanisms. In space-based mechanisms, the same copy of 
+each application is executed on multiple virtual machines in 
+the cloud simultaneously. If one virtual machine fails, the 
+other virtual machines will continue to perform the appli‑
+cation within the requirements of the service determined. 
+This mechanism is also called replication and it provides 
+a good level of fault tolerance. The main disadvantage of 
+this mechanism is the poor utilization of cloud resources. In 
+addition, the virtual machine that executes the copy of the 
+task may be slower than the primary virtual machine causing 
+an increase of response time (Benoitet et al. 2008; Sampaio 
+and Barbosa 2017).
+In time-based mechanisms, known as checkpointing, the 
+set of status information of a running application is peri‑
+odically stored in an external storage. In case of failure, the 
+execution of the application will resume from the closest 
+checkpoint to the point of failure and thus time will be saved 
+because execution will not start from scratch (Goiri et al. 
+2010). Compared to space-based mechanisms, time-based 
+or checkpointing mechanisms provide better utilization of 
+cloud resources. Cloud computing systems apply both mech‑
+anisms in order to handle failures (Hasan and Goraya 2018). 
+The work proposed in this paper depends on the checkpoint‑
+ing mechanism.
+2.2  Related work
+The main target of developing and applying fault tolerance 
+mechanisms in clouds is to enhance availability and reli‑
+ability. In order to achieve this target, a lot of investigators 
+have developed multiple research works.
+Sampaio and Barbosa (2017) presented a compara‑
+tive study between proactive and reactive fault tolerance 
+mechanisms. Their study shows that proactive mechanisms 
+surpass reactive mechanisms in terms of cost but they 
+need a high accuracy of fault prediction with at least 80%. 
+Abdulhamid and Abd Latiff (2017) proposed a scheme 
+called checkpointed league championship. Their scheme 
+includes a checkpointed-based scheduling algorithm. In 
+addition, migration of tasks is applied to resolve unex‑
+pected failures.
+Shao et al. (2017) have used a queue of hybrid waiting 
+concept in their checkpoint approach to reducing over‑
+heads resulting from preemption of low-priority tasks. 
+Their approach assumes checkpoints are needed only when 
+preemption occurs.
+Louatia et al. (2018) proposed a checkpoint-based scheme 
+called LXCloud-CR with the aim to minimize both check‑
+point overheads and time. Their scheme depends on using 
+hash tables and distributed storage for checkpoint recovery 
+status instead of using a central one.
+Rejinpaul and Visuwasam (2012) proposed a smart 
+checkpoint infrastructure for virtualized service providers. 
+This infrastructure uses Another Union File System (AUFS) 
+and it stores checkpoints in a Hadoop file system. As the 
+checkpoints are repeated in all nodes of the provider, this 
+makes faster checkpoints that reduce resuming task time 
+after any failure. Limrungsi et al. (2012) presented a peer-
+to-peer checkpointing mechanism to provide reliability in 
+data centers which enables VM to be transferred and saved 
+among neighboring peers, eliminating the need for any cen‑
+tral storage where traffics are distributed through the whole 
+network and never arrive top-level core switches.
+Sadi and Yagoubi (2016) proposed two checkpoint‑
+ing approaches: coordinated approach and uncoordinated 
+approach. In the former approach, it takes the checkpoint 
+among multiple applications after grouping them into clus‑
+ters. In the other approach, it takes checkpoints for each 
+application separately. In addition, they proposed other 
+approaches “Remus, VCCP, and VNSnap”. They showed 
+that Remus is the best approach when considering the execu‑
+tion time of the VMs as only the failed VM needs to be 
+recovered. Conversely, with VCCP and VNSnap where all 
+VMs belonging to the same cluster have to be recovered each 
+time a VM in the cluster fails.
+Di et al. (2013) presented a fresh formula to calculate the 
+optimal number of checkpoint intervals for cloud job. This 
+optimal checkpoint interval reduces the overhead generated 
+by the checkpoint which reduces the total execution time. Ni 
+et al. (2012) developed a Semi-Blocking Checkpoint algo‑
+rithm. This algorithm can minimize the checkpoint overhead 
+through transmitting the checkpoint to remote memory at the 
+same time of executing the application. Limam and Belalem 
+(2014) proposed an approach that combines the checkpoint 
+with migration mechanism and they showed the effect of 
+
+
+	
+M. Amoon et al.
+1 3
+this combination on the reducing the execution time and 
+minimizing the effect of failures.
+El-Sayed and Schroeder (2018) proposed formulas for 
+estimating overheads resulting from applying checkpoint-
+scheduling mechanisms. Additionally, they considered in 
+their work other performance metrics such as power con‑
+sumption and I/O costs. Also, Han et al. (2018a, b) tried to 
+minimize the checkpoint overheads by performing check‑
+pointing for only some selected tasks according to the cross‑
+over dependencies between tasks. In (Han et al. 2018a, b), 
+authors combined the primary backup model and the check‑
+pointing mechanism into an integrated model that effectively 
+uses idle time slots to enhance utilization of the cloud. In 
+addition, they classified both virtual machines and tasks to 
+ensure effective scheduling.
+Ying et al. (2018) have proposed a checkpoint-based 
+strategy for tolerating failures in memory computing sys‑
+tems. Their strategy depends on the calculated weights of 
+the resilient distributed datasets when selecting check‑
+points. In addition, their strategy includes a recovery algo‑
+rithm. Liu (2015) has presented a fault-tolerant scheme for 
+real-time interactive applications in cloud computing sys‑
+tems. His scheme is based on overlapping of virtual units 
+and redundancy.
+Most checkpoint-based mechanisms depend on using a 
+fixed value of checkpoint interval or a checkpoint interval 
+that increases or decreases with fixed values. These mecha‑
+nisms cause the generation of unnecessary checkpoints and 
+thus increasing the network workload and decreasing the 
+cloud capacity. In addition, these extra checkpoints lead to 
+more power consumption and poor utilization.
+3  The proposed approach
+The proposed checkpoint-based approach to tolerating cloud 
+failures is presented with a clear explanation in this section. 
+The main aim of the proposed approach is to optimize the 
+performance of the cloud under the existence of failures. The 
+purposed performance metrics comprise customer-related 
+metrics such as response time and provider-related metrics 
+such as workload or overhead and the amount of power con‑
+sumption. Our proposed approach is a reactive one and it 
+uses the checkpoint mechanism in order to reduce the effect 
+of failures when occurred. In the proposed approach, the 
+checkpoint interval is inconstant and the failure percentage 
+of servers that accommodate virtual machines determines 
+the checkpoint interval. Therefore, the value of the check‑
+point interval will inconstantly change from time to time 
+and there will be no fixed value for it or even fixed values 
+for its change.
+3.1  The architecture components
+The components of the data center architecture employed 
+in this work and their interactions are shown in Fig. 1. The 
+cloud environment has multiple Data Centers (DCs) and 
+each data center represents a platform on which virtual 
+machines can be composed and function. Virtual machines 
+are composed of physical machines and resources exist 
+in the cloud in order to enable the execution of custom‑
+ers’ applications. Multiple physical machines can contrib‑
+ute to the composition of a single virtual machine and a 
+physical machine can share in composing multiple virtual 
+machines.
+Each data center should have a set of software modules 
+to control the activities of scheduling, monitoring, fault 
+tolerance and execution of applications. This set includes 
+the following main modules: DC portal, scheduler, check‑
+point coordinator, checkpoint manager, cloud information 
+and fault detector. Through DC portal, customer applica‑
+tions and requests are submitted plus their level of service 
+requirements such as response time and monetary cost. The 
+DC portal module analyzes these requirements and decides 
+the price of the service.
+Once both customer and provider agree, the applica‑
+tion of the customer is delivered to the scheduler, which in 
+turn allocates it to the suitable virtual machine that meets 
+Physical Machines
+Checkpoint 
+Coordinator
+Virtual Machines
+Checkpoint 
+Manager
+Scheduler
+Cloud 
+Information 
+Fault Detector
+DC Portal
+DC Controller
+Tasks
+Fig. 1   The Data Center components
+
+
+On the design of reactive approach with flexible checkpoint interval to tolerate faults in cloud…
+1 3
+customer’s requirements. For that, the scheduler delivers 
+the request to the cloud information module, which replies 
+with a list of advisable virtual machines for executing the 
+customer’s application. All virtual machines included in 
+the list should meet customer’s requirements. Therefore, 
+the scheduler sorts the list in ascending order according to 
+the customer requirements and assigns the application to 
+the first virtual machine in the list, which is considered as 
+the most suitable one.
+Figure  2 presents the main steps of the algorithm 
+employed by the scheduler. The algorithm depends on com‑
+puting the value of the selection index, denoted as SI, for 
+each virtual machine when selecting the most suitable vir‑
+tual machine. The value of SIv of a virtual machine v is as 
+follows:
+where c is a criterion of the n criteria used to determine the 
+value of the selection index and Avc is the degree of impor‑
+tance of criterion c to virtual machine v. The value of Avc 
+is set to 0 if the criterion c is not considered and it is set to 
+one otherwise. For example, sometimes customers concen‑
+trate on the amount of paid money regardless the response 
+time then the value of Avc is set to 0 for the response time 
+criterion. Wvc represents the weight of each considered cri‑
+terion. The weight of each criterion is set by the cloud pro‑
+vider according to his needs and customer needs. The sum 
+of all weights must equal one. If the cloud has more than 
+one virtual machine that can execute the application the vir‑
+tual machine with the highest value of SI will be selected. 
+The most important considered criteria include the response 
+time, utilization, fault rate, financial cost etc. The response 
+time of an application is the time between sending the appli‑
+cation by the customer and getting the satisfied result. The 
+utilization of a virtual machine is the number of occupied 
+units of this virtual machine for serving applications. These 
+units include computing, storage and bandwidth units. Fault 
+rate of a virtual machine is the number of failure times of a 
+(1)
+SIv =
+n
+∑
+c=0
+AvcWvc,
+virtual machine against the total number of assigned applica‑
+tions to it. Financial cost represents the amount of money a 
+customer will pay for serving his applications.
+Before dispatching application of the customer to the 
+selected virtual machine, the scheduler asks the checkpoint 
+coordinator to calculate the length of checkpoint interval 
+for that virtual machine. The checkpoint coordinator imple‑
+ments the algorithm shown in Fig. 3 to calculate the initial 
+length of the checkpoint interval depending on the failure 
+percentage of the server that accommodates the virtual 
+machine. In order to get the value of failure percentage of a 
+server, the checkpoint coordinator contacts the cloud infor‑
+mation module. In addition, the algorithm is applied to get 
+the percentage of application completion; this means that the 
+checkpoint is implemented when necessary. For example, if 
+the value of failure percentage is very small there will be no 
+need for applying the checkpoint.
+In this work, the length of the checkpoint interval is not 
+fixed for each virtual machine but it will vary according to 
+the value of the failure percentage of its carrier server. As 
+the failure percentage increases the length of the check‑
+point interval decreases and the number of checkpoints 
+increases. While the decrease in the failure percentage 
+Input:
+is the set of customers’ applications
+Output: allocation of N to the most suitable virtual machines
+For each application x ∈
+do
+Find the set M of virtual machines that can execute x
+For each v ∈M do
+Compute 
+EndFor
+Sort M according to the value of SI.  
+Allocate x to the first virtual machine in the M list
+EndFor
+Fig. 2   The scheduling algorithm
+Fp: failure percentage of the selected cloud VM.
+Fp(i): i = 0, 1, 2, …, n, where Fp(0) < Fp(1) < … < Fp(n) .
+Tc(i): i = 1, 2, 3, ..., n, are the percentage of application completed 
+0 ≤Tc(i) ≤100, Tc(1) > Tc(2) > Tc(3) >… > Tc(n) .
+If (Fp(0) ≤Fp < Fp(1)) then
+The task is performed on that VM with a checkpoint at Tc(1).
+Else
+If (Fp(1) ≤Fp < Fp(2)) then
+The task is performed on that VM with a checkpoint at Tc(2).
+Else
+If (Fp(2) ≤Fp < Fp(3)) then
+The task is performed on that VM with a checkpoint at Tc(3).
+Else
+If (Fp(n-1) ≤Fp < Fp(n)) then
+The task is performed on that VM with a checkpoint at Tc(n).
+Else
+Remove that resource from the available VMs list.
+End if
+Fig. 3   The initial checkpoint interval algorithm
+Tkv: the response time of application k on the virtual machine v.
+Fpv: the failure percentage of the virtual machine v.
+c: the number of checkpoints.
+I: the checkpoint interval.
+For each application k assigned to a virtual machine v do
+c = Fpv × Tkv;
+I = Tkv ÷ c;
+EndFor
+Fig. 4   The update of the length of the checkpoint interval
+
+
+	
+M. Amoon et al.
+1 3
+value increases the length of the checkpoint interval and 
+decreases the number of checkpoints. Figure 4 presents 
+the algorithm used to update the length of the checkpoint 
+interval.
+After calculating the length of the checkpoint interval, 
+its value is directed to the checkpoint manager. The main 
+function of the checkpoint manager is to collect and store 
+status or recovery information from each virtual machine at 
+the time determined by its checkpoint interval. This infor‑
+mation represents the restart point of execution in case of 
+failure.
+The fault detector module is responsible for discovering 
+failures of allocated virtual machines. This module is an 
+essential item for any fault tolerance system. It employs the 
+heartbeat approach in order to detect faulty virtual machines 
+in the data center. The heartbeat approach depends on “I am 
+live” messages periodically sent from the virtual machines to 
+the fault detector module. Missing a predetermined number 
+of these messages from a virtual machine triggers the mod‑
+ule to mark this virtual machine as a faulty one. In general, 
+the failure of a virtual machine is the state at which the vir‑
+tual machine cannot fulfill its assigned applications within 
+the required service quality.
+In case of failure, the fault detector updates the virtual 
+machine record stored in cloud information module. The 
+record of each virtual machine maintains all information 
+related to it including the value of failure percentage of 
+its carrier server. Additionally, the fault detector prompts 
+the scheduler to reschedule applications assigned before 
+to the failed virtual machine to other suitable virtual 
+machines.
+4  The simulation environment
+Researchers use simulation tools to implement and evalu‑
+ate the performance of their proposed techniques for dif‑
+ferent computing environments. There are many simu‑
+lators that can be used for simulating computing in the 
+cloud environment, such as CloudSim (Pagare and Koli 
+2015), GreenCloud (Kliazovich et al. 2012), GroudSim 
+(Ostermann et al. 2011), iCanCloud (Nu˜nez et al. 2011). 
+In addition, there is another simulator called Advanced 
+Cloud Simulator (ACS), which is an open source discrete 
+event-based simulator (Sadi and Yagoubi 2015). The ACS 
+simulator is used in this paper to implement and evaluate 
+the proposed approach as it supports fault tolerance tech‑
+niques such as checkpointing and migration. Additionally, 
+it provides high-performance simulations both in memory 
+consumption and simulation time. ACS provides a sim‑
+ple way to inject failures as well as repair using a failures 
+factory. In addition, it provides the CheckpointingHandler 
+component that enables the simulation of checkpoint-based 
+mechanisms.
+A set of experiments were conducted in order to evalu‑
+ate the proposed approach. The evaluation is accomplished 
+through comparing the proposed approach with the check‑
+point-based approach presented by Limam and Belalem 
+(2014), which applies the number of failures or fault index of 
+virtual machines and state of data centers when determining 
+the length of the chokepoint interval and it changes the value 
+of the length of the checkpoint interval with static values. 
+For simplicity, we will call this approach as static change 
+checkpoint (SCC) algorithm and our proposed algorithm as 
+dynamic change checkpoint (DCC) algorithm. In addition, 
+the comparison includes approaches that use a fixed value 
+for the length of the checkpoint interval. Response time, 
+power consumption, monetary cost and cloud capacity are 
+performance indicators used for the evaluation. Different 
+configurations of cloud data centers are applied in these 
+experiments.
+5  Experimental setup and results
+Based on the Algorithm A described in Sect. 3, we assign 
+the following values to its parameters for all experiments per‑
+formed in this paper:
+5.1  Response time
+Response time represents the most important preference for 
+customers. It is the time duration between submitting cus‑
+tomer’s applications and obtaining results. It can be defined 
+as follows:
+where Tkf is the time spent in transferring application k to 
+the allocated VM, Tkp is the processing time of k, Tkw is the 
+time spent in waiting at the data center and Tkr is the time 
+spent in transferring results of processing to the customer.
+This experiment evaluates the proposed approach in 
+terms of response time. The simulator is configured to 
+generate 1000 hosts and 100, 300, 500 and 1000 tasks. The 
+failure rate values are selected in the range from 0.15 to 
+0.75 to show the performance of the proposed approach 
+under both light and heavy faulty conditions. We compared 
+the proposed approach against both the SCC and the fixed 
+approaches in terms of the response time. As shown in 
+Fig. 5a–d, the response time for all approaches increases 
+Fp(0) = 0, Fp(1) = 0.1, Fp(2) = 0.2, Fp(8) = 0.8,
+Fp(9) = 0.9, Fp(10) = 1,Tc(1) = 100%,
+Tc(2) = 90%, Tc(9) = 20%, Tc(10) = 10%.
+(2)
+TK = Tkf + Tkp + Tkw + Tkr,
+
+
+On the design of reactive approach with flexible checkpoint interval to tolerate faults in cloud…
+1 3
+as the fault rate increases. However, the proposed approach 
+provides better response time with the lower rate of increase 
+compared with the other two approaches. This is because 
+the proposed approach depends on the percentage of server 
+failures that accommodates the virtual machines in the 
+cloud when determining the checkpoint interval. Also, the 
+other two approaches increase or decrease the checkpoint 
+interval with fixed values. However, the proposed approach 
+modifies the value of the checkpoint interval with variable 
+values.
+5.2  Power consumption
+Cloud computing environments contain many resources 
+that consume huge amounts of electrical power in execut‑
+ing customers’ applications. Each data center d consumes 
+Pdkelectrical power for executing application k. this amount 
+of electrical power includes power consumed in computing, 
+storage and data transfer. It is defined as follows:
+where Pcdk is the amount of computing power consumption, 
+Psdk is the amount of storage power consumption and Pddk is 
+the amount of data transfer power consumption.
+Reducing these amounts of consumed power represents 
+a central challenge for cloud providers. In this experiment, 
+we assess the performance of the proposed approach in 
+terms of power consumption by comparing it with both 
+SCC and the fixed approaches. Figure 6a–d indicates that 
+the amount of power consumption increase as the injected 
+faults increase for all approaches. However, the proposed 
+approach consumes less power compared with the other 
+approaches. This is because the proposed approach modi‑
+fies the value of the checkpoint interval with inconstant 
+values and this causes less number of checkpoints com‑
+pared with the other approaches that modify the value of 
+the checkpoint interval with fixed or static values. Less 
+number of checkpoints imply less usage of cloud resources 
+(3)
+Pdk = Pcdk + Psdk + Pddk,
+(a) 100 tasks
+(b) 300 tasks
+(c) 500 tasks
+(d) 1000 tasks
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Time(1000Sec.)
+Fault Rate
+DCC
+SCC
+Fixed
+32
+36
+40
+44
+48
+52
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Time(1000Sec.)
+Fault Rate
+DCC
+SCC
+Fixed
+48
+52
+56
+60
+64
+68
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Time(1000Sec.)
+Fault Rate
+DCC
+SCC
+Fixed
+100
+101
+102
+103
+104
+105
+106
+107
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Time(1000Sec.)
+Fault Rate
+DCC
+SCC
+Fixed
+Fig. 5   The comparison of response time
+
+
+	
+M. Amoon et al.
+1 3
+in insignificance work and then less amount of power 
+consumed.
+5.3  Monetary cost
+Generally, customers are charged based on the number of 
+processing cycles their applications consume. The monetary 
+cost of executing an application k on a virtual machine v can 
+be defined as:
+where NCkv denotes the number of cycles consumed in exe‑
+cuting application k by virtual machine v and PRv denotes 
+the price of each processing cycle of virtual machine v.
+Customers consider the amount of payment for services 
+obtained as one of their high preferences. So, they pre‑
+fer to choose clouds that provide low prices for services 
+(4)
+MCvk = NCkv × PRv,
+without violating the quality of service needed. This exper‑
+iment compares the proposed approach with both SCC 
+and the fixed approaches in terms of monetary cost. As 
+shown in Fig. 7a–d, the monetary cost for all approaches 
+increase as the fault rate increases. However, the proposed 
+approach provides less monetary cost compared with the 
+other two approaches. This is due to the fact that the pro‑
+posed approach produces fewer checkpoints than the other 
+approaches and then it consumes fewer cloud resources. In 
+clouds, as customers pay according to their usage of cloud 
+resources then the proposed approach provides less mon‑
+etary cost.
+5.4  Capacity
+Capacity is the amount of workload completed by vir‑
+tual machines of a data center in a certain period of time. 
+Increase in capacity means cloud can accommodate more 
+(a) 100 tasks
+(b) 300 tasks
+(c) 500 tasks
+(d) 1000 tasks
+40
+60
+80
+100
+120
+140
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Power Comsumption (Kwh)
+Fault Rate
+DCC
+SCC
+Fixed
+100
+125
+150
+175
+200
+225
+250
+275
+300
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Power Comsumption (Kwh)
+Fault Rate
+DCC
+SCC
+Fixed
+250
+275
+300
+325
+350
+375
+400
+425
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Power Comsumption (Kwh)
+Fault Rate
+DCC
+SCC
+Fixed
+550
+600
+650
+700
+750
+800
+850
+900
+950
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Power Comsumption (Kwh)
+Fault Rate
+DCC
+SCC
+Fixed
+Fig. 6   The comparison of power consumption
+
+
+On the design of reactive approach with flexible checkpoint interval to tolerate faults in cloud…
+1 3
+customers’ applications while preserving the expecta‑
+tions of customers’ needs. Figure 8 shows a comparison 
+of the proposed approach with both SCC and the fixed 
+approaches in terms of completed workload per time. 
+As shown in Fig. 8a–d, the completed workload for all 
+approaches increases with time period increase. However, 
+the proposed approach provides a better-completed work‑
+load compared with the other two approaches within the 
+same time period. This is because the proposed approach 
+does not exhaust the cloud by producing a sufficient num‑
+ber of checkpoints. Thus, cloud resources can be available 
+for other applications.
+6  Conclusion
+In this paper, a reactive fault tolerance approach in the 
+context of checkpointing is proposed and evaluated. The 
+approach depends on applying a flexible length of check‑
+point interval. The length of the checkpoint interval for an 
+application will depend on the percentage of server failures 
+that accommodates the virtual machine, which executes the 
+application. The proposed approach provides performance 
+superiority over both SCC and the fixed approaches in terms 
+of response time, power consumption, monetary cost and 
+cloud capacity. Table 2 indicates the percentages of this 
+superiority.
+(a) 100 tasks
+(b) 300 tasks
+(c) 500 tasks
+(d) 1000 tasks
+800
+1000
+1200
+1400
+1600
+1800
+2000
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Cost(US$)
+Fault rate
+DCC
+SCC
+Fixed
+1200
+1400
+1600
+1800
+2000
+2200
+2400
+2600
+2800
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Cost(US$)
+Fault rate
+DCC
+SCC
+Fixed
+2000
+2400
+2800
+3200
+3600
+4000
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Cost(US$)
+Fault rate
+DCC
+SCC
+Fixed
+4900
+5100
+5300
+5500
+5700
+5900
+6100
+0.15
+0.25
+0.35
+0.45
+0.55
+0.65
+0.75
+Cost(US$)
+Fault rate
+DCC
+SCC
+Fixed
+Fig. 7   The comparison of monetary cost
+
+
+	
+M. Amoon et al.
+1 3
+Acknowledgements  This work was supported by King Saud University, 
+Deanship of Scientific Research, Community College Research Unit.
+References
+Abdulhamid S, Abd Latiff M (2017) A checkpointed league champion‑
+ship algorithm-based cloud scheduling scheme with secure fault 
+tolerance responsiveness. Appl Soft Comput 61:670–680
+Alshayeji M et al (2018) A study on fault tolerance mechanisms in 
+cloud computing. Int J Comput Electr Eng 10:574–538
+Amoon M (2015) A framework for providing a hybrid fault tolerance 
+in cloud computing. In: Proceedings of Science and Information 
+Conference (SAI), London, pp 844–849
+BaLa A, Chana I (2012) Fault tolerance- challenges, techniques and 
+implementation in cloud computing. Int J Comput Sci Issues 
+9:288–293
+Benoitet A, Hakem M, Robert T (2008) Fault tolerant scheduling of 
+precedence task graphs on heterogeneous platforms. In: Proceed‑
+ings of the IEEE International Symposium on Parallel and Dis‑
+tributed Processing, Miami, FL, USA, pp 1–8
+Buyya R et al (2009) Cloud computing and emerging IT platforms: 
+vision, hype, and reality for delivering computing as The 5th util‑
+ity. Future Gen Comput Syst 25:599–616
+Di S et al (2013) Optimization of cloud task processing with check‑
+point-restart mechanism. In: Proceedings of the international con‑
+ference on high performance computing, networking, storage and 
+analysis, Denver, CO, USA, pp 1–12
+El-Sayed N, Schroeder B (2018) Understanding practical tradeoffs in 
+HPC checkpoint-scheduling policies. IEEE Trans Dependable 
+Secure Comput 15:336–350
+Goiri I, Julià F, Guitart J, Torres J (2010) Checkpoint-based fault-
+tolerant infrastructure for virtualized service providers. In: Pro‑
+ceedings of 12th IEEE/IFIP network operations and management 
+symposium (NOMS’10), Osaka, Japan, pp 455–462
+Han H et  al (2018a) Fault-tolerant scheduling for hybrid real-
+time tasks based on CPB model in cloud. IEEE Access 
+6:19616–18629
+Han L et al (2018b) Checkpointing workflows for fail-stop errors. IEEE 
+Trans Comput. https​://doi.org/10.1109/TC.2018.28013​00
+(a) 100 tasks
+(b) 300 tasks
+(c) 500 tasks
+(d) 1000 tasks
+0
+50
+100
+150
+200
+250
+300
+350
+10
+25
+50
+75
+100
+125
+150
+Completed workload
+Time(H)
+DCC
+SCC
+Fixed
+50
+100
+150
+200
+250
+300
+10
+25
+50
+75
+100
+125
+150
+Completed workload
+Time(H)
+DCC
+SCC
+Fixed
+150
+200
+250
+300
+350
+400
+450
+500
+10
+25
+50
+75
+100
+125
+150
+Completed workload
+Time(H)
+DCC
+SCC
+Fixed
+150
+250
+350
+450
+550
+650
+750
+850
+10
+25
+50
+75
+100
+125
+150
+Completed workload
+Time (H)
+DCC
+SCC
+Fixed
+Fig. 8   The comparison of Completed workload
+Table 2   Performance superiority of DCC
+Performance evaluation 
+metrics
+Fixed (%)
+SCC (%)
+Time
+7
+12
+Power
+13
+18
+Cost
+6
+12
+Capacity
+13
+16
+
+
+On the design of reactive approach with flexible checkpoint interval to tolerate faults in cloud…
+1 3
+Hasan M, Goraya M (2018) Fault tolerance in cloud computing envi‑
+ronment: a systematic survey. Comput Ind 99:156–172
+Kliazovich D, Bouvry P, Khan S (2012) Greencloud: a packet-level 
+simulator of energy-aware cloud computing data centers. J Super‑
+comput 62:1263–1283
+Kumar S, Goudar R (2012) Cloud computing–research issues, chal‑
+lenges, architecture, platforms and applications: a survey. Int J 
+Future Comput Commun 1:356–360
+Limam S, Belalem G (2011) Fault tolerant architecture to cloud com‑
+puting using adaptive checkpoint. Int J Cloud Appl Comput 
+1:60–69
+Limam S, Belalem G (2014) A migration approach for fault tolerance 
+in cloud computing. Int J Grid High Perform Comput 6:24–37
+Limrungsi N et al (2012) Providing reliability as an elastic service in 
+cloud computing. In: Proceedings of IEEE International Confer‑
+ence on Communications (ICC), Ottawa, ON, Canada, pp 1–4
+Liu D (2015) A fault-tolerant architecture for ROIA in cloud. J Ambi‑
+ent Intell Humaniz Comput 6:587–595
+Lloyd’s (2018) Cloud Down Impacts on the US economy. AIR World‑
+wide. https​://www.lloyd​s.com/~/media​/files​/news-and-insig​ht/
+risk-insig​ht/2018/cloud​-down/aircy​berll​oydsp​ublic​2018f​inal.pdf. 
+Accessed 10 Jul 2018
+Louatia T, Abbesa H, Cérinb C, Jemnia M (2018) LXCloud-CR: 
+towards LinuX containers distributed hash table based check‑
+point-restart. J Parallel Distrib Comput 111:187–205
+Ni X, Meneses E, Kale L (2012) Hiding checkpoint overhead in HPC 
+applications with a semi-blocking algorithm. In: Proceedings of 
+IEEE International Conference on Cluster Computing, Beijing, 
+China, pp 364–372
+Nu˜nez A et al (2011) Design of a new cloud computing simula‑
+tion platform. In: proceedings of international conference on 
+computational science and its applications, Santander, Spain, 
+pp 582–593
+Ostermann S et al (2011) Groudsim: an event-based simulation frame‑
+work for computational grids and clouds. In: Proceedings of Euro-
+Par Parallel Processing Workshops. Springer, pp 305–313
+Pagare J, Koli N (2015) Design and simulate cloud computing environ‑
+ment using Cloudsim. Int J Comput Technol Appl 6:35–42
+Patel S, Singh A (2013) Fault tolerance mechanisms and its implemen‑
+tation in cloud computing—a review. Int J Adv Res Comput Sci 
+Softw Eng 3:573–576
+Rampratap T (2016) Modeling for fault tolerance in cloud computing 
+environment. J Comput Sci Appl 4:9–13
+Rejinpaul N, Visuwasam L (2012) Checkpoint-based intelligent fault 
+tolerance for cloud service providers. Int J Comput Distrib Syst 
+2:59–64
+Sadi S, Yagoubi B (2015) Acs-advanced cloud simulator: a discrete 
+event based simulator for cloud computing environments. In: Pro‑
+ceedings of the 2nd international conference on networking and 
+advanced systems, Annaba, Algeria, pp 11–16
+Sadi S, Yagoubi B (2016) Communication-aware approaches for trans‑
+parent checkpointing in cloud computing. Scalable Comput Pract 
+Exp 17:251–270
+Sampaio A, Barbosa J (2017) A comparative cost analysis of fault-tol‑
+erance mechanisms for availability on the cloud. Sustain Comput 
+Inf Syst. https​://doi.org/10.1016/j.susco​m.2017.11.006
+Shao Y et al (2017) Chord: checkpoint-based scheduling using hybrid 
+waiting list in shared clusters. J Syst Softw 131:22–34
+Singh P, Jain E (2014) Survey paper on cloud computing. Int J Innov 
+Eng Technol 3:84–89
+Ying C, Yu J, He J (2018) Towards fault tolerance optimization based 
+on checkpoints of in-memory framework spark. J Ambient Intell 
+Humaniz Comput. https​://doi.org/10.1007/s1265​2-018-1018-6
+Publisher’s Note  Springer Nature remains neutral with regard to 
+jurisdictional claims in published maps and institutional affiliations.

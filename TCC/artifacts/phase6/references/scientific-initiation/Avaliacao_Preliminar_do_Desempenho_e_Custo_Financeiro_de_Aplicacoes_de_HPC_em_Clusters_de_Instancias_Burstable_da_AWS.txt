@@ -1,0 +1,193 @@
+Avaliac¸˜ao Preliminar do Desempenho e Custo Financeiro de
+Aplicac¸˜oes de HPC em Clusters de Instˆancias Burstable da
+AWS
+Artur Soda1, Vanderlei Filho1, M´arcio Castro1
+1Universidade Federal de Santa Catarina (UFSC)
+Florian´opolis/SC
+artursodar@gmail.com, vanderlei.filho@proton.me,
+marcio.castro@ufsc.br
+Resumo. Instˆancias Burstable da Amazon Web Services (AWS) oferecem de-
+sempenho vari´avel com base no consumo de cr´editos de CPU, o que pode re-
+presentar desafios na avaliac¸˜ao de custo-benef´ıcio para cargas de trabalho in-
+tensivas. Este trabalho analisa o desempenho e o custo financeiro de aplicac¸˜oes
+HPC em clusters com instˆancias non-Burstable e Burstable. Os resultados mos-
+tram que a escolha do tipo de instˆancia ideal depende do perfil da carga de
+trabalho, com non-Burstable sendo mais eficiente para cargas intensivas e Burs-
+table Standard adequadas para cargas leves.
+1. Introduc¸˜ao
+A Computac¸˜ao em Nuvem tem desempenhado um papel essencial na evoluc¸˜ao da
+Computac¸˜ao de Alto Desempenho (HPC), oferecendo acesso a recursos escal´aveis e
+econˆomicos para diversas aplicac¸˜oes. Entre as ofertas dispon´ıveis, as instˆancias Burs-
+table da Amazon Web Services (AWS) tˆem ganhado destaque devido `a sua capacidade de
+fornecer desempenho vari´avel com base no consumo de cr´editos de CPU. Embora seja
+economicamente atraente para cargas leves, o desempenho dessas instˆancias em cen´arios
+de HPC distribu´ıdo ainda ´e pouco explorado.
+Este
+trabalho
+d´a
+continuidade
+`a
+pesquisa
+realizada
+por
+Ferrari
+et
+al. [Ferrari et al. 2024], que analisou instˆancias Burstable em tarefas de HPC de
+´unico n´o. Outros estudos, como o de Leitner e Scheuner [Leitner and Scheuner 2015],
+tamb´em avaliaram instˆancias da fam´ılia T2 (Burstable) a outros tipos de instˆancias de
+prop´osito geral, concluindo uma melhor relac¸˜ao custo-desempenho apenas quando a
+utilizac¸˜ao m´edia da CPU ´e inferior a 40%. Neste estudo, o escopo foi ampliado para
+cargas mais pesadas em clusters multin´os. Foram avaliadas instˆancias Burstable nos
+modos Unlimited e Standard, al´em de uma instˆancia non-Burstable similar. Os resultados
+sugerem que cargas intensivas s˜ao mais eficientes em instˆancias non-Burstable, enquanto
+Burstable Standard favorecem cargas leves.
+J´a as Burstable Unlimited apresentaram
+custos elevados em cargas de trabalho longas e intensivas devido ao consumo de cr´editos
+excedentes de CPU.
+O artigo est´a organizado da seguinte forma.
+Na Sec¸˜ao 2, ´e apresentada a
+fundamentac¸˜ao te´orica sobre HPC na nuvem e as diferenc¸as entre instˆancias Burstable
+e non-Burstable da AWS. Na Sec¸˜ao 3, s˜ao detalhados o ambiente experimental e as
+aplicac¸˜oes utilizadas. A Sec¸˜ao 4 discute os resultados experimentais, enquanto a Sec¸˜ao 5
+conclui o artigo, resumindo os principais achados e indicando poss´ıveis trabalhos futuros.
+2. Fundamentac¸˜ao Te´orica
+2.1. HPC na nuvem
+A ´area de HPC busca resolver problemas complexos utilizando m´ultiplos n´os de proces-
+samento. Com o avanc¸o da Computac¸˜ao em Nuvem, provedores como a AWS passaram
+
+
+a oferecer recursos que reduzem a dependˆencia de infraestruturas locais de alto custo.
+Essa abordagem permite maior flexibilidade, escalabilidade e acesso a recursos de alto
+desempenho sob demanda, tornando a nuvem uma alternativa atraente e acess´ıvel para a
+execuc¸˜ao de cargas de trabalho de HPC em diferentes contextos e aplicac¸˜oes.
+2.2. Instˆancias da AWS: Burstable vs. non-Burstable
+Instˆancias Burstable da AWS (fam´ılia T, como T3 e T4) baseiam-se em uma baseline de
+utilizac¸˜ao de CPU, que define uma porcentagem fixa de uso cont´ınuo permitido para cada
+vCPU da instˆancia. Quando o uso de uma vCPU est´a abaixo dessa baseline, a instˆancia
+acumula cr´editos de CPU, que podem ser utilizados para atender a picos de demanda,
+onde o uso da vCPU excede essa baseline. Cada cr´edito de CPU representa um minuto
+de uso de uma vCPU a 100% de capacidade.
+As instˆancias Burstable possuem dois modos de operac¸˜ao: no modo Standard, o
+desempenho da instˆancia ´e reduzido quando os cr´editos acumulados se esgotam. J´a no
+modo Unlimited, a instˆancia pode continuar funcionando acima da baseline, mas custos
+adicionais s˜ao gerados pelo uso de cr´editos excedentes, o que pode impactar o custo total
+da instˆancia, dependendo da utilizac¸˜ao. Por outro lado, as instˆancias non-Burstable (como
+as fam´ılias C, M e R) oferecem desempenho constante, sem a limitac¸˜ao ou a necessidade
+de acumular cr´editos.
+3. M´etodo de An´alise
+3.1. Ambiente Experimental
+Os experimentos foram realizados em diferentes clusters homogˆeneos de 1, 2 e 4 n´os cri-
+ados com a ferramenta HPC@Cloud [Munhoz and Castro 2023] utilizando as instˆancias
+da AWS com imagens Linux mostradas na Tabela 1.
+Tipo da
+Quantidade
+Tipo de
+Largura de
+Custo por
+Custo por Cr´edito
+Instˆancia
+de vCPUs
+Instˆancia
+Banda da Rede
+Hora
+de CPU Excedido
+t3.2xlarge
+8
+Burstable
+At´e 5 Gbps
+0.3328 USD
+0.05 USD
+m5.2xlarge
+8
+non-Burstable
+At´e 10 Gbps
+0.384 USD
+–
+Tabela 1. Caracter´ısticas das instˆancias utilizadas (us-east-1).
+3.2. Aplicac¸˜oes de HPC
+Para avaliar o desempenho das instˆancias em cargas de trabalho de HPC, foi utilizado o
+NAS Parallel Benchmarks (NPB) [Bailey et al. 1991], um conjunto de benchmarks am-
+plamente reconhecido para medir a eficiˆencia de clusters e outras infraestruturas de HPC.
+Dentro do NPB, o foco foi direcionado aos benchmarks LU (Lower-Upper Symmetric
+Gauss-Seidel) e EP (Embarrassingly Parallel), que representam diferentes tipos de carga
+de trabalho e abordagens computacionais.
+O LU ´e um benchmark CPU-bound, ou seja, sua execuc¸˜ao depende principal-
+mente da capacidade de processamento da CPU, envolvendo a resoluc¸˜ao de sistemas de
+equac¸˜oes lineares sim´etricas. Esse benchmark ´e intensivo em c´alculos e exige interac¸˜ao
+constante entre os n´os, sendo adequado para avaliar o desempenho em tarefas com alta
+dependˆencia de comunicac¸˜ao.
+Em contraste, o EP, sendo um benchmark Embarrassingly Parallel, possui alto
+grau de paralelismo, permitindo a execuc¸˜ao independente dos processos com pouca ou
+nenhuma comunicac¸˜ao entre os n´os. Esse tipo de carga de trabalho foca no desempenho
+individual de cada n´ucleo de CPU.
+
+
+A combinac¸˜ao dos benchmarks LU e EP permite uma avaliac¸˜ao abrangente do
+desempenho das instˆancias da AWS, uma vez que eles englobam tanto cen´arios com alta
+dependˆencia de comunicac¸˜ao entre os processos quanto aqueles que exploram o parale-
+lismo de forma mais independente.
+4. Resultados Experimentais
+Os resultados, apresentados na Figura 1, destacam diferenc¸as significativas no desempe-
+nho das configurac¸˜oes para os benchmarks EP e LU. No caso do EP, caracterizado pela
+r´apida execuc¸˜ao e alta independˆencia entre processos, todas as configurac¸˜oes demons-
+traram desempenho semelhante em termos de tempo de execuc¸˜ao e escalabilidade. Por
+outro lado, no LU, as instˆancias M5 obtiveram o melhor desempenho, possivelmente de-
+vido `a maior largura de banda dispon´ıvel. Em contrapartida, as T3 no modo Standard
+apresentaram um desempenho at´e trˆes vezes inferior, uma limitac¸˜ao atribu´ıda `a reduc¸˜ao
+de desempenho imposta quando os cr´editos de CPU s˜ao esgotados.
+Figura 1. Tempo de execuc¸ ˜ao (segundos) por benchmark, tipo de instˆancia e
+quantidade de n´os.
+As diferenc¸as nos custos, ilustradas na Figura 2, complementam essa an´alise. Para
+o EP, onde os tempos de execuc¸˜ao foram semelhantes entre as configurac¸˜oes, as instˆancias
+Burstable apresentaram uma ligeira vantagem de custo, grac¸as `a tarifa hor´aria reduzida.
+J´a no LU, as M5 mostraram-se superiores em termos de custo-benef´ıcio, equilibrando
+desempenho e custo. No entanto, as T3 no modo Unlimited mesmo que n˜ao tenham
+sido as de pior desempenho, apresentaram custos significativamente maiores, devido ao
+elevado custo associado ao consumo de cr´editos de CPU excedentes durante cargas de
+trabalho prolongadas.
+De forma geral, as M5 se mostraram mais adequadas para cargas de trabalho inten-
+sivas e longas, enquanto as T3 Standard s˜ao mais interessantes para cargas leves, podendo
+ter picos ocasionais de utilizac¸˜ao da CPU. J´a as instˆancias T3 no modo Unlimited s˜ao me-
+nos atrativas devido aos custos elevados, mas podem ser ´uteis em cen´arios espec´ıficos
+onde a aplicac¸˜ao n˜ao pode ser limitada durante picos de demanda, garantindo assim um
+desempenho consistente, mesmo com um custo adicional.
+Todas as configurac¸˜oes demonstraram escalabilidade consistente com o aumento
+do n´umero de n´os, reduzindo o tempo de execuc¸˜ao, mas elevando proporcionalmente os
+custos. Esses resultados demonstram a importˆancia de alinhar as caracter´ısticas da carga
+de trabalho `as especificidades das instˆancias para maximizar a eficiˆencia em termos de
+desempenho e custo.
+
+
+Figura 2. Custo total (USD $), On-Demand, por benchmark, tipo de instˆancia e
+quantidade de n´os.
+5. Conclus˜ao
+Neste trabalho, foi analisado o desempenho e o custo de instˆancias Burstable e non-
+Burstable da AWS para cargas de trabalho de HPC, utilizando os benchmarks LU e EP do
+NPB. Atrav´es dos experimentos, foi poss´ıvel observar como diferentes tipos de instˆancias
+e configurac¸˜oes impactam o desempenho e os custos em cen´arios distintos. Os resulta-
+dos demonstraram que as instˆancias M5, devido `a sua capacidade de largura de banda e
+ausˆencia de limitac¸˜oes por cr´editos, oferecem melhor custo-benef´ıcio para cargas de tra-
+balho intensivas e longas. Por outro lado, as instˆancias T3 Standard se destacaram para
+cargas de trabalho leves e intermitentes, enquanto as T3 Unlimited, apesar de garanti-
+rem desempenho cont´ınuo, apresentaram custos significativamente maiores em cargas de
+trabalho prolongadas.
+Como trabalhos futuros, sugere-se ampliar a an´alise incluindo mais aplicac¸˜oes do
+NPB, visando uma compreens˜ao mais abrangente das caracter´ısticas de diferentes cargas
+de trabalho. Al´em disso, planeja-se explorar o SPEChpc, outro conjunto de benchmarks
+amplamente reconhecido. Por fim, pretendemos avaliar instˆancias e clusters de maior
+capacidade, possibilitando testes com problemas mais complexos e realistas, expandindo
+o escopo e a relevˆancia dos resultados apresentados.
+Referˆencias
+Bailey, D. H., Barszcz, E., Barton, J. T., Browning, D. S., Carter, R. L., Dagum, L.,
+Fatoohi, R. A., Frederickson, P. O., Lasinski, T. A., Schreiber, R. S., Simon, H. D.,
+Venkatakrishnan, V., and Weeratunga, S. K. (1991). The nas parallel benchmarks. The
+International Journal of High Performance Computing Applications, 5(3):63–73.
+Ferrari, G., Filho, V., and Castro, M. (2024). Comparing burstable and on-demand aws
+ec2 instances using nas parallel benchmarks. In Anais da XXIV Escola Regional de
+Alto Desempenho da Regi˜ao Sul, pages 61–64, Porto Alegre, RS, Brasil. SBC.
+Leitner, P. and Scheuner, J. (2015). Bursting with possibilities – an empirical study of
+credit-based bursting cloud instance types. In 2015 IEEE/ACM 8th International Con-
+ference on Utility and Cloud Computing (UCC), pages 227–236.
+Munhoz, V. and Castro, M. (2023). Enabling the Execution of HPC Applications on
+Public Clouds with HPC@Cloud Toolkit. Concurrency and Computation: Practice
+and Experience, pages 1–19.

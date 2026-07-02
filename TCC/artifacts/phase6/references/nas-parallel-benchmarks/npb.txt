@@ -1,0 +1,4994 @@
+THE NAS PARALLEL BENCHMARKS
+D. Bailey, E. Barszcz, J. Barton, D. Browning, R. Carter, L. Dagum, R.
+Fatoohi, S. Fineberg, P. Frederickson, T. Lasinski, R. Schreiber, H. Simon,
+V. Venkatakrishnan and S. Weeratunga
+Abstract
+A new set of benchmarks has been developed for the performance eval-
+uation of highly parallel supercomputers. These benchmarks consist of ﬁve
+parallel kernels and three simulated application benchmarks. Together they
+mimic the computation and data movement characteristics of large scale
+computational ﬂuid dynamics (CFD) applications.
+The principal distinguishing feature of these benchmarks is their “pencil
+and paper” speciﬁcation—all details of these benchmarks are speciﬁed only
+algorithmically. In this way many of the diﬃculties associated with conven-
+tional benchmarking approaches on highly parallel systems are avoided.
+This paper is an updated version of a RNR technical report originally
+issued January 1991. Bailey, Barszcz, Barton, Carter, and Lasinski are with
+NASA Ames Research Center. Dagum, Fatoohi, Fineberg, Simon and Weer-
+atunga are with Computer Sciences Corp. (work supported through NASA
+Contract NAS 2-12961). Schreiber is with RIACS (work funded via NASA
+cooperative agreement NCC 2-387). Browning is now in the Netherlands
+(work originally done with CSC). Frederickson is now with Cray Research,
+Inc. in Los Alamos, NM (work originally done with RIACS). Venkatakrish-
+nan is now with ICASE in Hampton, VA (work originally done with CSC).
+Address for all authors except Browning, Frederickson and Venkatakrish-
+nan: NASA Ames Research Center, Mail Stop T27A-1, Moﬀett Field, CA
+94035-1000.
+1
+
+
+1
+GENERAL REMARKS
+D. Bailey, D. Browning,∗R. Carter, S. Fineberg,∗and H. Simon∗
+1.1
+Introduction
+The Numerical Aerodynamic Simulation (NAS) Program, which is based at
+NASA Ames Research Center, is a large scale eﬀort to advance the state of
+computational aerodynamics. Speciﬁcally, the NAS organization aims “to
+provide the Nation’s aerospace research and development community by the
+year 2000 a high-performance, operational computing system capable of sim-
+ulating an entire aerospace vehicle system within a computing time of one to
+several hours” (ref. 1, p. 3). The successful solution of this “grand challenge”
+problem will require the development of computer systems that can perform
+the required complex scientiﬁc computations at a sustained rate nearly one
+thousand times greater than current generation supercomputers can now
+achieve. The architecture of computer systems able to achieve this level of
+performance will likely be dissimilar to the shared memory multiprocessing
+supercomputers of today. While no consensus yet exists on what the design
+will be, it is likely that the system will consist of at least 1000 processors
+computing in parallel.
+Highly parallel systems with computing power roughly equivalent to tra-
+ditional shared memory multiprocessors exist today. Unfortunately, the per-
+formance evaluation of these systems on comparable types of scientiﬁc com-
+putations is very diﬃcult for several reasons. Few relevant data are available
+for the performance of algorithms of interest to the computational aerophysics
+community on many currently available parallel systems. Benchmarking and
+performance evaluation of such systems has not kept pace with advances in
+hardware, software and algorithms. In particular, there is as yet no gener-
+ally accepted benchmark program or even a benchmark strategy for these
+systems.
+The popular “kernel” benchmarks that have been used for traditional vec-
+tor supercomputers, such as the Livermore Loops [2], the LINPACK bench-
+mark [3, 4] and the original NAS Kernels [5], are clearly inappropriate for
+∗Computer Sciences Corporation, El Segundo, California.
+This work is supported
+through NASA Contract NAS 2-12961.
+2
+
+
+the performance evaluation of highly parallel machines.
+First of all, the
+tuning restrictions of these benchmarks rule out many widely used parallel
+extensions. More importantly, the computation and memory requirements
+of these programs do not do justice to the vastly increased capabilities of the
+new parallel machines, particularly those systems that will be available by
+the mid-1990s.
+On the other hand, a full scale scientiﬁc application is similarly unsuitable.
+First of all, porting a large program to a new parallel computer architecture
+requires a major eﬀort, and it is usually hard to justify a major research task
+simply to obtain a benchmark number. For that reason we believe that the
+otherwise very successful PERFECT Club benchmark [6] is not suitable for
+highly parallel systems. This is demonstrated by very sparse performance
+results for parallel machines in the recent reports [7, 8, 9].
+Alternatively, an application benchmark could assume the availability of
+automatic software tools for transforming “dusty deck” source into eﬃcient
+parallel code on a variety of systems. However, such tools do not exist today,
+and many scientists doubt that they will ever exist across a wide range of
+architectures.
+Some other considerations for the development of a meaningful bench-
+mark for a highly parallel supercomputer are the following:
+• Advanced parallel systems frequently require new algorithmic and soft-
+ware approaches, and these new methods are often quite diﬀerent from
+the conventional methods implemented in source code for a sequential
+or vector machine.
+• Benchmarks must be “generic” and should not favor any particular
+parallel architecture.
+This requirement precludes the usage of any
+architecture-speciﬁc code, such as message passing code.
+• The correctness of results and performance ﬁgures must be easily veri-
+ﬁable. This requirement implies that both input and output data sets
+must be kept very small. It also implies that the nature of the compu-
+tation and the expected results must be speciﬁed in great detail.
+• The memory size and run time requirements must be easily adjustable
+to accommodate new systems with increased power.
+• The benchmark must be readily distributable.
+3
+
+
+In our view, the only benchmarking approach that satisﬁes all of these
+constraints is a “paper and pencil” benchmark. The idea is to specify a set
+of problems only algorithmically. Even the input data must be speciﬁed only
+on paper. Naturally, the problem has to be speciﬁed in suﬃcient detail that
+a unique solution exists, and the required output has to be brief yet detailed
+enough to certify that the problem has been solved correctly. The person
+or persons implementing the benchmarks on a given system are expected
+to solve the various problems in the most appropriate way for the speciﬁc
+system. The choice of data structures, algorithms, processor allocation and
+memory usage are all (to the extent allowed by the speciﬁcation) left open to
+the discretion of the implementer. Some extension of Fortran or C is required,
+and reasonable limits are placed on the usage of assembly code and the like,
+but otherwise programmers are free to utilize language constructs that give
+the best performance possible on the particular system being studied.
+To this end, we have devised a number of relatively simple “kernels,”
+which are speciﬁed completely in chapter 2 of this document.
+However,
+kernels alone are insuﬃcient to completely assess the performance potential
+of a parallel machine on real scientiﬁc applications. The chief diﬃculty is that
+a certain data structure may be very eﬃcient on a certain system for one of
+the isolated kernels, and yet this data structure would be inappropriate if
+incorporated into a larger application. In other words, the performance of
+a real computational ﬂuid dynamics (CFD) application on a parallel system
+is critically dependent on data motion between computational kernels. Thus
+we consider the complete reproduction of this data movement to be of critical
+importance in a benchmark.
+Our benchmark set therefore consists of two major components: ﬁve par-
+allel kernel benchmarks and three simulated application benchmarks. The
+simulated application benchmarks combine several computations in a man-
+ner that resembles the actual order of execution in certain important CFD
+application codes. This is discussed in more detail in chapter 3.
+We feel that this benchmark set successfully addresses many of the prob-
+lems associated with benchmarking parallel machines. Although we do not
+claim that this set is typical of all scientiﬁc computing, it is based on the key
+components of several large aeroscience applications used on supercomput-
+ers by scientists at NASA Ames Research Center. These benchmarks will be
+used by the Numerical Aerodynamic Simulation (NAS) Program to evaluate
+the performance of parallel computers.
+4
+
+
+1.2
+Benchmark Rules
+1.2.1
+Deﬁnitions
+In the following, the term “processor” is deﬁned as a hardware unit capable
+of executing both ﬂoating point addition and ﬂoating point multiplication in-
+structions. The “local memory” of a processor refers to randomly accessible
+memory that can be accessed by that processor in less than one microsecond.
+The term “main memory” refers to the combined local memory of all proces-
+sors. This includes any memory shared by all processors that can be accessed
+by each processor in less than one microsecond. The term “mass storage”
+refers to non-volatile randomly accessible storage media that can be accessed
+by at least one processor within forty milliseconds. A “processing node” is
+deﬁned as a hardware unit consisting of one or more processors plus their
+local memory, which is logically a single unit on the network that connects
+the processors.
+The term “computational nodes” refers to those processing nodes pri-
+marily devoted to high-speed ﬂoating point computation. The term “ser-
+vice nodes” refers to those processing nodes primarily devoted to system
+operations, including compilation, linking and communication with external
+computers over a network.
+1.2.2
+General rules
+Implementations of these benchmarks must be based on either Fortran-90
+(which includes Fortran-77 as a subset) or C, although a wide variety of
+parallel extensions are allowed. This requirement stems from the observation
+that Fortran and C are the most commonly used programming languages by
+the scientiﬁc parallel computing community at the present time. If in the
+future, other languages gain wide acceptance in this community, they will
+be considered for inclusion in this group. Assembly language and other low-
+level languages and constructs may not be used, except that certain speciﬁc
+vendor-supported assembly-coded library routines may be called (see section
+1.2.3).
+We are of the opinion that such language restrictions are necessary, be-
+cause otherwise considerable eﬀort would be made by benchmarkers in low-
+level or assembly-level coding. Then the benchmark results would tend to
+reﬂect the amount of programming resources available to the benchmarking
+5
+
+
+organization, rather than the fundamental merits of the parallel system. Cer-
+tainly the mainstream scientists that these parallel computers are intended
+to serve will be coding applications at the source level, almost certainly in
+Fortran or C, and thus these benchmarks are designed to measure the per-
+formance that can be expected from such code.
+Accordingly, the following rules must be observed in any implementations
+of the NAS Parallel Benchmarks:
+• All ﬂoating point operations must be performed using 64-bit ﬂoating
+point arithmetic.
+• All benchmarks must be coded in either Fortran-90 [10] or C [11], with
+certain approved extensions.
+• Implementation of the benchmarks may not include a mix of Fortran-90
+and C code—one or the other must be used.
+• Any extension of Fortran-90 that is in the High Performance Fortran
+(HPF) draft dated January 1992 or later [12] is allowed.
+• Any language extension or library routine that is employed in any of
+the benchmarks must be supported by the vendor and available to all
+users.
+• Subprograms and library routines not written in Fortran or C may only
+perform certain functions, as indicated in the next section.
+• All rules apply equally to subroutine calls, language extensions and
+compiler directives (i.e., special comments).
+1.2.3
+Allowable Fortran extensions and library routines
+Fortran extensions and library routines are also permitted that perform the
+following:
+• Indicate sections of code that can be executed in parallel or loops that
+can be distributed among diﬀerent computational nodes.
+• Specify the allocation and organization of data among or within com-
+putational nodes.
+6
+
+
+• Communicate data between processing nodes.
+• Communicate data between the computational nodes and service nodes.
+• Rearrange data stored in multiple computational nodes, including con-
+structs to perform indirect addressing and array transpositions.
+• Synchronize the action of different computational nodes.
+• Initialize for a data communication or synchronization operation that
+will be performed or completed later.
+• Perform high-speed input or output operations between main memory
+and the mass storage system.
+• Perform any of the following array reduction operations on an array
+either residing within a single computational node or distributed among
+multiple nodes: +, ×, MAX, MIN, AND, OR, XOR.
+• Combine communication between nodes with one of the operations
+listed in the previous item.
+• Perform any of the following computational operations on arrays ei-
+ther residing within a single computational node or distributed among
+multiple nodes: dense or sparse matrix-matrix multiplication, dense or
+sparse matrix-vector multiplication, one-dimensional, two-dimensional
+or three-dimensional fast Fourier transforms, sorting, block tri-diagonal
+system solution and block penta-diagonal system solution. Such rou-
+tines must be callable with general array dimensions.
+1.3
+Sample Codes
+The intent of this paper is to completely specify the computation to be car-
+ried out. Theoretically, a complete implementation, including the generation
+of the correct input data, could be produced from the information in this pa-
+per. However, the developers of these benchmarks are aware of the diﬃculty
+and time required to generate a correct implementation from scratch in this
+manner. Furthermore, despite several reviews, ambiguities in this technical
+paper may exist that could delay implementations.
+7
+
+
+In order to reduce the number of diﬃculties and to aid the benchmarking
+specialist, Fortran-77 computer programs implementing the benchmarks are
+available. These codes are to be considered examples of how the problems
+could be solved on a single processor system, rather than statements of how
+they should be solved on an advanced parallel system. The sample codes
+actually solve scaled down versions of the benchmarks that can be run on
+many current generation workstations. Instructions are supplied in comments
+in the source code on how to scale up the program parameters to the full size
+benchmark speciﬁcations.
+These programs, as well as the benchmark document itself, are available
+from the Systems Development Branch in the NAS Systems Division. Mail
+Stop 258-5, NASA Ames Research Center, Moﬀett Field, CA 94035-1000,
+attn: NAS Parallel Benchmark Codes. The sample codes are provided on
+Macintosh ﬂoppy disks and contain the Fortran source codes, “ReadMe” ﬁles,
+input data ﬁles, and reference output data ﬁles for correct implementations
+of the benchmark problems. These codes have been validated on a number
+of computer systems ranging from conventional workstations to supercom-
+puters.
+Three classes of problems are deﬁned in this document. These will be
+denoted “Sample Code,” “Class A,” and “Class B,” since the three classes
+diﬀer mainly in the sizes of principal arrays. Tables 1.1, 1.2, and 1.3 give
+the problem sizes, memory requirements (measured in Mw), run times and
+performance rates (measured in Mﬂop/s) for each of the eight benchmarks
+and for the Sample Code, Class A, and Class B problem sets. These statis-
+tics are based on implementations on one processor of a Cray Y-MP. The
+operation count for the Integer Sort benchmark is based on integer oper-
+ations rather than ﬂoating-point operations. The entries in the “Problem
+Size” columns are sizes of key problem parameters. Complete descriptions
+of these parameters are given in chapters 2 and 3.
+1.4
+Submission of Benchmark Results
+It must be emphasized that the sample codes described in section 1.3 are not
+the benchmark codes, but only implementation aids. For the actual bench-
+marks, the sample codes must be scaled to larger problem sizes. The sizes
+of the current benchmarks were chosen so that implementations are possi-
+ble on currently available supercomputers. As parallel computer technology
+8
+
+
+Benchmark code
+Problem
+Memory
+Time
+Rate
+size
+(Mw)
+(sec)
+(Mﬂop/s)
+Embarrassingly parallel (EP)
+224
+0.1
+11.6
+120
+Multigrid (MG)
+323
+0.1
+0.1
+128
+Conjugate gradient (CG)
+1400
+1.0
+1.2
+63
+3-D FFT PDE (FT)
+643
+2.0
+1.2
+160
+Integer sort (IS)
+216
+0.3
+0.2
+30.5
+LU solver (LU)
+123
+0.3
+3.5
+28
+Pentadiagonal solver (SP)
+123
+0.2
+7.2
+24
+Block tridiagonal solver (BT)
+123
+0.3
+7.2
+34
+Table 1.1: NAS Parallel Benchmarks Sample Code Statistics
+progresses, future releases of these benchmarks will specify larger problem
+sizes.
+The authors and developers of these benchmarks encourage submission of
+performance results for the problems listed in table 1.2. Periodic publication
+of the submitted results is planned. Benchmark results should be submitted
+to the Applied Research Branch, NAS Systems Division, Mail Stop T045-1,
+NASA Ames Research Center, Moﬀett Field, CA 94035, attn: NAS Parallel
+Benchmark Results. A complete submission of results should include the
+following:
+• A detailed description of the hardware and software conﬁguration used
+for the benchmark runs.
+• A description of the implementation and algorithmic techniques used.
+• Source listings of the benchmark codes.
+• Output listings from the benchmarks.
+9
+
+
+Benchmark code
+Problem
+Memory
+Time
+Rate
+size
+(Mw)
+(sec)
+(Mﬂop/s)
+Embarrassingly parallel (EP)
+228
+1
+151
+147
+Multigrid (MG)
+2563
+57
+54
+154
+Conjugate gradient (CG)
+14000
+10
+22
+70
+3-D FFT PDE (FT)
+2562 × 128
+59
+39
+192
+Integer sort (IS)
+223
+26
+21
+37.2
+LU solver (LU)
+643
+30
+344
+189
+Pentadiagonal solver (SP)
+643
+6
+806
+175
+Block tridiagonal solver (BT)
+643
+24
+923
+192
+Table 1.2: NAS Parallel Benchmarks Class A Statistics
+Benchmark code
+Problem
+Memory
+Time
+Rate
+size
+(Mw)
+(sec)
+(Mﬂop/s)
+Embarrassingly parallel (EP)
+230
+18
+512
+197
+Multigrid (MG)
+2563
+59
+114
+165
+Conjugate gradient (CG)
+75000
+97
+998
+55
+3-D FFT PDE (FT)
+512×256 × 256
+162
+366
+195
+Integer sort (IS)
+225
+114
+126
+25
+LU solver (LU)
+1023
+122
+1973
+162
+Pentadiagonal solver (SP)
+1023
+22
+2160
+207
+Block tridiagonal solver (BT)
+1023
+96
+3554
+203
+Table 1.3: NAS Parallel Benchmarks Class B Statistics
+10
+
+
+References
+[1] Numerical Aerodynamic Simulation Program Plan. NAS Systems Divi-
+sion, Ames Research Center, October 1988.
+[2] McMahon, F. H.: The Livermore Fortran Kernels: A Computer Test
+of the Numerical Performance Range. Technical Report UCRL-53745,
+Lawrence Livermore National Laboratory, Livermore, Calif., Dec. 1986.
+[3] Dongarra, J. J.: The LINPACK Benchmark: An Explanation. Super-
+Computing, Spring 1988, pp. 10-14.
+[4] Dongarra, J. J.: Performance of Various Computers Using Standard
+Linear Equations Software in a Fortran Environment. TR MCSRD 23,
+Argonne National Laboratory, March 1988.
+[5] Bailey, D. H.; and Barton, J.: The NAS Kernel Benchmark Program.
+Technical Report 86711, Ames Research Center, Moﬀett Field, Calif.,
+August 1985.
+[6] Berry, M.; et al. The Perfect Club Benchmarks: Eﬀective Performance
+Evaluation of Supercomputers. The International Journal of Supercom-
+puter Applications, vol. 3, 1989, pp. 5-40.
+[7] Pointer, L.: PERFECT Report 1. Technical Report 896, CSRD, Univ.
+of Illinois, Urbana, Ill., July 1989.
+[8] Pointer, L.: PERFECT Report 2: Performance Evaluation for Costef-
+fective Transformations. Technical Report 964, CSRD, Univ. of Illinois,
+Urbana, Ill., March 1990.
+[9] Cybenko, G.; Kipp, L.; Pointer, L.; and Kuck, D.: Supercomputer Per-
+formance Evaluation and the Perfect Benchmarks. Technical Report 965,
+CSRD, Univ. of Illinois, Urbana, Ill., March 1990.
+[10] American National Standard Programming Language Fortran X3.198-
+1992. American National Standards Institute, 1430 Broadway, New
+York, NY 10018, 1992.
+[11] Draft Proposed C ANSI Standard X3J3–S8115. American National
+Standards Institute, 1430 Broadway, New York, NY, 1990.
+11
+
+
+[12] High Performance Fortran (HPF) Language Speciﬁcation, Version 1.0
+Draft. Center for Research in Parallel Computing, P.O. 1892, Rice Uni-
+versity, Houston, TX 77251, January 1993.
+12
+
+
+2
+THE KERNEL BENCHMARKS
+D. Bailey, E. Barszcz, L. Dagum,∗P. Frederickson,† R. Schreiber,†
+and H. Simon∗
+2.1
+Overview
+After an evaluation of a number of large scale CFD and computational aero-
+sciences applications on the NAS supercomputers at NASA Ames, a number
+of kernels were selected for the benchmark. These were supplemented by
+some other kernels which are intended to test speciﬁc features of parallel
+machines. The following benchmark set was then assembled:
+EP: An “embarrassingly parallel” kernel. It provides an estimate of the
+upper achievable limits for ﬂoating point performance, i.e., the perfor-
+mance without signiﬁcant interprocessor communication.
+MG: A simpliﬁed multigrid kernel. It requires highly structured long dis-
+tance communication and tests both short and long distance data com-
+munication.
+CG: A conjugate gradient method is used to compute an approximation to
+the smallest eigenvalue of a large, sparse, symmetric positive deﬁnite
+matrix. This kernel is typical of unstructured grid computations in that
+it tests irregular long distance communication, employing unstructured
+matrix vector multiplication.
+FT: A 3-D partial diﬀerential equation solution using FFTs. This kernel
+performs the essence of many “spectral” codes. It is a rigorous test of
+long-distance communication performance.
+IS: A large integer sort. This kernel performs a sorting operation that is
+important in “particle method” codes. It tests both integer computa-
+tion speed and communication performance.
+∗Computer Sciences Corporation.
+This work is supported through NASA Contract
+NAS 2-12961.
+†Research Institute for Advanced Computer Science (RIACS), Ames Research Center.
+This work is supported by NAS Systems Division through Cooperative Agreement Number
+NCC 2-387.
+13
+
+
+These kernels involve substantially larger computations than previous ker-
+nel benchmarks, such as the Livermore Loops or Linpack, and therefore they
+are more appropriate for the evaluation of parallel machines. The Parallel
+Kernels in particular are suﬃciently simple that they can be implemented
+on a new system without unreasonable eﬀort and delay. Most importantly,
+as emphasized earlier, this set of benchmarks incorporates a new concept in
+performance evaluation, namely that only the computational task is speci-
+ﬁed, and that the actual implementation of the kernel can be tailored to the
+speciﬁc architecture of the parallel machine.
+In this chapter the Parallel Kernel benchmarks are presented, and the
+particular rules for allowable changes are discussed. Future reports will de-
+scribe implementations and benchmarking results on a number of parallel
+supercomputers.
+2.2
+Description of the Kernels
+2.2.1
+Kernel EP: An embarrassingly parallel benchmark
+D. Bailey and P. Frederickson
+Brief Statement of Problem
+Generate pairs of Gaussian random deviates according to a speciﬁc scheme
+described below and tabulate the number of pairs in successive square annuli.
+Detailed Description
+Set n = 228, a = 513 and s = 271, 828, 183. Generate the pseudorandom
+ﬂoating point values rj in the interval (0, 1) for 1 ≤j ≤2n using the
+scheme described in section 2.3. Then for 1 ≤j ≤n set xj = 2r2j−1 −1
+and yj = 2r2j −1. Thus xj and yj are uniformly distributed on the interval
+(−1, 1).
+Next set k = 0. Then beginning with j = 1, test to see if tj = x2
+j +y2
+j ≤1.
+If not, reject this pair and proceed to the next j. If this inequality holds, then
+set k ←k +1, Xk = xj
+q
+(−2 log tj)/tj and Yk = yj
+q
+(−2 log tj)/tj, where log
+denotes the natural logarithm. Then Xk and Yk are independent Gaussian
+deviates with mean zero and variance one. Approximately nπ/4 pairs will
+be constructed in this manner. See reference 2, page 117 for additional dis-
+cussion of this scheme for generating Gaussian deviates. The computation
+of Gaussian deviates must employ the above formula, and vendor-supplied
+14
+
+
+Class A
+Class B
+l
+Ql
+Ql
+0
+98257395
+393058470
+1
+93827014
+375280898
+2
+17611549
+70460742
+3
+1110028
+4438852
+4
+26536
+105691
+5
+245
+948
+6
+0
+5
+7
+0
+0
+8
+0
+0
+9
+0
+0
+Table 2.1: EP Benchmark Counts
+intrinsic routines must be employed for performing all square root and loga-
+rithm evaluations.
+Finally, for 0 ≤l ≤9 tabulate Ql as the count of the pairs (Xk, Yk) that
+lie in the square annulus l ≤max(|Xk|, |Yk|) < l + 1, and output the ten Ql
+counts. The two sums P
+k Xk and P
+k Yk must also be output.
+This completes the deﬁnition of the Class A problem. The Class B prob-
+lem is the same except that n = 230.
+Veriﬁcation Test
+The two sums P
+k Xk and P
+k Yk must agree with reference values to
+within one part in 1012. For the Class A problemm, the reference values are
+−4.295875165629892×103 and −1.580732573678431×104, while for the Class
+B problem the sums are 4.033815542441498×104 and −2.660669192809235×
+104. Each of the ten Ql counts must agree exactly with reference values, which
+are given in table 2.1.
+Operations to be Timed
+All of the operations described above are to be timed, including tabulation
+and output.
+15
+
+
+Other Features
+• This problem is typical of many Monte Carlo simulation applications.
+• The only requirement for communication is the combination of the 10
+sums from various processors at the end.
+• Separate sections of the uniform pseudorandom numbers can be inde-
+pendently computed on separate processors. See section 2.3 for details.
+• The smallest distance between a ﬂoating-point value and a nearby in-
+teger among the rj, Xk and Yk values is 3.2 × 10−11, which is well
+above the achievable accuracy using 64 bit ﬂoating arithmetic on ex-
+isting computer systems. Thus if a truncation discrepancy occurs, it
+implies a problem with the system hardware or software.
+2.2.2
+Kernel MG: a simple 3D multigrid benchmark
+E. Barszcz and P. Frederickson
+Brief Statement of Problem
+Four iterations of the V-cycle multigrid algorithm described below are
+used to obtain an approximate solution u to the discrete Poisson problem
+∇2u = v
+on a 256 × 256 × 256 grid with periodic boundary conditions.
+Detailed Description
+Set v = 0 except at the twenty points listed in table 2.2. where v = ±1.
+(These points were determined as the locations of the ten largest and ten
+smallest pseudorandom numbers generated as in Kernel FT.)
+Begin the iterative solution with u = 0.
+Each of the four iterations
+consists of the following two steps, in which k = 8 = log2(256):
+r = v −A u
+(evaluate residual)
+u = u + M k r
+(apply correction)
+Here M k denotes the V-cycle multigrid operator, deﬁned in table 2.3.
+16
+
+
+vi,j,k
+(i,j,k)
+–1.0
+211,154, 98
+102,138,112
+101,156, 59
+17,205, 32
+92, 63,205
+199, 7,203
+250,170,157
+82,184,255
+154,162, 36
+223, 42,240
++1.0
+57,120,167
+5,118,175
+176,246,164
+45,194,234
+212, 7,248
+115,123,207
+202, 83,209
+203, 18,198
+243,172, 14
+54,209, 40
+Table 2.2: Nonzero values for v
+zk
+=
+M krk
+:
+if k > 1
+rk−1
+= P rk
+(restrict residual)
+zk−1
+= M k−1rk−1
+(recursive solve)
+zk
+= Q zk−1
+(prolongate)
+rk
+= rk −A zk
+(evaluate residual)
+zk
+= zk + S rk
+(apply smoother)
+else
+z1
+= S r1.
+(apply smoother)
+Table 2.3: V-cycle multigrid operator
+In this deﬁnition A denotes the trilinear ﬁnite element discretization of
+the Laplacian ∇2 normalized as indicated in table 2.4, where the coeﬃcients
+of P, Q, and S are also listed.
+In this table c0 denotes the central coeﬃcient of the 27-point operator, when
+these coeﬃcients are arranged as a 3 × 3 × 3 cube. Thus c0 is the coeﬃcient
+that multiplies the value at the gridpoint (i,j,k), while c1 multiplies the six
+values at grid points which diﬀer by one in exactly one index, c2 multiplies
+the next closest twelve values, those that diﬀer by one in exactly two indices,
+and c3 multiplies the eight values located at grid points that diﬀer by one
+in all three indices. The restriction operator P given in this table is the
+trilinear projection operator of ﬁnite element theory, normalized so that the
+coeﬃcients of all operators are independent of level, and is half the transpose
+of the trilinear interpolation operator Q.
+17
+
+
+C
+c0
+c1
+c2
+c3
+A
+−8.0/3.0
+0.0
+1.0/6.0
+1.0/12.0
+P
+1.0/2.0
+1.0/4.0
+1.0/8.0
+1.0/16.0
+Q
+1.0
+1.0/2.0
+1.0/4.0
+1.0/8.0
+S(a)
+−3.0/8.0
++1.0/32.0
+−1.0/64.0
+0.0
+S(b)
+−3.0/17.0
++1.0/33.0
+−1.0/61.0
+0.0
+Table 2.4: Coeﬃcients for trilinear ﬁnite element discretization
+Veriﬁcation Test
+Class A: Evaluate the residual after four iterations of the V-cycle multi-
+grid algorithm using the coeﬃcients from the S(a) row for the smoothing
+operator S, and verify that its L2 norm
+∥r∥2 = [ (
+X
+i,j,k
+ri,j,k )/2563 ]1/2
+agrees with the reference value
+0.2433365309 × 10−05
+within an absolute tolerance of 10−14.
+Class B: The array size is the same as for Class A (256), but 20 iterations
+must be performed using the coeﬃcients from the S(b) row for the smoothing
+operator S. The output L2 norms must agree with the reference value
+0.180056440132 × 10−05
+within an absolute tolerance of 10−14.
+Timing
+Start the clock before evaluating the residual for the ﬁrst time, and after
+initializing u and v. Stop the clock after evaluating the norm of the ﬁnal
+residual, but before displaying or printing its value.
+18
+
+
+2.2.3
+Kernel CG: Solving an unstructured sparse linear system
+by the conjugate gradient method
+R. Schreiber, H. Simon, and R. Carter
+Brief Statement of Problem
+This benchmark uses the inverse power method to ﬁnd an estimate of
+the largest eigenvalue of a symmetric positive deﬁnite sparse matrix with a
+random pattern of nonzeros.
+Detailed Description
+In the following, A denotes the sparse matrix of order n, lower case Roman
+letters are vectors, xj is the jth component of the vector x, and superscript
+“T” indicates the usual transpose operator. Lower case Greek letters are
+scalars. We denote by ||x|| the Euclidean norm of a vector x, ||x|| =
+√
+xTx.
+All quantities are real. The inverse power method is to be implemented as
+follows:
+x = [1, 1, . . . , 1]T;
+(start timing here)
+DO it = 1, niter
+Solve the system Az = x and return ||r||, as described below
+ζ = λ + 1/(xTz)
+Print it, ||r||, and ζ
+x = z/||z||
+ENDDO
+(stop timing here)
+Values for the size of the system n, number of outer iterations niter, and
+the shift λ for three diﬀerent problem sizes are provided in table 2.5. The
+solution z to the linear system of equations Az = x is to be approximated us-
+ing the conjugate gradient (CG) method. This method is to be implemented
+as follows:
+z = 0
+19
+
+
+r = x
+ρ = rTr
+p = r
+DO i = 1, 25
+q = Ap
+α = ρ/(pTq)
+z = z + αp
+ρ0 = ρ
+r = r −αq
+ρ = rTr
+β = ρ/ρ0
+p = r + βp
+ENDDO
+compute residual norm explicitly: ||r|| = ||x −Az||
+Size
+n
+niter
+NONZER
+λ
+Sample
+1400
+15
+7
+10
+Class A
+14000
+15
+11
+20
+Class B
+75000
+75
+13
+60
+Table 2.5: Input parameters for CG benchmark
+Veriﬁcation Test
+The program should print, at every outer iteration of the power method,
+the iteration number it, the eigenvalue estimate ζ, and the Euclidean norm
+||r|| of the residual vector at the last CG iteration (the vector r in the dis-
+cussion of CG above). For each size problem the computer value of ζ must
+agree with the reference value ζREF within a tolerance of 1.0 × 10−10, i.e.,
+|ζ −ζREF| ≤1.0 × 10−10. These reference values ζREF are provided in table
+2.6.
+Timing
+The reported time must be the wall-clock time required to compute all
+niter iterations and print the results, after the matrix is generated and down-
+loaded into the system, and after the initialization of the starting vector x.
+20
+
+
+Computed
+FLOP
+mem
+Size
+nonzeros
+×109
+(MW)
+ζREF
+Sample
+78148
+0.066
+1.0
+8.59717750786234
+Class A
+1853104
+1.50
+10.0
+17.13023505380784
+Class B
+13708072
+54.9
+96.7
+22.712745482078
+Table 2.6: Output parameters for CG benchmark
+It is permissible initially to reorganize the sparse matrix data structure
+(arow, acol, aelt), which is produced by the matrix generation routine (de-
+scribed below), to a data structure better suited for the target machine.
+The original or the reorganized sparse matrix data structure can then be
+subsequently used in the conjugate gradient interation. Time spent in the
+initial reorganization of the data structure will not be counted towards the
+benchmark time.
+It is also permissible to use several diﬀerent data structures for the matrix
+A, keep multiple copies of the matrix A, or to write A to mass storage and
+read it back in. However, the time for any data movements, which take place
+within the power iterations (outer iteration) or within the conjugate gradient
+iterations (inner iteration), must be included in the reported time.
+However, the matrix A must be used explicitly. By saving the random
+sparse vectors x used in makea (see below), it is possible to reformulate the
+sparse matrix-vector multiply operation in such a way that communication
+is substantially reduced (to only a few dense vectors), and sparse operations
+are restricted to the processing nodes. Although this scheme of matrix-vector
+multiplication technically satisﬁed the original rules of the CG benchmark, it
+defeats this benchmark’s intended purpose of measuring random communi-
+cation performance. Therefore this scheme is no longer allowed, and results
+employing implicit matrix-vector multiplication based on the outer prod-
+uct representation of the sparse matrix are no longer considered to be valid
+benchmark results.
+Other Features
+The input sparse matrix A is generated by a Fortran 77 subroutine called
+makea, which is provided on the sample code disk described in section 1.3.
+21
+
+
+In this program, the random number generator is initialized with a = 513
+and s = 314159265. Then the subroutine makea is called to generate the
+matrix A. This program may not be changed. In the makea subroutine the
+matrix A is represented by the following Fortran 77 variables:
+N (INTEGER)—the number of rows and columns
+NZ (INTEGER)—the number of nonzeros
+A (REAL*8)—array of NZ nonzeros
+IA (INTEGER)—array of NZ row indices. Element A(K) is in row IA(K) for
+all 1 ≤K ≤NZ.
+JA (INTEGER)—array of N+1 pointers to the beginnings of columns. Column
+J of the matrix is stored in positions JA(J) through JA(J+1)-1 of A and IA.
+JA(N+1) contains NZ+1.
+The code generates the matrix as the weighted sum of N outer products
+of random sparse vectors x:
+A =
+N
+X
+i=1
+ωixxT
+where the weights ωi are a geometric sequence with ω1 = 1 and the ratio
+chosen so that ωN = 0.1. The vectors x are chosen to have a few randomly
+placed nonzeros, each of which is a sample from the uniform distribution
+on (0, 1). Furthermore, the ith element of xi is set to 1/2 to insure that
+A cannot be structurally singular.
+Finally, 0.1 is added to the diagonal
+of A.
+This results in a matrix whose condition number (the ratio of its
+largest eigenvalue to its smallest) is roughly 10. The number of randomly
+chosen elements of x is provided for each problem size in table 2.5, in the
+“NONZER” column. The ﬁnal number of nonzeros of A are listed in table 2.6
+in the “computed nonzeros” column. As implemented in the sample codes,
+the shift λ of the main diagonal of A is the ﬁnal task in subroutine makea.
+Values are provided for λ in table 2.5.
+The data structures used are these. First, a list of triples (arow, acol, aelt)
+is constructed. Each of these represents an element in row i = arow, column
+j = acol, with value aij = aelt. When the arow and acol entries of two of
+these triples coincide, then the values in their aelt ﬁelds are added together in
+creating aij. The process of assembling the matrix data structures from the
+list of triples, including the process of adding coincident entries, is done by
+the subroutine sparse, which is called by makea and is also provided. For
+22
+
+
+examples and more details on this sparse data structure, consult section 2.7
+of the book by Duﬀ, Erisman, and Reid [3].
+2.2.4
+Kernel FT: A 3-D fast-Fourier transform partial diﬀerential
+equation benchmark
+D. Bailey and P. Frederickson
+Brief Statement of Problem
+Numerically solve a certain partial diﬀerential equation (PDE) using for-
+ward and inverse FFTs.
+Detailed Description
+Consider the PDE
+∂u(x, t)
+∂t
+=
+α∇2u(x, t)
+where x is a position in three-dimensional space. When a Fourier transform
+is applied to each side, this equation becomes
+∂v(z, t)
+∂t
+=
+−4απ2|z|2v(z, t)
+where v(z, t) is the Fourier transform of u(x, t). This has the solution
+v(z, t)
+=
+e−4απ2|z|2tv(z, 0)
+Now consider the discrete version of the original PDE. Following the
+above steps, it can be solved by computing the forward 3-D discrete Fourier
+transform (DFT) of the original state array u(x, 0), multiplying the results by
+certain exponentials, and then performing an inverse 3-D DFT. The forward
+DFT and inverse DFT of the n1 × n2 × n3 array u are deﬁned respectively as
+Fq,r,s(u)
+=
+n3−1
+X
+l=0
+n2−1
+X
+k=0
+n1−1
+X
+j=0
+uj,k,le−2πijq/n1e−2πikr/n2e−2πils/n3
+F −1
+q,r,s(u)
+=
+1
+n1n2n3
+n3−1
+X
+l=0
+n2−1
+X
+k=0
+n1−1
+X
+j=0
+uj,k,le2πijq/n1e2πikr/n2e2πils/n3
+The speciﬁc problem to be solved for the Class A benchmark is as follows.
+Set n1 = 256, n2 = 256, and n3 = 128. Generate 2n1n2n3 64-bit pseudo-
+random ﬂoating point values using the pseudorandom number generator in
+23
+
+
+section 2.3, starting with the initial seed 314159265. Then ﬁll the complex
+array Uj,k,l, 0 ≤j < n1, 0 ≤k < n2, 0 ≤l < n3, with this data, where the
+ﬁrst dimension varies most rapidly as in the ordering of a 3-D Fortran array.
+A single complex number entry of U consists of two consecutive pseudoran-
+domly generated results. Compute the forward 3-D DFT of U, using a 3-D
+fast Fourier transform (FFT) routine, and call the result V . Set α = 10−6
+and set t = 1. Then compute
+Wj,k,l
+=
+e−4απ2(¯j2+¯k2+¯l2)tVj,k,l
+where ¯j is deﬁned as j for 0 ≤j < n1/2 and j −n1 for n1/2 ≤j < n1.
+The indices ¯k and ¯l are similarly deﬁned with n2 and n3. Then compute an
+inverse 3-D DFT on W, using a 3-D FFT routine, and call the result the
+array X. Finally, compute the complex checksum P1023
+j=0 Xq,r,s where q = j
+(mod n1), r = 3j
+(mod n2) and s = 5j
+(mod n3). After the checksum for
+this t has been output, increment t by one. Then repeat the above process,
+from the computation of W through the incrementing of t, until the step
+t = N has been completed. In this benchmark, N = 6. The V array and the
+array of exponential terms for t = 1 need only be computed once. Note that
+the array of exponential terms for t > 1 can be obtained as the t-th power of
+the array for t = 1.
+This completes the deﬁnition of the Class A problem. The Class B prob-
+lem is the same except that n1 = 512, n2 = 256, n3 = 256, and N = 20.
+Any algorithm may be used for the computation of the 3-D FFTs men-
+tioned above. One algorithm is the following. Assume that the data in the
+input n1 × n2 × n3 complex array A are organized so that for each k and l,
+all elements of the complex vector (Aj,k,l, 0 ≤j < n1) are contained within a
+single processing node. First perform an n1-point 1-D FFT on each of these
+n2n3 complex vectors. Then transpose the resulting array into an n2×n3×n1
+complex array B. Next, perform an n2-point 1-D FFT on each of the n3n1
+ﬁrst-dimension complex vectors of B. Again note that each of the 1-D FFTs
+can be performed locally within a single node. Then transpose the resulting
+array into an n3 × n1 × n2 complex array C. Finally, perform an n3-point
+1-D FFT on each of the n1n2 ﬁrst-dimension complex vectors of C. Then
+transpose the resulting array into an n1 × n2 × n3 complex array D. This
+array D is the ﬁnal 3-D FFT result.
+Algorithms for performing an individual 1-D complex-to-complex FFT
+are well known and will not be presented here. Readers are referred to [4, 5, 6,
+24
+
+
+7, 8] for details. It should be noted that some of these FFTs are “unordered”
+FFTs, i.e., the results are not in the correct order but instead are scrambled
+by a bit-reversal permutation. Such FFTs may be employed if desired, but
+it should be noted that in this case the ordering of the exponential factors in
+the deﬁnition of Wj,k,l above must be similarly scrambled in order to obtain
+the correct results. Also, the ﬁnal result array X may be scrambled, in which
+case the checksum calculation will have to be changed accordingly.
+It should be noted that individual 1-D FFTs, array transpositions, and
+even entire 3-D FFT operations may be performed using vendor-supplied
+library routines. See sections 1.2.2 and 1.2.3 for details.
+Operations to be Timed
+All of the above operations, including the checksum calculations, must
+be timed.
+Veriﬁcation Test
+The N complex checksums must agree with reference values to within one
+part in 1012. For the parameter sizes speciﬁed above, the reference values are
+given in table 2.7.
+Other Features
+• 3-D FFTs are a key part of certain CFD applications, notably large
+eddy turbulence simulations.
+• The 3-D FFT steps require considerable communication for operations
+such as array transpositions.
+2.2.5
+Kernel IS: Parallel sort over small integers
+L. Dagum
+Brief Statement of Problem
+Sort N keys in parallel. The keys are generated by the sequential key
+generation algorithm given below and initially must be uniformly distributed
+in memory. The initial distribution of the keys can have a great impact on
+the performance of this benchmark, and the required distribution is discussed
+in detail below.
+25
+
+
+Class A
+Class B
+t
+Real Part
+Imaginary Part
+t
+Real Part
+Imaginary Part
+1
+504.6735008193
+511.4047905510
+1
+517.7643571579
+507.7803458597
+2
+505.9412319734
+509.8809666433
+2
+515.4521291263
+508.8249431599
+3
+506.9376896287
+509.8144042213
+3
+514.6409228649
+509.6208912659
+4
+507.7892868474
+510.1336130759
+4
+514.2378756213
+510.1023387619
+5
+508.5233095391
+510.4914655194
+5
+513.9626667737
+510.3976610617
+6
+509.1487099959
+510.7917842803
+6
+513.7423460082
+510.5948019802
+7
+513.5547056878
+510.7404165783
+8
+513.3910925466
+510.8576573661
+9
+513.2470705390
+510.9577278523
+10
+513.1197729984
+511.0460304483
+11
+513.0070319283
+511.1252433800
+12
+512.9070537032
+511.1968077718
+13
+512.8182883502
+511.2616233064
+14
+512.7393733383
+511.3203605551
+15
+512.6691062020
+511.3735928093
+16
+512.6064276004
+511.4218460548
+17
+512.5504076570
+511.4656139760
+18
+512.5002331720
+511.5053595966
+19
+512.4551951846
+511.5415130407
+20
+512.4146770029
+511.5744692211
+Table 2.7: FT Benchmark Checksums
+26
+
+
+Deﬁnitions
+A sequence of keys, {Ki
+|
+i = 0, 1, . . . , N −1}, will be said to be
+sorted if it is arranged in non–descending order, i.e., Ki ≤Ki+1 ≤Ki+2 . . ..
+The rank of a particular key in a sequence is the index value i that the
+key would have if the sequence of keys were sorted. Ranking, then, is the
+process of arriving at a rank for all the keys in a sequence.
+Sorting is
+the process of permuting the the keys in a sequence to produce a sorted
+sequence.
+If an initially unsorted sequence, K0, K1, . . . , KN−1 has ranks
+r(0), r(1), . . . , r(N −1), the sequence becomes sorted when it is rearranged in
+the order Kr(0), Kr(1), . . . , Kr(N−1). Sorting is said to be stable if equal keys
+retain their original relative order. In other words, a sort is stable only if
+r(i) < r(j) whenever Kr(i) = Kr(j) and i < j. Stable sorting is not required
+for this benchmark.
+Memory Mapping
+The benchmark requires ranking an unsorted sequence of N keys. The
+initial sequence of keys will be generated in an unambiguous sequential man-
+ner as described below. This sequence must be mapped into the memory
+of the parallel processor in one of the following ways depending on the type
+of memory system. In all cases, one key will map to one word of memory.
+Word size must be no less than 32 bits. Once the keys are loaded onto the
+memory system, they are not to be moved or modiﬁed except as required by
+the procedure described in the Procedure subsection.
+Shared Global Memory
+All N keys initially must be stored in a contiguous address space. If Ai is
+used to denote the address of the ith word of memory, then the address space
+must be [Ai, Ai+N−1]. The sequence of keys, K0, K1, . . . , KN−1, initially must
+map to this address space as
+Ai+j ←−MEM(Kj)
+for
+j = 0, 1, . . . , N −1
+(2.1)
+where MEM(Kj) refers to the address of Kj.
+Distributed Memory
+In a distributed memory system with p distinct memory units, each mem-
+ory unit initially must store Np keys in a contiguous address space, where
+Np = N/p
+(2.2)
+27
+
+
+If Ai is used to denote the address of the ith word in a memory unit, and
+if Pj is used to denote the jth memory unit, then Pj ∩Ai will denote the
+address of the ith word in the jth memory unit. Some initial addressing (or
+“ordering”) of memory units must be assumed and adhered to throughout the
+benchmark. Note that the addressing of the memory units is left completely
+arbitrary. If N is not evenly divisible by p, then memory units {Pj
+|
+j =
+0, 1, . . . , p −2} will store Np keys, and memory unit Pp−1 will store Npp keys,
+where now
+Np
+=
+⌊N/p + 0.5⌋
+Npp
+=
+N −(p −1)Np
+In some cases (in particular if p is large) this mapping may result in a
+poor initial load balance with Npp >> Np. In such cases it may be desirable
+to use p′ memory units to store the keys, where p′ < p. This is allowed, but
+the storage of the keys still must follow either equation 2.2 or equations 2.3–
+2.3 with p′ replacing p. In the following we will assume N is evenly divisible
+by p. The address space in an individual memory unit must be [Ai, Ai+Np−1].
+If memory units are individually hierarchical, then Np keys must be stored
+in a contiguous address space belonging to a single memory hierarchy and
+Ai then denotes the address of the ith word in that hierarchy.
+The keys
+cannot be distributed among diﬀerent memory hierarchies until after timing
+begins. The sequence of keys, K0, K1, . . . , KN−1, initially must map to this
+distributed memory as
+Pk ∩Ai+j ←−MEM(KkNp+j)
+for
+j = 0, 1, . . . , Np −1
+and
+k = 0, 1, . . . , p −1
+where MEM(KkNp+j) refers to the address of KkNp+j. If N is not evenly
+divisible by p, then the mapping given above must be modiﬁed for the case
+where k = p −1 as
+Pp−1 ∩Ai+j ←−MEM(K(p−1)Np+j)
+for
+j = 0, 1, . . . , Npp −1. (2.3)
+Hierarchical Memory
+All N keys initially must be stored in an address space belonging to a
+single memory hierarchy which will here be referred to as the main memory.
+Note that any memory in the hierarchy which can store all N keys may
+28
+
+
+be used for the initial storage of the keys, and the use of the term “main
+memory” in the description of this benchmark should not be confused with
+the more general deﬁnition of this term in section 1.2.1. The keys cannot
+be distributed among diﬀerent memory hierarchies until after timing begins.
+The mapping of the keys to the main memory must follow one of either the
+shared global memory or the distributed memory mappings described above.
+The benchmark requires computing the rank of each key in the sequence.
+The mappings described above deﬁne the initial ordering of the keys. For
+shared global and hierarchical memory systems, the same mapping must be
+applied to determine the correct ranking. For the case of a distributed mem-
+ory system, it is permissible for the mapping of keys to memory at the end of
+the ranking to diﬀer from the initial mapping only in the following manner:
+the number of keys mapped to a memory unit at the end of the ranking may
+diﬀer from the initial value, Np. It is expected, in a distributed memory
+machine, that good load balancing of the problem will require changing the
+initial mapping of the keys and for this reason a diﬀerent mapping may be
+used at the end of the ranking. If Npk is the number of keys in memory
+unit Pk at the end of the ranking, then the mapping which must be used to
+determine the correct ranking is given by
+Pk ∩Ai+j ←−MEM(r(kNpk + j))
+for
+j = 0, 1, . . . , Npk −1
+and
+k = 0, 1, . . . , p −1
+where r(kNpk +j) refers to the rank of key KkNpk+j. Note, however, this does
+not imply that the keys, once loaded into memory, may be moved. Copies of
+the keys may be made and moved, but the original sequence must remain in-
+tact such that each time the ranking process is repeated (Step 4 of Procedure)
+the original sequence of keys exists (except for the two modiﬁcations of Step
+4a) and the same algorithm for ranking is applied. Speciﬁcally, knowledge
+obtainable from the communications pattern carried out in the ﬁrst ranking
+cannot be used to speed up subsequent rankings and each iteration of Step
+4 should be completely independent of the previous iteration.
+Key Generation Algorithm
+The algorithm for generating the keys makes use of the pseudorandom
+number generator described in section 2.3. The keys will be in the range
+29
+
+
+Rank (full)
+Full scale
+Rank (sample)
+Sample code
+r(2112377)
+104 + i
+r(48427)
+0 + i
+r(662041)
+17523 + i
+r(17148)
+18 + i
+r(5336171)
+123928 + i
+r(23627)
+346 + i
+r(3642833)
+8288932 −i
+r(62548)
+64917 −i
+r(4250760)
+8388264 −i
+r(4431)
+65463 −i
+Table 2.8: Values to be used for partial veriﬁcation
+[0, Bmax). Let rf be a random fraction uniformly distributed in the range
+[0, 1], and let Ki be the ith key. The value of Ki is determined as
+Ki ←−⌊Bmax(r4i+0+r4i+1+r4i+2+r4i+3)/4⌋
+for
+i = 0, 1, . . . , N−1.(2.4)
+Note that Ki must be an integer and ⌊·⌋indicates truncation. Four consecu-
+tive pseudorandom numbers from the pseudorandom number generator must
+be used for generating each key. All operations before the truncation must be
+performed in 64-bit double precision. The random number generator must
+be initialized with s = 314159265 as a starting seed.
+Partial Veriﬁcation Test
+Partial veriﬁcation is conducted for each ranking performed. Partial ver-
+iﬁcation consists of comparing a particular subset of ranks with the reference
+values. The subset of ranks and the reference values are given in table 2.8.
+Note that the subset of ranks is selected to be invariant to the ranking
+algorithm (recall that stability is not required in the benchmark). This is
+accomplished by selecting for veriﬁcation only the ranks of unique keys. If
+a key is unique in the sequence (i.e., there is no other equal key), then it
+will have a unique rank despite an unstable ranking algorithm. The memory
+mapping described in the Memory Mapping subsection must be applied.
+Full Veriﬁcation Test
+Full veriﬁcation is conducted after the last ranking is performed. Full
+veriﬁcation requires the following:
+1. Rearrange the sequence of keys, {Ki
+|
+i = 0, 1, . . . , N −1}, in the
+30
+
+
+order {Kj
+|
+j = r(0), r(1), . . . , r(N−1)}, where r(0), r(1), . . . , r(N−
+1) is the last computed sequence of ranks.
+2. For every Ki from i = 0 . . . N −2 test that Ki ≤Ki+1.
+If the result of this test is true, then the keys are in sorted order. The memory
+mapping described in the Memory Mapping subsection must be applied.
+Procedure
+1. In a scalar sequential manner and using the key generation algorithm
+described above, generate the sequence of N keys.
+2. Using the appropriate memory mapping described above, load the N
+keys into the memory system.
+3. Begin timing.
+4. Do, for i = 1 to Imax
+(a) Modify the sequence of keys by making the following two changes:
+Ki
+←−
+i
+Ki+Imax
+←−
+(Bmax −i)
+(b) Compute the rank of each key.
+(c) Perform the partial veriﬁcation test described above.
+5. End timing.
+6. Perform full veriﬁcation test described above.
+Speciﬁcations
+The speciﬁcations given in table 2.9 shall be used in the benchmark. Two
+sets of values are given, one for Class A and one for Class B.
+For partial veriﬁcation, the reference values given in table 2.8 are to be
+used.
+In this table, r(j) refers to the rank of Kj and i is the iteration
+of Step 4 of the Procedure.
+Again two sets of values are given, the Full
+Scale set being for the actual benchmark and the Sample Code set being
+for development purposes.
+It should be emphasized that the benchmark
+31
+
+
+Parameter
+Class A
+Class B
+N
+223
+225
+Bmax
+219
+221
+seed
+314159265
+314159265
+Imax
+10
+10
+Table 2.9: Parameter values to be used for benchmark
+measures the performance based on use of the Full Scale values, and the
+Sample Code values are given only as a convenience to the implementor.
+Also to be supplied to the implementor is Fortran 77 source code for the
+sequential implementation of the benchmark using the Sample Code values
+and with partial and full veriﬁcation tests.
+2.3
+A Pseudorandom Number Generator for the Par-
+allel NAS Kernels
+D. Bailey
+Suppose that n uniform pseudorandom numbers are to be generated. Set
+a = 513 and let x0 = s be a speciﬁed initial “seed,” i.e., an integer in the
+range 0 < s < 246. Generate the integers xk for 1 ≤k ≤n using the linear
+congruential recursion
+xk+1
+=
+axk
+(mod 246)
+and return rk = 2−46xk as the results. Thus 0 < rk < 1, and the rk are
+very nearly uniformly distributed on the unit interval. See [2], beginning on
+page 9 for further discussion of this type of pseudorandom number generator.
+Note that any particular value xk of the sequence can be computed di-
+rectly from the initial seed s by using the binary algorithm for exponentiation,
+taking remainders modulo 246 after each multiplication. To be speciﬁc, let m
+be the smallest integer such that 2m > k, set b = s and t = a. Then repeat
+the following for i from 1 to m:
+j
+←
+k/2
+32
+
+
+b
+←
+bt
+(mod 246)
+if 2j ̸= k
+t
+←
+t2
+(mod 246)
+k
+←
+j
+The ﬁnal value of b is xk = aks
+(mod 246). See [2] for further discussion of
+the binary algorithm for exponentiation.
+The operation of multiplying two large integers modulo 246 can be imple-
+mented using 64 bit ﬂoating point arithmetic by splitting the arguments into
+two words with 23 bits each. To be speciﬁc, suppose one wishes to compute
+c = ab
+(mod 246). Then perform the following steps, where int denotes the
+greatest integer:
+a1
+←
+int (2−23a)
+a2
+←
+a −223a1
+b1
+←
+int (2−23b)
+b2
+←
+b −223b1
+t1
+←
+a1b2 + a2b1
+t2
+←
+int (2−23t1)
+t3
+←
+t1 −223t2
+t4
+←
+223t3 + a2b2
+t5
+←
+int (2−46t4)
+c
+←
+t4 −246t5
+An implementation of the complete pseudorandom number generator al-
+gorithm using this scheme produces the same sequence of results on any
+system that satisﬁes the following requirements:
+• The input multiplier a and the initial seed s, as well as the constants
+223, 2−23, 246 and 2−46, can be represented exactly as 64 bit ﬂoating
+point constants.
+• The truncation of a nonnegative 64 bit ﬂoating point value less than
+224 is exact.
+• The addition, subtraction and multiplication of 64 bit ﬂoating point
+values, where the arguments and results are nonnegative whole numbers
+less than 247, produce exact results.
+33
+
+
+• The multiplication of a 64 bit ﬂoating point value, which is a nonneg-
+ative whole number less than 247, by the 64 bit ﬂoating point value
+2−m, 0 ≤m ≤46, produces an exact result.
+These requirements are met by virtually all scientiﬁc computers in use today.
+Any system based on the IEEE-754 ﬂoating point arithmetic standard [1]
+easily meets these requirements using double precision. However, it should
+be noted that obtaining an exact power of two constant on some systems
+requires a loop rather than merely an assignment statement with **.
+Other Features
+• The period of this pseudorandom number generator is 244 = 1.76×1013,
+and it passes all reasonable statistical tests.
+• This calculation can be vectorized on vector computers by generating
+results in batches of size equal to the hardware vector length.
+• By using the scheme described above for computing xk directly, the
+starting seed of a particular segment of the sequence can be quickly
+and independently determined. Thus numerous separate segments can
+be generated on separate processors of a multiprocessor system.
+• Once the IEEE-754 ﬂoating point arithmetic standard gains universal
+acceptance among scientiﬁc computers, the radix 246 can be safely in-
+creased to 252, although the scheme described above for multiplying
+two such numbers must be correspondingly changed. This will increase
+the period of the pseudorandom sequence by a factor of 64 to approxi-
+mately 1.13 × 1015.
+34
+
+
+References
+[1] IEEE Standard for Binary Floating Point Numbers, ANSI/IEEE
+Standard 754-1985. IEEE, New York, 1985.
+[2] Knuth, D. E.: The Art of Computer Programming, Vol. 2.
+Addison-Wesley, 1981.
+[3] Duﬀ, I. S.; Erisman, A. M.; and Reid, J. K.: Direct Methods for Sparse
+Matrices. Clarendon Press, Oxford, 1986.
+[4] Agarwal, R. C.; and Cooley, J. W.: Fourier Transform and
+Convolution Subroutines for the IBM 3090 Vector Facility. IBM
+Journal of Research and Development, vol. 30, 1986, pp. 145-162.
+[5] Bailey, D. H.: A High-Performance FFT Algorithm for Vector
+Supercomputers. International Journal of Supercomputer Applications,
+vol. 2, 1988, pp. 82-87.
+[6] Pease, M. C.: An Adaptation of the Fast Fourier Transform for
+Parallel Processing. Journal of the ACM, 1968, pp. 252-264.
+[7] Swarztrauber, P. N.: FFT Algorithms for Vector Computers. Parallel
+Computing, vol. 1, 1984,
+pp. 45-63.
+[8] Swarztrauber, P. N. Multiprocessor FFTs. Parallel Computing, vol. 5,
+1987, pp. 197-210.
+35
+
+
+3
+A METHODOLOGY FOR BENCHMARK-
+ING SOME CFD KERNELS ON HIGHLY
+PARALLEL PROCESSORS
+Sisira Weeratunga,∗Eric Barszcz, Rod Fatoohi,∗and V. Venkatakrishnan∗
+Summary
+A collection of iterative PDE solvers embedded in a pseudo application pro-
+gram is proposed for the performance evaluation of CFD codes on highly
+parallel processors.
+The pseudo application program is stripped of com-
+plexities associated with real CFD application programs, thereby enabling a
+simpler description of the algorithms. However, it is capable of reproducing
+the essential computation and data motion characteristics of large scale, state
+of the art CFD codes. In this chapter, we present a detailed description of
+the pseudo application program concept. Preceding chapters address our ba-
+sic approach towards the performance evaluation of parallel supercomputers
+targeted for use in numerical aerodynamic simulation.
+3.1
+Introduction
+Computational Fluid Dynamics (CFD) is one of the ﬁelds in the area of
+scientiﬁc computing that has driven the development of modern vector su-
+percomputers. Availability of these high performance computers has led to
+impressive advances in the state of the art of CFD, both in terms of the
+physical complexity of the simulated problems and the development of com-
+putational algorithms capable of extracting high levels of sustained perfor-
+mance. However, to carry out the computational simulations essential for
+future aerospace research, CFD must be able and ready to exploit potential
+performance and cost/performance gains possible through the use of highly
+parallel processing technologies. Use of parallel supercomputers appears to
+be one of the most promising avenues for realizing large complex physical
+simulations within realistic time and cost constraints. Although many of the
+current CFD application programs are amenable to a high degree of parallel
+∗Computer Sciences Corp., Ames Research Center.
+36
+
+
+computation, performance data on such codes for the current generation of
+parallel computers often has been less than remarkable. This is especially
+true for the class of CFD algorithms involving global data dependencies,
+commonly referred to as the implicit methods. Often the bottleneck is data
+motion, due to high latencies and inadequate bandwidth.
+It is a common practice among computer hardware designers to use the
+dense linear equation solution subroutine in the LINPACK to represent the
+scientiﬁc computing workload. Unfortunately, the computational structures
+in most CFD algorithms bear little resemblance to this LINPACK routine,
+both in terms of its parallelization strategy as well as ﬂoating point and
+memory reference features. Most CFD application codes are characterized by
+their use of either regular or irregular sparse data structures and associated
+algorithms.
+One of the reasons for this situation is the near absence of
+communication between computer scientists engaged in the design of high
+performance parallel computers and the computational scientists involved
+in the development of CFD applications. To be eﬀective, such exchange of
+information should occur during the early stages of the design process. It
+appears that one of the contributing factors to this lack of communication is
+the complexity and conﬁdentiality associated with the state-of-the-art CFD
+application codes.
+One way to help the design process is to provide the
+computer scientists with synthetic CFD application programs, which lack
+the complexity of a real application, but at the same time retain all the
+essential computational structures. Such synthetic application codes can be
+accompanied by detailed and simpler descriptions of the algorithms involved.
+In return, the performance data on such synthetic application codes can be
+used to evaluate diﬀerent parallel supercomputer systems at the procurement
+stage by the CFD community.
+Computational ﬂuid dynamics involves the numerical solution of a sys-
+tem of nonlinear partial diﬀerential equations in two or three spatial dimen-
+sions, with or without time dependence. The governing partial diﬀerential
+equations, referred to as the Navier-Stokes equations, represent the laws of
+conservation of mass, momentum and energy applied to a ﬂuid medium in
+motion. These equations, when supplemented by appropriate boundary and
+initial conditions, describe a particular physical problem. To obtain a system
+of equations amenable to solution on a computer requires the discretization
+of the diﬀerential equations through the use of ﬁnite diﬀerence, ﬁnite volume,
+ﬁnite element or spectral methods. The inherent nonlinearities of the govern-
+37
+
+
+ing equations necessitate the use of iterative solution techniques. Over the
+past years, a variety of eﬃcient numerical algorithms have been developed,
+all requiring many ﬂoating point operations and large amounts of computer
+memory to achieve a solution with the desired level of accuracy.
+In current CFD applications, there are two types of computational meshes
+used for the spatial discretization process:
+structured and unstructured.
+Structured meshes are characterized by a consistent, logical ordering of mesh
+points, whose connectivity is associated with a rectilinear coordinate system.
+Computationally, structured meshes give rise to regularly strided memory
+reference characteristics. In contrast, unstructured meshes oﬀer greater free-
+dom in terms of mesh point distribution, but require the generation and
+storage of random connectivity information. Computationally, this results
+in indirect memory addressing with random strides, with its attendant in-
+crease in memory bandwidth requirements. The synthetic application codes
+currently under consideration are restricted to the case of structured meshes.
+The numerical solution algorithms used in CFD codes can be broadly
+categorized as either explicit or implicit, based on the procedure used for
+the time domain integration. Among the advantages of the explicit schemes
+are the high degree of easily exploitable parallelism and the localized spatial
+data dependencies. These properties have resulted in highly eﬃcient imple-
+mentations of explicit CFD algorithms on a variety of current generation
+highly parallel processors. However, the explicit schemes suﬀer from strin-
+gent numerical stability bounds and as a result are not optimal for problems
+that require ﬁne mesh spacing for numerical resolution. In contrast, implicit
+schemes have less stringent stability bounds and are suitable for problems
+involving highly stretched meshes. However, their parallel implementation
+is more diﬃcult and involve local as well as global spatial data dependen-
+cies. In addition, some of the implicit algorithms possess limited degrees of
+exploitable parallelism. At present, we restrict our synthetic applications to
+three diﬀerent representative implicit schemes found in a wide spectrum of
+production CFD codes in use at NASA Ames Research center.
+In the remaining sections of this chapter, we describe the development
+of a collection of synthetic application programs. First we discuss the ratio-
+nale behind this approach followed by a complete description of three such
+synthetic applications. We also outline the problem setup along with the as-
+sociated veriﬁcation tests, when they are used to benchmark highly parallel
+systems.
+38
+
+
+3.2
+Rationale
+In the past, vector supercomputer performance was evaluated through the
+use of suites of kernels chosen to characterize generic computational struc-
+tures present at a site’s workload. For example, NAS Kernels [1] were selected
+to characterize the computational workloads inherent in a majority of algo-
+rithms used by the CFD community at Ames Research Center. However, for
+highly parallel computer systems, this approach is inadequate for the reasons
+outlined below.
+The ﬁrst stage of the pseudo application development process was the
+analysis of a variety of implicit CFD codes and the identiﬁcation of a set of
+generic computational structures that represented a range of computational
+tasks embedded in them. As a result, the following computational kernels
+were selected:
+1. Solution of multiple, independent systems of nondiagonally-dominant,
+block tridiagonal equations with a (5 × 5) block size.
+2. Solution of multiple, independent systems of nondiagonally-dominant,
+scalar pentadiagonal equations.
+3. Regular-sparse, block (5 × 5) matrix-vector multiplication.
+4. Regular-sparse, block (5 × 5) lower and upper triangular system solu-
+tion.
+These kernels constitute a majority of the computationally-intensive, main
+building blocks of the CFD programs designed for the numerical solution of
+three-dimensional (3D), Euler/Navier-Stokes equations using ﬁnite-volume/
+ﬁnite-diﬀerence discretization on structured grids. Kernels (1) and (2) are
+representative of the computations associated with the implicit operator in
+versions of the ARC3D code [2]. These kernels involve global data depen-
+dencies. Although they are similar in many respects, there is a fundamental
+diﬀerence with regard to the communication-to-computation ratio. Kernel
+(3) typiﬁes the computation of the explicit part of almost all CFD algorithms
+for structured grids. Here all data dependencies are local, with either nearest
+neighbor or at most next-to-nearest neighbor type dependencies. Kernel (4)
+represents the computations associated with the implicit operator of a newer
+class of implicit CFD algorithms, typiﬁed by the code INS3D-LU [3]. This
+39
+
+
+kernel may contain only a limited degree of parallelism, relative to the other
+kernels.
+In terms of their parallel implementation, these kernels represent varying
+characteristics with regard to the following aspects, which are often related:
+1. Available degree of parallelism.
+2. Level of parallelism and granularity.
+3. Data space partitioning strategies.
+4. Global vs. local data dependencies.
+5. Inter-processor and in-processor data motion requirements.
+6. Ratio of communication to computation.
+Previous research eﬀorts in adapting algorithms in a variety of ﬂow solvers
+to the current generation of highly parallel processors have indicated that the
+overall performance of many CFD codes is critically dependent on the latency
+and bandwidth of both the in-processor and inter-processor data motion.
+Therefore, it is important for the integrity of the benchmarking process to
+faithfully reproduce a majority of the data motions encountered during the
+execution of applications in which these kernels are embedded. Also, the
+nature and amount of data motion is dependent on the kernel algorithms
+along with the associated data structures and the interaction of these kernels
+among themselves as well as with the remainder of the application that is
+outside their scope.
+To obtain realistic performance data, speciﬁcation of both the incoming
+and outgoing data structures of the kernels should mimic those occuring in
+an application program. The incoming data structure is dependent on the
+section of the code where the data is generated, not on the kernel. The op-
+timum data structure for the kernel may turn out to be suboptimal for the
+code segments where the data is generated and vice versa. Similar consid-
+erations also apply to the outgoing data structure. Allowing the freedom to
+choose optimal incoming and outgoing data structures for the kernel as a
+basis for evaluating its performance is liable to produce results that are not
+applicable to a complete application code. The overall performance should
+reﬂect the cost of data motion that occur between kernels.
+40
+
+
+In order to reproduce most of the data motions encountered in the exe-
+cution of these kernels in a typical CFD application, we propose embedding
+them in a pseudo application code. It is designed for the numerical solution
+of a synthetic system of nonlinear Partial Diﬀerential Equations (PDEs), us-
+ing iterative techniques similar to those found in CFD applications of interest
+to NASA Ames Research Center. However, it contains none of the pre- and
+post-processing required by the full CFD applications, or the interactions of
+the processors and the I/O subsystem. This can be regarded as a stripped-
+down version of a CFD application. It retains the basic kernels that are
+the principal building blocks of the application and admits a majority of the
+interactions required between these basic routines. Also, the stripped-down
+version does not represent a fully conﬁgured CFD application in terms of
+system memory requirements. This fact has the potential for creating data
+partitioning strategies during the parallel implementation of the synthetic
+problem that may be inappropriate for the full application.
+From the point of view of functionality, the stripped-down version does
+not contain the algorithms used to apply boundary conditions as in a real
+application. It is well known that often the boundary algorithms gives rise to
+load imbalances and idling of processors in highly parallel systems. Due to the
+simpliﬁcation of the boundary algorithms, it is likely that the overall system
+performance and eﬃciency data obtained using the stripped-down version
+may be higher than that of an actual application. This eﬀect is somewhat
+mitigated by the fact that for most realistic problems, a relatively small time
+amount of is spent dealing with boundary algorithms when compared to the
+time spent in dealing with the internal mesh points. Also, most boundary
+algorithms involve only local data dependencies.
+Some of the other advantages of the stripped-down application vs. full
+application approach are:
+1. Allows benchmarking where real application codes are conﬁdential.
+2. Easier to manipulate and port from one system to another.
+3. Since only the abstract algorithm is speciﬁed, facilitates new implemen-
+tations that are tied closely to the architecture under consideration.
+4. Allows easy addition of other existing and emerging CFD algorithms
+to the benchmarking process.
+41
+
+
+5. Easily scalable to larger problem sizes.
+It should be noted that this synthetic problem diﬀers from a real CFD
+problem in the following important aspects:
+1. In full CFD application codes, a non-orthogonal coordinate transfor-
+mation [2] is used to map the complex physical domains to the regu-
+lar computational domains, thereby introducing metric coeﬃcients of
+the transformation into the governing PDE’s and boundary conditions.
+Such transformations are absent in the synthetic problem, and as a re-
+sult may have reduced arithmetic complexity and storage requirements.
+2. A blend of nonlinear, second- and fourth-diﬀerence artiﬁcial dissipation
+terms [4] is used in most of the actual CFD codes, whose coeﬃcients
+are determined based on the local changes in pressure. In the stripped-
+down version, only a linear, fourth diﬀerence term is used. This reduces
+the arithmetic and communication complexity needed to compute the
+added higher-order dissipation terms. However, it should be noted that
+computation of these artiﬁcial dissipation terms involve only local data
+dependencies, similar to the matrix-vector multiplication kernel.
+3. In codes where artiﬁcial dissipation is not used, upwind diﬀerencing
+based on either ﬂux-vector splitting [5, 6], ﬂux-diﬀerence splitting [7] or
+Total Variation Diminishing (TVD) schemes [8] is used. The absence of
+such diﬀerencing schemes in the stripped-down version induces eﬀects
+similar to (2) on the performance data.
+4. Absence of turbulence models.
+Computation of terms representing
+some turbulence models involve a combination of local and some long-
+range data dependencies. Arithmetic and communication complexity
+associated with turbulence models are absent.
+In addition, it needs to be emphasized that the stripped-down problem
+is neither designed nor is suitable for the purposes of evaluating the conver-
+gence rates and/or the applicability of various iterative linear system solvers
+used in computational ﬂuid dynamics applications. As mentioned before,
+the synthetic problem diﬀers from the real CFD applications in the following
+important ways:
+1. Absence of realistic boundary algorithms.
+42
+
+
+2. Higher than normal dissipative eﬀects.
+3. Lack of upwind diﬀerencing eﬀects, based on either ﬂux-vector splitting
+or TVD schemes.
+4. Absence of geometric stiﬀness introduced through boundary conform-
+ing coordinate transformations and highly stretched meshes.
+5. Lack of evolution of weak (i.e., C0−) solutions found in real CFD ap-
+plications, during the iterative process.
+6. Absence of turbulence modelling eﬀects.
+Some of these eﬀects tend to suppress the predominantly hyperbolic na-
+ture exhibited by the Navier-Stokes equations, when applied to compressible
+ﬂows at high Reynolds numbers.
+3.3
+Mathematical Problem Deﬁnition
+We consider the numerical solution of the following synthetic system of ﬁve
+nonlinear partial diﬀerential equations (PDEs):
+∂U
+∂τ
+=
+∂E(U)
+∂ξ
++ ∂F(U)
+∂η
++ ∂G(U)
+∂ζ
++∂T(U, Uξ)
+∂ξ
++ ∂V(U, Uη)
+∂η
++ ∂W(U, Uζ)
+∂ζ
++H(U, Uξ, Uη, Uζ),
+(τ, ξ, η, ζ) ∈Dτ × D
+(3.5)
+with the boundary conditions:
+B(U, Uξ, Uη, Uζ)
+=
+UB(τ, ξ, η, ζ),
+(τ, ξ, η, ζ) ∈Dτ × ∂D
+(3.6)
+and initial conditions:
+U
+=
+U0(ξ, η, ζ),
+(ξ, η, ζ) ∈D
+for
+τ = 0
+(3.7)
+where D ∈ℜ3 is a bounded domain, ∂D is its boundary and Dτ = {0 ≤τ ≤
+T}.
+43
+
+
+Also, the solution to the system of PDEs:
+U
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+u(1)
+u(2)
+u(3)
+u(4)
+u(5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+deﬁned in ( D ∪∂D ) × Dτ, is a vector function of temporal variable τ and
+spatial variables (ξ, η, ζ) that form the orthogonal coordinate system in ℜ3,
+i.e.;
+u(m)
+=
+u(m)(τ, ξ, η, ζ)
+The vector functions UB and U0 are given and B is the boundary oper-
+ator. E, F, G, T, V, W and H are vector functions with ﬁve components
+each of the form:
+E
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+e(1)
+e(2)
+e(3)
+e(4)
+e(5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+and e(m) = e(m)(U) etc., are prescribed functions.
+The system given by equations 3.5 through 3.7 is in the ‘normal-form’,
+i.e., it gives explicitly the time derivatives of all the dependent variables
+u(1), u(2), . . . , u(5). Consequently, the Cauchy data at τ = 0, given by equation
+3.7 permits the calculation of solution U(τ, ξ, η, ζ) for τ > 0.
+44
+
+
+In the current implementation of the synthetic PDE system solver, we
+seek a steady-state solution of equations 3.5 through 3.7 of the form:
+U∗= f(ξ, η, ζ) =
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+f (1)
+f (2)
+f (3)
+f (4)
+f (5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+where f (m) = f (m)(ξ, η, ζ) are prescribed functions of the following form:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+f (1)(ξ, η, ζ)
+f (2)(ξ, η, ζ)
+f (3)(ξ, η, ζ)
+f (4)(ξ, η, ζ)
+f (5)(ξ, η, ζ)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=
+
+
+
+
+
+
+
+
+
+C1,1
+C1,2
+. . .
+C1,13
+C2,1
+C2,2
+. . .
+C2,13
+...
+...
+...
+...
+C5,1
+C5,2
+. . .
+C5,13
+
+
+
+
+
+
+
+
+
+e(ξ, η, ζ)
+Here, the vector e is given by
+eT
+=
+(1, ξ, η, ζ, ξ2, η2, ζ2, ξ3, η3, ζ3, ξ4, η4, ζ4, )
+and Cm,n, m = 1, 2, . . . , 5 , n = 1, 2, . . . , 13 are speciﬁed constants. The vec-
+tor forcing function H = [h(1), h(2), h(3), h(4), h(5)]T, where h(m) = h(m)(ξ, η, ζ)
+is chosen such that the system of PDE’s, along with the boundary and initial
+conditions for H, satisﬁes the prescribed exact solution, U∗. This implies
+H∗(ξ, η, ζ)
+=
+−[∂E(U∗)
+∂ξ
++ ∂F(U∗)
+∂η
++ ∂G(U∗)
+∂ζ
++∂T(U∗, U∗
+ξ)
+∂ξ
++ ∂V(U∗, U∗
+η)
+∂η
++ ∂W(U∗, U∗
+ζ)
+∂ζ
+],
+for (ξ, η, ζ) ∈D × Dτ
+45
+
+
+The bounded spatial domain D is speciﬁed to be the interior of the unit
+cube [(0, 1) × (0, 1) × (0, 1)], i.e.:
+D = {(ξ, η, ζ) : 0 < ξ < 1, 0 < η < 1, 0 < ζ < 1}
+and its boundary ∂D, is the surface of the unit cube given by
+∂D = { (ξ, η, ζ) : ξ = 0 or 1} ∪{ (ξ, η, ζ) : η = 0 or 1} ∪{ (ξ, η, ζ) : ζ = 0 or 1}
+The vector functions E, F, G, T, V and W of the synthetic problem are
+speciﬁed to be the following:
+E
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+−u(2)
+−[u(2)]2/u(1) −φ
+−[u(2)u(3)]/u(1)
+−[u(2)u(4)]/u(1)
+−[u(2)/u(1)][u(5) + φ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+F
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+−u(3)
+−[u(2)u(3)]/u(1)
+−[u(3)]2/u(1) −φ
+−[u(3)u(4)]/u(1)
+−[u(3)/u(1)][u(5) + φ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+G
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+−u(4)
+−[u(2)u(4)]/u(1)
+−[u(3)u(4)]/u(1)
+−[u(4)]2/u(1) −φ
+−[u(4)/u(1)][u(5) + φ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+46
+
+
+where
+φ = k2{u(5) −0.5[([u(2)]2 + [u(3)]2 + [u(4)]2)
+u(1)
+]}
+Also
+T
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+d(1)
+ξ (∂u(1)/∂ξ)
+d(2)
+ξ (∂u(2)/∂ξ) + (4/3)k3k4(∂[u(2)/u(1)]/∂ξ)
+d(3)
+ξ (∂u(3)/∂ξ) + k3k4(∂[u(3)/u(1)]/∂ξ)
+d(4)
+ξ (∂u(4)/∂ξ) + k3k4(∂[u(4)/u(1)]/∂ξ)
+t(5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+where
+t(5)
+=
+d(5)
+ξ
+∂u(5)
+∂ξ
++0.5(1 −k1k5) ∂
+∂ξ([u(2)]2 + [u(3)]2 + [u(4)]2
+[u(1)]2
+)
++(1
+6) ∂
+∂ξ[u(2)/u(1)]2 + k1k5
+∂
+∂ξ[u(5)/u(1)]
+V
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+d(1)
+η (∂u(1)/∂η)
+d(2)
+η (∂u(2)/∂η) + k3k4(∂[u(2)/u(1)]/∂η)
+d(3)
+η (∂u(3)/∂η) + (4/3)k3k4(∂[u(3)/u(1)]/∂η)
+d(4)
+η (∂u(4)/∂η) + k3k4(∂[u(4)/u(1)]/∂η)
+v(5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+47
+
+
+where
+v(5)
+=
+d(5)
+η
+∂u(5)
+∂η
++0.5(1 −k1k5) ∂
+∂η([u(2)]2 + [u(3)]2 + [u(4)]2
+[u(1)]2
+)
++(1
+6) ∂
+∂η[u(3)/u(1)]2 + k1k5
+∂
+∂η[u(5)/u(1)]
+W
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+d(1)
+ζ (∂u(1)/∂ζ)
+d(2)
+ζ (∂u(2)/∂ζ) + k3k4(∂[u(2)/u(1)]/∂ζ)
+d(3)
+ζ (∂u(3)/∂ζ) + k3k4(∂[u(3)/u(1)]/∂ζ)
+d(4)
+ζ (∂u(4)/∂ζ) + (4./3.)k3k4(∂[u(4)/u(1)]/∂ζ)
+w(5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+where
+w(5)
+=
+d(5)
+ζ
+∂u(5)
+∂ζ
++ 0.5(1 −k1k5) ∂
+∂ζ ([u(2)]2 + [u(3)]2 + [u(4)]2
+[u(1)]2
+)
++(1
+6) ∂
+∂ζ [u(4)/u(1)]2 + k1k5
+∂
+∂ζ [u(5)/u(1)]
+and k1, k2, k3, k4, k5, d(m)
+ξ
+, d(m)
+η
+, d(m)
+ζ
+(m = 1, 2, . . . , 5) are given constants.
+3.3.1
+The boundary conditions
+The boundary conditions for the system of PDEs is prescribed to be of the
+uncoupled Dirichlet type, and is speciﬁed to be compatible with U∗, such
+that
+u(m) = f (m)(ξ, η, ζ)
+for
+(τ, ξ, η, ζ) ∈Dτ × ∂D
+(3.8)
+and m = 1, 2, . . . , 5.
+48
+
+
+3.3.2
+The initial conditions
+The initial values U0 in D are set to those obtained by a transﬁnite, trilinear
+interpolation [9] of the boundary data given by equation 3.8. Let
+P (m)
+ξ
+=
+(1 −ξ) u(m)(0, η, ζ) + ξ u(m)(1, η, ζ)
+P (m)
+η
+=
+(1 −η) u(m)(ξ, 0, ζ) + η u(m)(ξ, 1, ζ)
+P (m)
+ζ
+=
+(1 −ζ) u(m)(ξ, η, 0) + ζ u(m)(ξ, η, 1).
+(3.9)
+Then
+u(m)(τ = 0, ξ, η, ζ)
+=
+P (m)
+ξ
++ P (m)
+η
++ P (m)
+ζ
+−P (m)
+ξ
+P (m)
+η
+−P (m)
+η
+P (m)
+ζ
+−P (m)
+ζ
+P (m)
+ξ
++P (m)
+ξ
+P (m)
+η
+P (m)
+ζ
+,
+for (ξ, η, ζ) ∈D
+(3.10)
+3.4
+The Numerical Scheme
+Starting from the initial values prescribed by equation 3.10, we seek some
+discrete approximation U∗
+h ∈D to the steady-state solution U∗of equations
+3.5 through 3.7, through the numerical solution of the nonlinear system of
+PDE’s using a pseudo-time marching scheme and a spatial discretization
+procedure based on ﬁnite diﬀerence approximations.
+3.4.1
+Implicit time diﬀerencing
+The independent temporal variable τ is discretized to produce the set
+Dτ = {τn : n ∈[0, N]}
+where the discrete time increment ∆τ is given by
+τn = τn−1 + ∆τ = n∆τ
+Also the discrete approximation of U on Dτ is denoted by
+U(τ) ≈Uτ(n∆τ) = Un
+49
+
+
+A generalized single-step temporal diﬀerencing scheme for advancing the
+solution of equations 3.5 through 3.7 is given by [10]
+∆Un
+=
+β∆τ
+(1 + θ)
+∂∆Un
+∂τ
++
+∆τ
+(1 + θ)
+∂Un
+∂τ
++
+θ
+(1 + θ)∆Un−1
++O[(β −1
+2 −θ)∆τ 2 + ∆τ 3]
+(3.11)
+where the forward diﬀerence operator ∆is deﬁned as
+∆Un
+=
+Un+1 −Un
+With the appropriate choice for the parameters β and θ, equation 3.11
+reproduces many of the well known two- and three-level explicit and implicit
+schemes.
+In this particular case, we are interested only in the two-level,
+ﬁrst-order accurate, Euler implicit scheme given by β = 1 and θ = 0, i.e.:
+∆Un
+=
+∆τ ∂∆Un
+∂τ
++ ∆τ ∂Un
+∂τ
++ O[∆τ 2]
+(3.12)
+Substituting for (∂∆Un/∂τ) and (∂U/∂τ) in equation 3.12, using equations
+3.5 through 3.7, we get
+∆Un
+=
+∆τ[∂(∆En + ∆Tn)
+∂ξ
++ ∂(∆Fn + ∆Vn)
+∂η
++ ∂(∆Gn + ∆Wn)
+∂ζ
+]
++∆τ[∂(E + T)n
+∂ξ
++ ∂(F + V)n
+∂η
++ ∂(G + W)n
+∂ζ
+] + ∆τH∗
+(3.13)
+where ∆En = En+1 −En and En+1 = E(Un+1) etc.
+Equation 3.13 is nonlinear in ∆Un as a consequence of the fact that the
+increments ∆En, ∆Fn, ∆Gn, ∆Tn, ∆Vn and ∆Wn are nonlinear functions
+of the dependent variables U and its derivatives Uξ, Uη and Uζ. A linear
+equation with the same temporal accuracy as equation 3.13 can be obtained
+by a linearization procedure using a local Taylor series expansion in time
+about Un [11, 12];
+En+1
+=
+En + (∂E
+∂τ )n∆τ + O(∆τ 2)
+=
+En + ( ∂E
+∂U)n(∂U
+∂τ )n∆τ + O(∆τ 2)
+(3.14)
+50
+
+
+Also
+Un+1
+=
+Un + (∂U
+∂τ )n∆τ + O(∆τ 2)
+(3.15)
+Then, by combining equations 3.14 and 3.15, we get
+En+1
+=
+En + ( ∂E
+∂U)n(Un+1 −Un) + O(∆τ 2)
+or
+∆En
+=
+An(U)∆Un + O(∆τ 2)
+where A(U) is the Jacobian matrix (∂E/∂U).
+It should be noted that the above non-iterative time-linearization formu-
+lation does not lower the formal order of accuracy of temporal discretization
+in equation 3.13. However, if the steady-state solution is the only objective,
+the quadratic convergence of the Newton-Raphson method (for suﬃciently
+good initial approximations) is recovered only as ∆τ →∞.
+Similarly, the linearization of remaining terms gives
+∆Fn
+=
+( ∂F
+∂U)n∆Un + O(∆τ 2)
+=
+Bn∆Un + O(∆τ 2)
+∆Gn
+=
+(∂G
+∂U)n∆Un + O(∆τ 2)
+=
+Cn∆Un + O(∆τ 2)
+∆Tn
+=
+(∂T
+∂U)n∆Un + ( ∂T
+∂Uξ
+)n∆Un
+ξ + O(∆τ 2)
+=
+Mn∆Un + Nn∆Un
+ξ + O(∆τ 2)
+=
+(M −Nξ)n∆Un + ∂(N∆U)n
+∂ξ
++ O(∆τ 2)
+∆Vn
+=
+(∂V
+∂U)n∆Un + ( ∂V
+∂Uη
+)n∆Un
+η + O(∆τ 2)
+=
+(P −Qη)n∆Un + ∂(Q∆U)n
+∂η
++ O(∆τ 2)
+∆Wn
+=
+(∂W
+∂U )n∆Un + (∂W
+∂Uζ
+)n∆Un
+ζ + O(∆τ 2)
+=
+(R −Sζ)n∆Un + ∂(S∆U)n
+∂ζ
++ O(∆τ 2)
+(3.16)
+51
+
+
+where
+B(U)
+=
+∂F
+∂U
+C(U)
+=
+∂G
+∂U
+M(U, Uξ)
+=
+∂T
+∂U;
+N(U) = ∂T
+∂Uξ
+;
+Nξ(U, Uξ) = ∂N
+∂ξ
+P(U, Uη)
+=
+∂V
+∂U;
+Q(U) = ∂V
+∂Uη
+;
+Qη(U, Uη) = ∂Q
+∂η
+R(U, Uζ)
+=
+∂W
+∂U ;
+S(U) = ∂W
+∂Uζ
+;
+Sζ(U, Uζ) = ∂S
+∂ζ
+When the approximations given by equations 3.16 are introduced into
+equation 3.13, we obtain the following linear equation for ∆Un:
+{I
+−
+∆τ[∂(A + M −Nξ)n
+∂ξ
++ ∂2(N)n
+∂ξ2
++ ∂(B + P −Qη)n
+∂η
++ ∂2(Q)n
+∂η2
++
+∂(C + R −Sζ)n
+∂ζ
++ ∂2(S)n
+∂ζ2
+]}∆Un
+=
+∆τ[∂(E + T)n
+∂ξ
++ ∂(F + V)n
+∂η
++ ∂(G + W)n
+∂ζ
++ H∗]
+(3.17)
+It should be noted that the notation of the form
+[∂(A + M −Nξ)n
+∂ξ
+]∆Un
+is used to represent the expressions as such
+∂[(A + M −Nξ)n∆Un]
+∂ξ
+etc.
+The left hand side (i.e., LHS) of equation 3.17 is referred to as the implicit
+part and the right hand side (i.e., RHS) as the explicit part.
+The solution at the advanced time, τ = (n + 1)∆τ, is given by
+Un+1 = Un + ∆Un
+52
+
+
+The Jacobian matrices for the problem under consideration are given by
+A
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+0
+−1
+0
+0
+0
+[u(2)/u(1)]2 −q
+(k2 −2)[u(2)/u(1)]
+k2[u(3)/u(1)]
+k2[u(4)/u(1)]
+−k2
+[u(2)u(3)]/[u(1)]2
+−[u(3)/u(1)]
+−[u(2)/u(1)]
+0
+0
+[u(2)u(4)]/[u(1)]2
+−[u(4)/u(1)]
+0
+−[u(2)/u(1)]
+0
+a51
+a52
+k2[u(2)u(3)]/[u(1)]2
+k2[u(2)u(4)]/[u(1)]2
+−k1[u(2)/u(1)]
+where
+q
+=
+(k2
+2 ){[u(2)]2 + [u(3)]2 + [u(4)]2
+[u(1)]2
+}
+a51
+=
+{k1[u(5)/u(1)] −2q}[u(2)
+u(1)]
+a52
+=
+(k2
+2 ){3[u(2)]2 + [u(3)]2 + [u(4)]2
+[u(1)]2
+} −k1[u(5)
+u(1)]
+B
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+0
+0
+−1
+0
+0
+[u(2)u(3)]/[u(1)]2
+−[u(3)/u(1)]
+−[u(2)/u(1)]
+0
+0
+[u(3)/u(1)]2 −q
+k2[u(2)/u(1)]
+(k2 −2)[u(3)/u(1)]
+k2[u(4)/u(1)]
+−k2
+[u(3)u(4)]/[u(1)]2
+0
+−[u(4)/u(1)]
+−[u(3)/u(1)]
+0
+b51
+k2[u(2)u(3)]/[u(1)]2
+b53
+k2[u(3)u(4)]/[u(1)]2
+−k1[u(3)/u(1)]
+where
+b51
+=
+{k1[u(5)/u(1)] −2q}[u(3)
+u(1)],
+b53
+=
+(k2
+2 ){[u(2)]2 + 3[u(3)]2 + [u(4)]2
+[u(1)]2
+} −k1[u(5)
+u(1)]
+53
+
+
+C
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+0
+0
+0
+−1
+0
+[u(2)u(4)]/[u(1)]2
+−[u(4)/u(1)]
+0
+−[u(2)/u(1)]
+0
+[u(3)u(4)]/[u(1)]2
+0
+−[u(4)/u(1)]
+−[u(3)/u(1)]
+0
+[u(4)/u(1)]2 −q
+k2[u(2)/u(1)]
+k2[u(3)/u(1)]
+(k2 −2)[u(4)/u(1)]
+−k2
+c51
+k2[u(2)u(4)]/[u(1)]2
+k2[u(3)u(4)]/[u(1)]2
+c54
+−k1[u(4)/u(1)]
+where
+c51
+=
+{k1[u(5)
+u(1)] −2q}[u(4)
+u(1)]
+c54
+=
+(k2
+2 ){[u(2)]2 + [u(3)]2 + 3[u(4)]2
+[u(1)]2
+} −k1[u(5)
+u(1)]
+(M −Nξ)
+=
+[∅]
+N
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+d(1)
+ξ
+0
+0
+0
+0
+−[4/3]k3k4(u(2)/[u(1)]2)
+d(2)
+ξ +
+0
+0
+0
+[4/3]k3k4(1/u(1))
+−k3k4(u(3)/[u(1)]2)
+0
+d(3)
+ξ +
+0
+0
+k3k4(1/u(1))
+−k3k4(u(4)/[u(1)]2)
+0
+0
+d(4)
+ξ +
+0
+k3k4(1/u(1))
+n51
+n52
+n53
+n54
+n55
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+54
+
+
+where
+n51
+=
+−[(4/3)k3k4 −k1k3k4k5]([u(2)]2/[u(1)]3)
+−[k3k4 −k1k3k4k5]([u(3)]2/[u(1)]3)
+−[k3k4 −k1k3k4k5]([u(4)]2/[u(1)]3)
+−k1k3k4k5(u(5)/[u(1)]2)
+n52
+=
+([4/3]k3k4 −k1k3k4k5)(u(2)/[u(1)]2)
+n53
+=
+(k3k4 −k1k3k4k5)(u(3)/[u(1)]2)
+n54
+=
+(k3k4 −k1k3k4k5)(u(4)/[u(1)]2)
+n55
+=
+d(5)
+ξ
++ (k1k3k4k5)(1/u(1))
+(P −Qη)
+=
+[∅]
+Q
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+d(1)
+η
+0
+0
+0
+0
+−k3k4(u(2)/[u(1)]2)
+d(2)
+η +
+0
+0
+0
+k3k4(1/u(1))
+−(4/3)k3k4(u(3)/[u(1)]2)
+0
+d(3)
+η +
+0
+0
+(4/3)k3k4(1/u(1))
+−k3k4(u(4)/[u(1)]2)
+0
+0
+d(4)
+η +
+0
+k3k4(1/u(1))
+q51
+q52
+q53
+q54
+q55
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+where
+q51
+=
+−[k3k4 −k1k3k4k5]([u(2)]2/[u(1)]3)
+−[(4/3)k3k4 −k1k3k4k5]([u(3)]2/[u(1)]3)
+−[k3k4 −k1k3k4k5]([u(4)]2/[u(1)]3)
+−k1k3k4k5(u(5)/[u(1)]2)
+q52
+=
+(k3k4 −k1k3k4k5)(u(2)/[u(1)]2)
+q53
+=
+([4/3]k3k4 −k1k3k4k5)(u(3)/[u(1)]2)
+q54
+=
+(k3k4 −k1k3k4k5)(u(4)/[u(1)]2)
+q55
+=
+d(5)
+η
++ (k1k3k4k5)(1/u(1))
+55
+
+
+(R −Sζ)
+=
+[∅]
+S
+=
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+d(1)
+ζ
+0
+0
+0
+0
+−k3k4(u(2)/[u(1)]2)
+d(2)
+ζ +
+0
+0
+0
+k3k4(1/u(1))
+−k3k4(u(3)/[u(1)]2)
+0
+d(3)
+ζ +
+0
+0
+k3k4(1/u(1))
+−(4./3.)k3k4(u(4)/[u(1)]2)
+0
+0
+d(4)
+ζ +
+0
+(4/3)k3k4(1/u(1))
+s51
+s52
+s53
+s54
+s55
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+where
+s51
+=
+−[k3k4 −k1k3k4k5]([u(2)]2/[u(1)]3)
+−[k3k4 −k1k3k4k5]([u(3)]2/[u(1)]3)
+−[(4/3)k3k4 −k1k3k4k5]([u(4)]2/[u(1)]3)
+−k1k3k4k5(u(5)/[u(1)]2)
+s52
+=
+(k3k4 −k1k3k4k5)(u(2)/[u(1)]2)
+s53
+=
+(k3k4 −k1k3k4k5)(u(3)/[u(1)]2)
+s54
+=
+([4/3]k3k4 −k1k3k4k5)(u(4)/[u(1)]2)
+s55
+=
+d(5)
+ζ
++ (k1k3k4k5)(1/u(1))
+3.4.2
+Spatial discretization
+The independent spatial variables (ξ, η, ζ) are discretized by covering ¯D, ( the
+closure of D), with a mesh of uniform increments ( hξ, hη, hζ ) in each of the
+coordinate directions. The mesh points in the region will be identiﬁed by the
+index-triple (i, j, k), where the indices i ∈[1, Nξ], j ∈[1, Nη] and k ∈[1, Nζ]
+correspond to the discretization of ξ, η and ζ coordinates, respectively.
+Dh ∪∂Dh
+=
+{(ξi, ηj, ζk) : 1 ≤i ≤Nξ, 1 ≤j ≤Nη, 1 ≤k ≤Nζ}
+56
+
+
+where
+ξi
+=
+(i −1)hξ;
+ηj = (j −1)hη;
+ζk = (k −1)hζ
+(3.18)
+and the mesh widths are given by
+hξ
+=
+1/(Nξ −1);
+hη = 1/(Nη −1);
+hζ = 1/(Nζ −1)
+with (Nξ, Nη, Nζ) ∈N being the number of mesh points in ξ−, η−and
+ζ−directions, respectively.
+Then, the set of interior mesh points is given by
+Dh
+=
+{(ξi, ηj, ζk) : 2 ≤i ≤(Nξ −1), 2 ≤j ≤(Nη −1), 2 ≤k ≤(Nζ −1)}
+and the boundary mesh points by
+∂Dh
+=
+{(ξi, ηj, ζk) : i ∈{1, Nξ}} ∪{(ξi, ηj, ζk) :
+j ∈{1, Nη}} ∪{(ξi, ηj, ζk) : k ∈{1, Nζ}}
+Also, the discrete approximation of U in ( ¯D × Dτ) is denoted by
+U(τ, ξ, η, ζ)
+∼=
+U τ
+h(n∆τ, (i −1)hξ, (j −1)hη, (k −1)hζ) = U n
+i,j,k
+3.4.3
+Spatial diﬀerencing
+The spatial derivatives in equation 3.17 are approximated by the appropri-
+ate ﬁnite-diﬀerence quotients, based on the values of U τ
+h at mesh points in
+Dh ∪∂Dh. We use three-point, second-order accurate central diﬀerence ap-
+proximations in each of the three coordinate directions.
+In the computation of the ﬁnite-diﬀerence approximation to the RHS,
+the following two general forms of spatial derivatives are encountered, i.e.:
+∂e(m)(U)
+∂ξ
+and
+∂t(m)(U, Uξ)
+∂ξ
+57
+
+
+The ﬁrst form is diﬀerenced as (using m-th component vector function E as
+an example)
+∂e(m)(U)
+∂ξ
+|i,j,k
+=
+(1/2hξ)[e(m)(Ui+1,j,k) −e(m)(Ui−1,j,k)] + O(h2
+ξ)
+(3.19)
+The second form is approximated as (using m-th component of vector func-
+tion T as an example)
+∂t(m)(U, Uξ)
+∂ξ
+|i,j,k
+=
+(1/hξ){t(m)[(Ui+1,j,k + Ui,j,k
+2
+), (Ui+1,j,k −Ui,j,k
+hξ
+)]
+−
+t(m)[(Ui,j,k + Ui−1,j,k
+2
+), (Ui,j,k −Ui−1,j,k
+hξ
+)]} + O(h2
+ξ)
+(3.20)
+for 2 ≤i ≤(Nξ −1). Similar formulas are used in the η−and ζ−directions
+as well.
+During the ﬁnite-diﬀerence approximation of the spatial derivatives in the
+implicit part, following three general forms are encountered:
+∂[a(m,l)(U)∆u(l)]
+∂ξ
+∂[m(m,l)(U, Uξ)∆u(l)]
+∂ξ
+and
+∂2[n(m,l)(U)∆u(l)]
+∂ξ2
+The ﬁrst form is approximated by the following:
+∂[a(m,l)(U)∆u(l)]
+∂ξ
+|i,j,k
+≈
+[(1/2hξ){a(m,l)(Ui+1,j,k)}]∆u(l)
+i+1,j,k
+−
+[(1/2hξ){a(m,l)(Ui−1,j,k)}]∆u(l)
+i−1,j,k
+(3.21)
+58
+
+
+The second form is diﬀerenced in the following compact three-point form:
+∂[m(m,l)(U, Uξ)∆u(l)]
+∂ξ
+|i,j,k ≈
+[(1/2hξ){m(m,l)[(Ui+1,j,k + Ui,j,k
+2
+), (Ui+1,j,k −Ui,j,k
+hξ
+)]}]∆u(l)
+i+1,j,k
++
+[(1/2hξ){m(m,l)[(Ui+1,j,k + Ui,j,k)
+2
+), (Ui+1,j,k −Ui,j,k
+hξ
+)]
+−
+m(m,l)[(Ui,j,k + Ui−1,j,k
+2
+), (Ui,j,k −Ui−1,j,k
+hξ
+)]}∆u(l)
+i,j,k
+−
+[(1/2hξ){m(m,l)[(Ui,j,k + Ui−1,j,k
+2
+), (Ui,j,k −Ui−1,j,k
+hξ
+)]}]∆u(l)
+i−1,j,k
+(3.22)
+Finally, the third form is diﬀerenced as follows:
+∂2[n(m,l)(U)∆u(l)]
+∂ξ2
+|i,j,k
+≈
+[(1/h2
+ξ){n(m,l)(Ui+1,j,k)}]∆u(l)
+i+1,j,k
+−
+[(2/h2
+ξ){n(m,l)(Ui,j,k)}]∆u(l)
+i,j,k
++
+[(1/h2
+ξ){n(m,l)(Ui−1,j,k)}]∆u(l)
+i−1,j,k
+(3.23)
+3.4.4
+Added higher order dissipation
+When central diﬀerence type schemes are applied to the solution of the Euler
+and Navier-Stokes equations, a numerical dissipation model is included, and
+it plays an important role in determining their success. The form of the
+dissipation model is quite often a blending of second-diﬀerence and fourth-
+diﬀerence dissipation terms [4]. The second-diﬀerence dissipation is nonlinear
+and is used to prevent oscillations in the neighborhood of discontinous (i.e.,
+C0) solutions, and is negligible where the solution is smooth. The fourth-
+diﬀerence dissipation term is basically linear and is included to suppress
+high-frequency modes and allow the numerical scheme to converge to a steady
+state. Near solution discontinuities, it is reduced to zero. It is this term that
+aﬀects the linear stability of the numerical scheme.
+59
+
+
+In the current implementation of the synthetic problem, a linear fourth-
+diﬀerence dissipation term of the following form:
+−∆τ ε [h4
+ξ
+∂4Un
+∂ξ4 + h4
+η
+∂4Un
+∂η4 + h4
+ζ
+∂4Un
+∂ζ4 ]
+is added to the right hand side of equation 3.5. Here, ε is a speciﬁed constant.
+A similar term with Un replaced by ∆Un will appear in the implicit operator,
+if it is desirable to treat the dissipation term implicitly as well.
+In the interior of the computational domain, the fourth-diﬀerence term is
+computed using the following ﬁve-point approximation:
+h4
+ξ
+∂4Un
+∂ξ4 |i,j,k
+≈
+Un
+i+2,j,k −4Un
+i+1,j,k + 6Un
+i,j,k −4Un
+i−1,j,k + Un
+i−2,j,k
+(3.24)
+for 4 ≤i ≤(Nξ −3).
+At the ﬁrst two interior mesh points belonging to either end of the compu-
+tational domain, the standard ﬁve-point-diﬀerence stencil used for the fourth-
+diﬀerence dissipation term is replaced by one-sided or one-sided biased sten-
+cils. These modiﬁcations are implemented so as to maintain a non-positive
+deﬁnite dissipation matrix for the system of diﬀerence equations [16].
+Then, at i = 2:
+h4
+ξ
+∂4Un
+∂ξ4 |i,j,k
+≈
+Un
+i+2,j,k −4Un
+i+1,j,k + 5Un
+i,j,k
+and at i = 3:
+h4
+ξ
+∂4Un
+∂ξ4 |i,j,k
+≈
+Un
+i+2,j,k −4Un
+i+1,j,k + 6Un
+i,j,k −4Un
+i−1,j,k
+Also at i = Nξ −2:
+h4
+ξ
+∂4Un
+∂ξ4 |i,j,k
+≈
+−4Un
+i+1,j,k + 6Un
+i,j,k −4Un
+i−1,j,k + Un
+i−2,j,k
+and at i = Nξ −1:
+h4
+ξ
+∂4Un
+∂ξ4 |i,j,k
+≈
+5Un
+i,j,k −4Un
+i−1,j,k + Un
+i−2,j,k
+60
+
+
+Similar diﬀerence formulas are also used in the η−and ζ−directions.
+Also, for vector functions T, V and W used here:
+(M −Nξ) = 0,
+(P −Qη) = 0,
+(R −Sζ) = 0
+Then, for the cases where added higher order dissipation terms are treated
+only explicitly, equation 3.17 reduces to
+{I
+−
+∆τ[∂(A)n
+∂ξ
++ ∂2(N)n
+∂ξ2
++ ∂(B)n
+∂η
++ ∂2(Q)n
+∂η2
++ ∂(C)n
+∂ζ
++ ∂2(S)n
+∂ζ2
+]}∆Un
+=
+∆τ[∂(E + T)n
+∂ξ
++ ∂(F + V)n
+∂η
++ ∂(G + W)n
+∂ζ
+]
+−
+∆τ ε [h4
+ξ
+∂4Un
+∂ξ4 + h4
+η
+∂4Un
+∂η4 + h4
+ζ
+∂4Un
+∂ζ4 ] + ∆τH∗
+(3.25)
+When the implicit treatment is extended to the added higher order dissipa-
+tion terms as well, equation 3.17 takes the following form:
+{I
+−
+∆τ[∂(A)n
+∂ξ
++ ∂2(N)n
+∂ξ2
+−εh4
+ξ
+∂4(I)
+∂ξ4 + ∂(B)n
+∂η
++ ∂2(Q)n
+∂η2
+−εh4
+η
+∂4(I)
+∂η4
++
+∂(C)n
+∂ζ
++ ∂2(S)n
+∂ζ2
+−εh4
+ζ
+∂4(I)
+∂ζ4 ]}∆Un
+=
+∆τ[∂(E + T)n
+∂ξ
++ ∂(F + V)n
+∂η
++ ∂(G + W)n
+∂ζ
+]
+−
+∆τε[h4
+ξ
+∂4Un
+∂ξ4 + h4
+η
+∂4Un
+∂η4 + h4
+ζ
+∂4Un
+∂ζ4 ] + ∆τH∗
+(3.26)
+The modiﬁed vector forcing function is given by:
+H∗(ξ, η, ζ)
+=
+−[∂E(U∗)
+∂ξ
++ ∂F(U∗)
+∂η
++ ∂G(U∗)
+∂ζ
++
+∂T(U∗, U∗
+ξ)
+∂ξ
++ ∂V(U∗, U∗
+η)
+∂η
++ ∂W(U∗, U∗
+ζ)
+∂ζ
+]
++
+ε[h4
+ξ
+∂4U∗
+∂ξ4 + h4
+η
+∂4U∗
+∂η4 + h4
+ζ
+∂4U∗
+∂ζ4 ],
+for (ξ, η, ζ) ∈D × Dτ
+(3.27)
+61
+
+
+3.4.5
+Computation of the explicit part—RHS
+The discretized form of the explicit part of equation 3.26 is given by:
+[RHS]n|i,j,k
+≈
+∆τ[Dξ(E + T)n + Dη(F + V)n + Dζ(G + W)n]|i,j,k
+−
+∆τ ε [h4
+ξD4
+ξUn + h4
+ηD4
+ηUn + h4
+ζD4
+ζUn]|i,j,k
++
+∆τ[H∗]|i,j,k
+(3.28)
+where Dξ , Dη and Dζ are second-order accurate, central spatial diﬀerencing
+operators, deﬁned in Dh. At each point in the mesh, [RHS]n
+i,j,k is a column
+vector with 5 components. Discretization of added higher order dissipation
+terms was already discussed in section 4.4. Here we consider the computation
+of the ﬁrst term in equation 3.28, using formulas given in equations 3.19 and
+3.20:
+[Dξ(E + T)n
++
+Dη(F + V)n + Dζ(G + W)n]|i,j,k
+=
+(1/2hξ)[E(Un
+i+1,j,k) −E(Un
+i−1,j,k)]
++
+(1/hξ){T[(Un
+i+1,j,k + Un
+i,j,k
+2
+), (Un
+i+1,j,k −Un
+i,j,k
+hξ
+)]
+−
+T[(Un
+i,j,k + Un
+i−1,j,k
+2
+), (Un
+i,j,k −Un
+i−1,j,k
+hξ
+)]}
++
+(1/2hη)[F(Un
+i,j+1,k) −F(Un
+i,j−1,k)]
++
+(1/hη){V[(Un
+i,j+1,k + Un
+i,j,k
+2
+), (Un
+i,j+1,k −Un
+i,j,k
+hη
+)]
+−
+V[(Un
+i,j,k + Un
+i,j−1,k
+2
+), (Un
+i,j,k −Un
+i,j−1,k
+hη
+)]}
++
+(1/2hζ)[G(Un
+i,j,k+1) −G(Un
+i,j,k−1)]
++
+(1/hζ){W[(Un
+i,j,k+1 + Un
+i,j,k
+2
+), (Un
+i,j,k+1 −Un
+i,j,k
+hζ
+)]
+−
+W[(Un
+i,j,k + Un
+i,j,k−1
+2
+), (Un
+i,j,k −Un
+i,j,k−1
+hζ
+)]}
+(3.29)
+for {(i, j, k) ∈Dh}. Also, [RHS]n
+i,j,k = 0 for i = 1 or Nξ, j = 1 or Nη and
+k = 1 or Nζ.
+This right hand side computation is equivalent in terms of both arithmetic
+and communication complexity to a regular sparse block (5×5) matrix-vector
+62
+
+
+multiplication, which is the kernel (c). However, its eﬃcient implementation,
+in this case, does not necessarily require the explicit formation and/or storage
+of the regular sparse matrix.
+3.4.6
+Computation of the forcing vector function
+Given the analytical form of U∗, the forcing vector function H∗can simply be
+evaluated analytically as a function of ξ, η, and ζ, using equation 3.27. This
+function, along with equation 3.18, can then be used to evaluate [H∗]i,j,k,
+which is also a colunm vector with 5 components.
+Here, we opt for a numerical evaluation of [H∗]i,j,k, using [U∗]i,j,k and the
+ﬁnite-diﬀerence approximations of equations 3.19 and 3.20, as in the case of
+equation 3.29.
+[H∗]|i,j,k
+≈
+(1/2hξ)[E(U∗
+i+1,j,k) −E(U∗
+i−1,j,k)]
++
+(1/hξ){T[(U∗
+i+1,j,k + U∗
+i,j,k
+2
+), (U∗
+i+1,j,k −U∗
+i,j,k
+hξ
+)]
+−
+T[(U∗
+i,j,k + U∗
+i−1,j,k
+2
+), (U∗
+i,j,k −U∗
+i−1,j,k
+hξ
+)]}
++
+(1/2hη)[F(U∗
+i,j+1,k) −F(U∗
+i,j−1,k)]
++
+(1/hη){V[(U∗
+i,j+1,k + U∗
+i,j,k
+2
+), (U∗
+i,j+1,k −U∗
+i,j,k
+hη
+)]
+−
+V[(U∗
+i,j,k + U∗
+i,j−1,k
+2
+), (U∗
+i,j,k −U∗
+i,j−1,k
+hη
+)]}
++
+(1/2hζ)[G(U∗
+i,j,k+1) −G(U∗
+i,j,k−1)]
++
+(1/hζ){W[(U∗
+i,j,k+1 + U∗
+i,j,k
+2
+), (U∗
+i,j,k+1 −U∗
+i,j,k
+hζ
+)]
+−
+W[(U∗
+i,j,k + U∗
+i,j,k−1
+2
+), (U∗
+i,j,k −U∗
+i,j,k−1
+hζ
+)]},
++
+ε [h4
+ξD4
+ξU∗+ h4
+ηD4
+ηU∗+ h4
+ζD4
+ζU∗]|i,j,k
+(3.30)
+for {(i, j, k) ∈Dh}. The fourth diﬀerence dissipation terms are evaluated
+using equation 3.24. Also, [H]∗
+i,j,k = 0 for i = 1 or Nξ, j = 1 or Nη and k = 1
+or Nζ.
+63
+
+
+3.4.7
+Solution of the system of linear equations
+Replacing the spatial derivatives appearing in equation 3.25 by their equiv-
+alent diﬀerence approximations results in a system of linear equations for
+[∆Un]i,j,k for i ∈[2, Nξ −1], j ∈[2, Nη −1] and k ∈[2, Nζ −1]. Direct
+solution of this system of linear equations requires a formidable matrix in-
+version eﬀort, in terms of both the processing time and storage requirements.
+Therefore, ∆Un is obtained through the use of an iterative method. Here we
+consider three such iterative methods, involving the kernels (a), (b) and (d).
+All methods involve some form of approximation to the implicit operator or
+the LHS of equation 3.25. For pseudo-time marching schemes, it is generally
+suﬃcient to perform only one iteration per time step.
+Approximate factorization (Beam-Warming) algorithm
+In this method, the implicit operator in equation 3.25 is approximately
+factored in the following manner [1, 9]:
+{I −∆τ[∂(A)n
+∂ξ
++ ∂2(N)n
+∂ξ2
+]} × {I −∆τ[∂(B)n
+∂η
++ ∂2(Q)n
+∂η2
+]}
+×{I −∆τ[∂(C)n
+∂ζ
++ ∂2(S)n
+∂ζ2
+]}∆Un = RHS
+The Beam-Warming algorithm is to be implemented as shown below:
+Initialization: Set the boundary values of Ui,j,k for (i, j, k) ∈∂Dh in accor-
+dance with equation 3.8. Set the initial values of U0
+i,j,k for (i, j, k) ∈Dh in
+accordance with equation 3.9. Compute the forcing function vector, H∗
+i,j,k
+for (i, j, k) ∈Dh, using equation 3.30.
+Step 1 (Explicit part): Compute the [RHS]n
+i,j,k for (i, j, k) ∈Dh.
+Step 2 (ξ-Sweep of the implicit part): Form and solve the following system
+of linear equations for [∆U1]i,j,k for (i, j, k) ∈Dh:
+{I −∆τ[Dξ(A)n + D2
+ξ(N)n]}∆U1 = RHS
+Step 3 (η-Sweep of the implicit part): Form and solve the following system
+of linear equations for [∆U2]i,j,k for (i, j, k) ∈Dh:
+{I −∆τ[Dη(B)n + D2
+η(Q)n]}∆U2 = ∆U1
+64
+
+
+Step 4 (ζ-Sweep of the implicit part): Form and solve the following system
+of linear equations for [∆Un]i,j,k for (i, j, k) ∈Dh:
+{I −∆τ[Dζ(C)n + D2
+ζ(S)n]}∆Un = ∆U2
+Step 5: Update the solution
+[Un+1]i,j,k = [Un]i,j,k + [∆Un]i,j,k,
+for
+(i, j, k) ∈Dh
+Steps 1-5 consist of one time-stepping iteration of the Approximate Fac-
+torization scheme. The solution of systems of linear equations in each of the
+steps 2-4 is equivalent to the solution of multiple, independent systems of
+block tridiagonal equations, with each block being a (5 × 5) matrix, in the
+three coordinate directions ξ, η, ζ respectively. For example, the system of
+equations in the ξ-sweep has the following block tridiagonal structure:
+[B1,j,k][∆U1]1,j,k + [C1,j,k][∆U1]2,j,k
+=
+[RHS]1,j,k
+[Ai,j,k][∆U1]i−1,j,k + [Bi,j,k][∆U1]i,j,k + [Ci,j,k][∆U1]i+1,j,k
+=
+[RHS]i,j,k
+(2 ≤i ≤Nξ −1)
+[ANξ,j,k][∆U1]Nξ−1,j,k + [BNξ,j,k][∆U1]Nξ,j,k
+=
+[RHS]Nξ,j,k
+where (j ∈[2, Nη −1]) and (k ∈[2, Nζ −1]). Also, [A], [B] and [C] are (5×5)
+matrices and [∆U1]i,j,k is a (5 × 1) column vector.
+Here, for 2 ≤i ≤(Nξ −1), using equations 3.21 and 3.23:
+[Ai,j,k]
+=
+−∆τ{(−1/2hξ)[A(Un
+i−1,j,k)] + (1/h2
+ξ)[N(Un
+i−1,j,k)]}
+[Bi,j,k]
+=
+I + ∆τ(2/h2
+ξ)[N(Un
+i,j,k)]
+[Ci,j,k]
+=
+−∆τ{(1/2hξ)[A(Un
+i+1,j,k)] + (1/h2
+ξ)[N(Un
+i+1,j,k)]}
+Also, [B1,j,k] = [I], [C1,j,k] = [0], [ANξ,j,k] = [0], and [BNξ,j,k] = [I].
+Diagonal form of the approximate factorization algorithm
+Here the approximate factorization algorithm of section 4.7.1 is modiﬁed
+so as to transform the coupled systems given by the left hand side of equation
+3.26 into an uncoupled diagonal form. This involves further approximations
+in the treatment of the implicit operator. This diagonalization process targets
+only the matrices A, B, and C in the implicit operator. Eﬀects of other
+matrices present in the implicit operator are either ignored or approximated
+to conform to the resulting diagonal structure.
+65
+
+
+The diagonalization process is based on the observation that matrices A,
+B, and C each have a set of real eigenvalues and a complete set of eigenvec-
+tors. Therefore, they can be diagonalized through similarity transformations
+[13]:
+A
+=
+TξΛξT−1
+ξ
+B
+=
+TηΛηT−1
+η
+C
+=
+TζΛζT−1
+ζ
+(3.31)
+with
+Λξ
+=
+diag [−(u(2)/u(1)), −(u(2)/u(1)), −(u(2)/u(1)), −(u(2)/u(1) + a), −(u(2)/u(1) −a)]
+Λη
+=
+diag [−(u(3)/u(1)), −(u(3)/u(1)), −(u(3)/u(1)), −(u(3)/u(1) + a), −(u(3)/u(1) −a)]
+Λζ
+=
+diag [−(u(4)/u(1)), −(u(4)/u(1)), −(u(4)/u(1)), −(u(4)/u(1) + a), −(u(4)/u(1) −a)]
+where
+a =
+v
+u
+u
+tc1 c2{u(5)
+u(1) −0.5 [[u(2)]2 + [u(3)]2 + [u(4)]2
+[u(1)]2
+]}
+and Tξ(U), Tη(U), and Tζ(U) are the matrices whose columns are the
+eigenvectors of A, B, and C, respectively. When all other matrices except
+A, B, and C are ignored, the implicit operator is given by
+LHS = [I −∆τ ∂An
+∂ξ ][I −∆τ ∂Bn
+∂η ][I −∆τ ∂Cn
+∂ζ ]
+(3.32)
+Substituting for A, B, and C, using equation 3.31 in equation 3.32, we get
+LHS
+=
+[(TξT−1
+ξ )n −∆τ ∂(TξΛξT−1
+ξ )n
+∂ξ
+]
+×[(TηT−1
+η )n −∆τ ∂(TηΛηT−1
+η )n
+∂η
+]
+×[(TζT−1
+ζ )n −∆τ ∂(TζΛζT−1
+ζ )n
+∂ζ
+]∆Un
+(3.33)
+A modiﬁed form of equation 3.33 is obtained by moving the eigenvector
+matrices Tξ, Tη, and Tζ outside the spatial diﬀerential operators ∂/∂ξ, ∂/∂η,
+66
+
+
+and ∂/∂ζ, respectively [13]:
+LHS
+=
+Tn
+ξ [I −∆τ ∂(Λξ)n
+∂ξ
+](T−1
+ξ )n(Tη)n[I −∆τ ∂(Λη)n
+∂η
+](T−1
+η )n(Tζ)n
+[I −∆τ ∂(Λζ)n
+∂ζ
+](T−1
+ζ )n∆Un
+This can be written as
+LHS = Tn
+ξ [I −∆τ ∂(Λξ)n
+∂ξ
+] ¯N[I −∆τ ∂(Λη)n
+∂η
+]¯P[I −∆τ ∂(Λζ)n
+∂ζ
+](T−1
+ζ )n∆Un
+where
+¯N = T−1
+ξ Tη;
+¯N−1 = T−1
+η Tξ
+¯P = T−1
+η Tζ;
+¯P−1 = T−1
+ζ Tη
+The eigenvector matrices are functions of ξ, η and ζ and therefore this mod-
+iﬁcation introduces further errors of O(∆τ) into the factorization process.
+During the factorization process, the presence of the matrices N, Q, and
+S in the implicit part were ignored. This is because, in general, the similarity
+transformations used for diagonalizing A do not simultaneously diagonalize
+N.
+The same is true for the η and ζ factors as well.
+This necessitates
+some ad-hoc approximate treatment of the ignored terms, which at the same
+time preserves the diagonal structure of the implicit operators. Whatever
+the approach used, additional approximation errors are introduced in the
+treatment of the implicit operators. We chose to approximate N, Q, and S
+by diagonal matrices in the implicit operators, whose values are given by the
+spectral radii ρ(N), ρ(Q), and ρ(S), respectively [17]. In addition, we also
+treat the added fourth-diﬀerence dissipation terms implicitly.
+LHS
+=
+Tn
+ξ [I −∆τ{∂(Λξ)n
+∂ξ
++ ∂2[ρ(N)nI]
+∂ξ2
+−ε h4
+ξ
+∂4(I)
+∂ξ4 }]
+× ¯N[I −∆τ{∂(Λη)n
+∂η
++ ∂2[ρ(Q)nI]
+∂η2
+−ε h4
+η
+∂4(I)
+∂η4 }]
+×¯P[I −∆τ{∂(Λζ)n
+∂ζ
++ ∂2[ρ(S)nI]
+∂ζ2
+−ε h4
+ζ
+∂4(I)
+∂ζ4 }]T−1
+ζ ∆Un
+67
+
+
+The matrices T−1
+ξ , Tζ, ¯N−1, and ¯P−1 are given by:
+T−1
+ξ
+=
+
+
+
+
+
+
+(1 −[q/a2])
+c2[u(2)/u(1)]/a2
+c2[u(3)/u(1)]/a2
+c2[u(4)/u(1)]/a2
+−[c2/a2]
+−(u(4)/[u(1)]2)
+0
+0
+(1/u(1))
+0
+(u(3)/[u(1)]2)
+0
+−(1/u(1))
+0
+0
+σ(q −a[u(2)/u(1)])
+σ(a −c2[u(2)/u(1)])
+−σc2[u(3)/u(1)]
+−σc2[u(4)/u(1)]
+σc2
+σ(q + a[u(2)/u(1)])
+−σ(a + c2[u(2)/u(1)])
+−σc2[u(3)/u(1)]
+−σc2[u(4)/u(1)]
+σc2
+
+
+
+
+
+
+Tζ
+=
+
+
+
+
+
+
+0
+0
+1
+α
+α
+0
+−u(1)
+[u(2)/u(1)]
+α[u(2)/u(1)]
+α[u(2)/u(1)]
+u(1)
+0
+[u(3)/u(1)]
+α[u(3)/u(1)]
+α[u(3)/u(1)]
+0
+0
+[u(4)/u(1)]
+α([u(4)/u(1)] + a)
+α([u(4)/u(1)] −a)
+u(3)
+−u(2)
+[q/c2]
+α[(q + a2)/c2 + a(u(4)/u(1))]
+α[(q + a2)/c2 −a(u(4)/u(1))]
+
+
+
+
+
+
+¯N−1
+=
+
+
+
+
+
+
+0
+−1
+0
+0
+0
+1
+0
+0
+0
+0
+0
+0
+0
+1/
+√
+2
+−1/
+√
+2
+0
+0
+−1/
+√
+2
+1/2
+1/2
+0
+0
+1/
+√
+2
+1/2
+1/2
+
+
+
+
+
+
+¯P−1
+=
+
+
+
+
+
+
+0
+0
+0
+1/
+√
+2
+−1/
+√
+2
+0
+0
+−1
+0
+0
+0
+1
+0
+0
+0
+−1/
+√
+2
+0
+0
+1/2
+1/2
+1/
+√
+2
+0
+0
+1/2
+1/2
+
+
+
+
+
+
+where σ = 1/(
+√
+2 u(1)a) and α = [u(1)/(
+√
+2 a)].
+In addition, the spectral radii of the matrices N, Q, and S are given by:
+ρ(N) = max(
+d(1)
+ξ
+d(2)
+ξ
++ [4/3]k3k4[1/u(1)]
+d(3)
+ξ
++ k3k4[1/u(1)]
+d(4)
+ξ
++ k3k4[1/u(1)]
+d(5)
+ξ
++ k1k3k4k5[1/u(1)] )
+68
+
+
+ρ(Q) = max(
+d(1)
+η
+d(2)
+η
++ k3k4[1/u(1)]
+d(3)
+η
++ [4/3]k3k4[1/u(1)]
+d(4)
+η
++ k3k4[1/u(1)]
+d(5)
+η
++ k1k3k4k5[1/u(1)] )
+ρ(S) = max(
+d(1)
+ζ
+d(2)
+ζ
++ k3k4[1/u(1)]
+d(3)
+ζ
++ k3k4[1/u(1)]
+d(4)
+ζ
++ [4/3]k3k4[1/u(1)]
+d(5)
+ζ
++ k1k3k4k5[1/u(1)] )
+The explicit part of the diagonal algorithm is exactly the same as in
+equation 3.27 and all the approximations are restricted to the implicit opera-
+tor. Therefore, if the diagonal algorithm converges, the steady-state solution
+will be identical to the one obtained without diagonalization. However, the
+convergence behavior of the diagonalized algorithm would be diﬀerent.
+The Diagonalized Approximate Factorization algorithm is to be imple-
+mented in the following order:
+Initialization: Set the boundary values of Ui,j,k for (i, j, k) ∈∂Dh in accor-
+dance with equation 3.8. Set the initial values of U0
+i,j,k for (i, j, k) ∈Dh in
+accordance withequation 3.9. Compute the forcing function vector, H∗
+i,j,k for
+(i, j, k) ∈Dh, using equation 3.30.
+Step 1 (Explicit part): Compute [RHS]n
+i,j,k for (i, j, k) ∈Dh.
+Step 2: Perform the matrix-vector multiplication
+[∆U1] = (T−1
+ξ )n[RHS]
+Step 3 (ξ-Sweep of the Implicit part): Form and solve the following system
+of linear equations for ∆U2:
+{I −∆τ[Dξ(Λξ)n] −∆τ[D2
+ξ(ρ(N)nI)] + ∆τ[ε h4
+ξD4
+ξ(I)]}[∆U2] = [∆U1]
+69
+
+
+Step 4: Perform the matrix-vector multiplication
+[∆U3] = ¯N−1[∆U2]
+Step 5 (η-Sweep of the implicit part): Form and solve the following system
+of linear equations for ∆U4:
+{I −∆τ[Dη(Λη)n] −∆τ[D2
+η(ρ(Q)nI)] + ∆τ[ε h4
+ηD4
+η(I)]}[∆U4] = [∆U3]
+Step 6: Perform the matrix-vector multiplication
+[∆U5] = ¯P−1[∆U4]
+Step 7 (ζ-Sweep of the implicit part): Form and solve the following system
+of linear equations for ∆U6:
+{I −∆τ[Dζ(Λζ)n] −∆τ[D2
+ζ(ρ(S)nI)] + ∆τ[ε h4
+ζD4
+ζ(I)]}[∆U6] = [∆U5]
+Step 8: Perform the matrix-vector multiplication
+[∆Un] = Tζ[∆U6]
+Step 9: Update the solution
+Un+1 = Un + ∆Un
+Steps 1-9 constitute of one iteration of the Diagonal Form of the Ap-
+proximate Factorization algorithm.
+The new implicit operators are block
+pentadiagonal. However, the blocks are diagonal in form, so that the opera-
+tors simplify into ﬁve independent scalar pentadiagonal systems. Therefore,
+each of the steps 3, 5, and 7 involve the solution of multiple, independent
+systems of scalar pentadiagonal equations in the three coordinate directions
+ξ, η and ζ respectively.
+For example, each of the ﬁve independent scalar
+pentadiagonal systems in the ξ-sweep has the following structure:
+c1,j,k[∆U2](m)
+1,j,k + d1,j,k[∆U2](m)
+2,j,k + e1,j,k[∆U2](m)
+3,j,k
+=
+[∆U1](m)
+1,j,k
+b2,j,k[∆U2](m)
+1,j,k + c2,j,k[∆U2](m)
+2,j,k + d2,j,k[∆U2](m)
+3,j,k + e2,j,k[∆U2](m)
+4,j,k
+=
+[∆U1](m)
+2,j,k
+ai,j,k[∆U2](m)
+i−2,j,k + bi,j,k[∆U2](m)
+i−1,j,k + ci,j,k[∆U2](m)
+i,j,k + di,j,k[∆U2](m)
+i+1,j,k
++ei,j,k[∆U2](m)
+i+2,j,k
+=
+[∆U1](m)
+i,j,k,
+for 3 ≤i ≤(Nξ −2)
+aNξ−1,j,k[∆U2](m)
+Nξ−3,j,k + bNξ−1,j,k[∆U2](m)
+Nξ−2,j,k + cNξ−1,j,k[∆U2](m)
+Nξ−1,j,k
++dNξ−1,j,k[∆U2](m)
+Nξ,j,k
+=
+[∆U1](m)
+Nξ−1,j,k
+aNξ,j,k[∆U2](m)
+Nξ−2,j,k + bNξ,j,k[∆U2](m)
+Nξ−1,j,k + cNξ,j,k[∆U2](m)
+Nξ,j,k
+=
+[∆U1](m)
+Nξ,j,k
+70
+
+
+where, (j ∈[2, Nη −1]), (k ∈[2, Nζ −1]) and (m ∈[1, 5]). The elements of
+the pentadiagonal matrix are given by the following:
+c1,j,k
+=
+1;
+d1,j,k = 0;
+e1,j,k = 0
+b2,j,k
+=
+∆τ(1/2hξ)[(Λξ)n](m,m)
+1,j,k
+−∆τ(1/h2
+ξ)[ρ(N)n]1,j,k
+c2,j,k
+=
+1. + ∆τ(2/h2
+ξ)[ρ(N)n]2,j,k + ∆τ ε (5)
+d2,j,k
+=
+−∆τ(1/2hξ)[(Λξ)n](m,m)
+3,j,k
+−∆τ(1/h2
+ξ)[ρ(N)n]3,j,k + ∆τ ε (−4)
+e2,j,k
+=
+∆τ ε
+a3,j,k
+=
+0.0,
+b3,j,k
+=
+∆τ(1/2hξ)[(Λξ)n](m,m)
+2,j,k
+−∆τ(1/h2
+ξ)[ρ(N)n]2,j,k + ∆τ ε (−4)
+c3,j,k
+=
+1. + ∆τ(2/h2
+ξ)[ρ(N)n]3,j,k + ∆τ ε (6)
+d3,j,k
+=
+−∆τ(1/2hξ)[(Λξ)n](m,m)
+4,j,k
+−∆τ(1/h2
+ξ)[ρ(N)n]4,j,k + ∆τ ε (−4)
+e3,j,k
+=
+∆τ ε
+ai,j,k
+=
+∆τ ε
+bi,j,k
+=
+∆τ(1/2hξ)[(Λξ)n](m,m)
+i−1,j,k −∆τ(1/h2
+ξ)[ρ(N)n]i−1,j,k + ∆τ ε (−4)
+ci,j,k
+=
+1. + ∆τ(2/h2
+ξ)[ρ(N)n]i,j,k + ∆τ ε (6)
+di,j,k
+=
+−∆τ(1/2hξ)[(Λξ)n](m,m)
+i+1,j,k −∆τ(1/h2
+ξ)[ρ(N)n]i+1,j,k + ∆τ ε (−4)
+ei,j,k
+=
+∆τ ε
+aNξ−2,j,k
+=
+∆τ ε
+bNξ−2,j,k
+=
+∆τ(1/2hξ)[(Λξ)n](m,m)
+Nξ−3,j,k −∆τ(1/h2
+ξ)[ρ(N)n]Nξ−3,j,k + ∆τ ε (−4)
+cNξ−2,j,k
+=
+1. + ∆τ(2/h2
+ξ)[ρ(N)n]Nξ−2,j,k + ∆τ ε (6)
+dNξ−2,j,k
+=
+−∆τ(1/2hξ)[(Λξ)n](m,m)
+Nξ−1,j,k −∆τ(1/h2
+ξ)[ρ(N)n]Nξ−1,j,k + ∆τ ε (−4)
+eNξ−2,j,k
+=
+0.0.
+aNξ−1,j,k
+=
+∆τ ε
+bNξ−1,j,k
+=
+∆τ(1/2hξ)[(Λξ)n](m,m)
+Nξ−2,j,k −∆τ(1/h2
+ξ)[ρ(N)n]Nξ−2,j,k + ∆τ ε (−4)
+cNξ−1,j,k
+=
+1. + ∆τ(2/h2
+ξ)[ρ(N)n]Nξ−1,j,k + ∆τ ε (5)
+dNξ−1,j,k
+=
+−∆τ(1/2hξ)[(Λξ)n](m,m)
+Nξ,j,k −∆τ(1/h2
+ξ)[ρ(N)n]Nξ,j,k
+71
+
+
+aNξ,j,k = 0.;
+bNξ,j,k = 0.;
+cNξ,j,k = 1
+Symmetric successive over-relaxation algorithm
+In this method, the system of linear equations obtained after replacing
+the spatial derivatives appearing in the implicit operator in equation 3.25 by
+second-order accurate, central ﬁnite diﬀerence operators, is solved using the
+symmetric, successive over-relaxation scheme. Let the linear system be given
+by
+[Kn][∆Un] = [RHSn]
+where
+Kn = {I −∆τ[DξAn + D2
+ξNn + DηBn + D2
+ηQn + DζCn + D2
+ζSn]}∆Un,
+for (i, j, k) ∈Dh
+It is speciﬁed that the unknowns be ordered corresponding to the gridpoints,
+lexicographically, such that the index in ξ-direction runs fastest, followed
+by the index in η-direction and ﬁnally in ζ-direction. The ﬁnite-diﬀerence
+discretization matrix K, resulting from such an ordering has a very regular,
+banded structure. There are altogether seven block diagonals, each with a
+(5 × 5) block size.
+The matrix K can be written as the sum of the matrices D, Y and Z:
+Kn = Dn + Yn + Zn
+where
+Dn
+=
+Main block −diagonal of Kn
+Yn
+=
+Three sub −block −diagonals of Kn
+Zn
+=
+Three super −block −diagonals of Kn
+Therefore, D is a block-diagonal matrix, while Y and Z are strictly lower
+and upper triangular, respectively. Then the point-SSOR iteration scheme
+can be written as [14, 15]:
+[Xn][∆Un] = [RHS]
+72
+
+
+where
+Xn
+=
+ω(2. −ω)(Dn + ωYn)(Dn)−1(Dn + ωZn)
+=
+ω(2. −ω)(Dn + ωYn)(I + ω(Dn)−1Zn)
+and ω ∈(0., 2.) is the over-relaxation factor (a speciﬁed constant).
+The
+SSOR algorithm is to be implemented in following manner:
+Initialization: Set the boundary values of Ui,j,k in accordance with equation
+3.8. Set the initial values of U0
+i,j,k in accordance with equation 3.9. Compute
+the forcing function vector, H∗
+i,j,k. for (i, j, k) ∈Dh, using equation 3.30.
+Step 1 (The explicit part): Compute [RHS]n
+i,j,k for (i, j, k) ∈Dh.
+Step 2 (Lower triangular system solution): Form and solve the following
+regular, sparse, block lower triangular system to get [∆U1]:
+(Dn + ωYn)[∆U1] = [RHS]
+Step 3 (Upper triangular system solution): Form and solve the following
+regular, sparse, block upper triangular system to get [∆Un]:
+(I + ω(Dn)−1Zn)[∆Un] = [∆U1]
+Step 4: Update the solution:
+Un+1 = Un + [1/ω(2. −ω)]∆Un
+Steps 1-4 constitute one complete iteration of the SSOR scheme. The
+l-th block row of the matrix K has the following structure:
+[Al][∆Un]l−(Nξ−2)(Nη−2) + [Bl][∆Un]l−(Nξ−2) + [Cl][∆Un]l−1 + [Dl][∆Un]l
++[El][∆Un]l+1 + [Fl][∆Un]l+(Nξ−2) + [Gl][∆Un]l+(Nξ−2)(Nη−2) = [RHS]l
+where l = i + (Nξ −2)(j −1) + (Nξ −2)(Nη −2)(k −1) and (i, j, k) ∈Dh.
+The (5 × 5) matrices are given by:
+[Al]
+=
+−∆τ(−1/2hζ)[C(Un
+i,j,k−1)] −∆τ(1/h2
+ζ)[S(Un
+i,j,k−1)]
+[Bl]
+=
+−∆τ(−1/2hη)[B(Un
+i,j−1,k)] −∆τ(1/h2
+η)[Q(Un
+i,j−1,k)]
+[Cl]
+=
+−∆τ(−1/2hξ)[A(Un
+i−1,j,k)] −∆τ(1/h2
+ξ)[N(Un
+i−1,j,k)]
+[Dl]
+=
+I + ∆τ(2/h2
+ξ)[N(Un
+i,j,k)] + ∆τ(2/h2
+η)[Q(Un
+i,j,k)] + ∆τ(2/h2
+ζ)[S(Un
+i,j,k)]
+[El]
+=
+−∆τ(1/2hξ)[A(Un
+i+1,j,k)] −∆τ(1/h2
+ξ)[N(Un
+i+1,j,k)]
+[Fl]
+=
+−∆τ(1/2hη)[B(Un
+i,j+1,k)] −∆τ(1/h2
+η)[Q(Un
+i,j+1,k)]
+[Gl]
+=
+−∆τ(1/2hζ)[C(Un
+i,j,k+1)] −∆τ(1/h2
+ζ)[S(Un
+i,j,k+1)]
+73
+
+
+Also, A, B and C are the elements in the l-th block row of the matrix Y,
+whereas E,F and G are the elements in the l-the block row of the matrix Z.
+3.5
+Benchmarks
+There are three benchmarks associated with the three numerical schemes
+described in section 4, for the solution of system of linear equations given by
+equation 3.25. Each benchmark consists of running one of the three numerical
+schemes for Ns time steps with given values for Nξ, Nη, Nζ and ∆τ.
+3.5.1
+Veriﬁcation test
+For each of the benchmarks, at the completion of Ns time steps, compute
+the following:
+1. Root Mean Square norms RMSR(m), of the residual vectors [RHS(m)]n
+i,j,k,
+for m = 1, 2, . . . , 5 where n = Ns, and (i, j, k) ∈Dh
+RMSR(m) =
+v
+u
+u
+u
+t
+P(Nζ−1)
+k=2
+P(Nη−1)
+j=2
+P(Nξ−1)
+i=2
+{[RHS(m)]Ns
+(i,j,k)}2
+(Nξ −2)(Nη −2)(Nζ −2)
+2. Root Mean Square norms RMSE(m) of the error vectors {[U∗](m)
+i,j,k −
+[Un](m)
+i,j,k}, for m = 1, 2, . . . , 5 where n = Ns, and (i, j, k) ∈Dh
+RMSE(m) =
+v
+u
+u
+u
+t
+P(Nζ−1)
+k=2
+P(Nη−1)
+j=2
+P(Nξ−1)
+i=2
+{[U∗](m)
+(i,j,k) −[UNs](m)
+(i,j,k)}2
+(Nξ −2)(Nη −2)(Nζ −2)
+3. The numerically evaluated surface integral given by
+I = 0.25{
+Pj2−1
+j=j1
+Pi2−1
+i=i1 hξhη[ϕi,j,k1 + ϕi+1,j,k1 + ϕi,j+1,k1 + ϕi+1,j+1,k1
++ϕi,j,k2 + ϕi+1,j,k2 + ϕi,j+1,k2 + ϕi+1,j+1,k2]
++ Pk2−1
+k=k1
+Pi2−1
+i=i1 hξhζ[ϕi,j1,k + ϕi+1,j1,k + ϕi,j1,k+1 + ϕi+1,j1,k+1
++ϕi,j2,k + ϕi+1,j2,k + ϕi,j2,k+1 + ϕi+1,j2,k+1]
++ Pk2−1
+k=k1
+Pj2−1
+j=j1 hηhζ[ϕi1,j,k + ϕi1,j+1,k + ϕi1,j,k+1 + ϕi1,j+1,k+1
++ϕi2,j,k + ϕi2,j+1,k + ϕi2,j,k+1 + ϕi2,j+1,k+1]}
+74
+
+
+where i1, i2, j1, j2, k1 and k2 are speciﬁed constants, such that 1 < i1 <
+i2 < Nξ, 1 < j1 < j2 < Nη and 1 < k1 < k2 < Nζ, and
+ϕ = c2{u(5) −0.5([u(1)]2 + [u(2)]2 + [u(3)]2)
+u(1)
+)}
+The validity of each these quantities is measured according to
+|Xc −Xr|
+|Xr|
+≤ϵ
+where Xc and Xr are the computed and reference values, respectively, and
+ϵ is the maximum allowable relative error.
+The value of ϵ is speciﬁed to
+be 10−8. The values of Xr are dependent on the numerical scheme under
+consideration and the values speciﬁed for Nξ, Nη, Nζ, ∆τ and Ns.
+3.5.2
+Benchmark 1
+Class A: Perform Ns = 200 iterations of the Approximate Factorization Al-
+gorithm, with the following parameter values:
+Nξ = 64;
+Nη = 64;
+Nζ = 64
+and
+∆τ = 0.0008
+Timing for this benchmark should begin just before the Step 1 of the ﬁrst
+iteration is started and end just after the Step 5 of the Ns-th iteration is
+complete.
+Class B: Same except Nξ = Nη = Nζ = 102 and ∆τ = 0.0003.
+3.5.3
+Benchmark 2
+Class A: Perform Ns = 400 iterations of the Diagonal Form of the Approxi-
+mate Factorization Algorithm, with the following parameter values:
+Nξ = 64;
+Nη = 64;
+Nζ = 64
+and
+∆τ = 0.0015
+75
+
+
+Timing for this benchmark should begin just before the Step 1 of the ﬁrst
+iteration is started and end just after the Step 9 of the Ns-th iteration is
+complete.
+Class B: Same except Nξ = Nη = Nζ = 102 and ∆τ = 0.001.
+3.5.4
+Benchmark 3
+Class A: Perform Ns = 250 iterations of the Symmetric Successive Over-
+Relaxation Algorithm with the following parameter values:
+Nξ = 64;
+Nη = 64;
+Nζ = 64
+and
+∆τ = 2.0
+ω = 1.2
+Timing for this benchmark should begin just before the Step 1 of the ﬁrst
+iteration is started and end just after the Step 4 of the Ns-th iteration is
+complete.
+Class B: Same except Nξ = Nη = Nζ = 102.
+For all benchmarks, values of the remaining constants are speciﬁed as
+k1 = 1.40;
+k2 = 0.40;
+k3 = 0.10;
+k4 = 1.00;
+k5 = 1.40
+C1,1 = 2.0
+C2,1 = 1.0
+C3,1 = 2.0
+C4,1 = 2.0
+C5,1 = 5.0
+C1,2 = 0.0
+C2,2 = 0.0
+C3,2 = 2.0
+C4,2 = 2.0
+C5,2 = 4.0
+C1,3 = 0.0
+C2,3 = 0.0
+C3,3 = 0.0
+C4,3 = 0.0
+C5,3 = 3.0
+C1,4 = 4.0
+C2,4 = 0.0
+C3,4 = 0.0
+C4,4 = 0.0
+C5,4 = 2.0
+C1,5 = 5.0
+C2,5 = 1.0
+C3,5 = 0.0
+C4,5 = 0.0
+C5,5 = 0.1
+C1,6 = 3.0
+C2,6 = 2.0
+C3,6 = 2.0
+C4,6 = 2.0
+C5,6 = 0.4
+C1,7 = 0.5
+C2,7 = 3.0
+C3,7 = 3.0
+C4,7 = 3.0
+C5,7 = 0.3
+76
+
+
+C1,8 = 0.02
+C2,8 = 0.01
+C3,8 = 0.04
+C4,8 = 0.03
+C5,8 = 0.05
+C1,9 = 0.01
+C2,9 = 0.03
+C3,9 = 0.03
+C4,9 = 0.05
+C5,9 = 0.04
+C1,10 = 0.03
+C2,10 = 0.02
+C3,10 = 0.05
+C4,10 = 0.04
+C5,10 = 0.03
+C1,11 = 0.5
+C2,11 = 0.4
+C3,11 = 0.3
+C4,11 = 0.2
+C5,11 = 0.1
+C1,12 = 0.4
+C2,12 = 0.3
+C3,12 = 0.5
+C4,12 = 0.1
+C5,12 = 0.3
+C1,13 = 0.3
+C2,13 = 0.5
+C3,13 = 0.4
+C4,13 = 0.3
+C5,13 = 0.2
+d(1)
+ξ
+= d(2)
+ξ
+= d(3)
+ξ
+= d(4)
+ξ
+= d(5)
+ξ
+= 0.75
+d(1)
+η
+= d(2)
+η
+= d(3)
+η
+= d(4)
+η
+= d(5)
+η
+= 0.75
+d(1)
+ζ
+= d(2)
+ζ
+= d(3)
+ζ
+= d(4)
+ζ
+= d(5)
+ζ
+= 1.00
+ε = [max(d(1)
+ξ , d(1)
+η , d(1)
+ζ )]/4.0
+77
+
+
+References
+[1] Bailey, D. H.; and Barton, J. T.: The NAS Kernel Benchmark Program.
+NASA TM-86711, Aug. 1985.
+[2] Pulliam, T. H.: Eﬃcient Solution Methods for the Navier-Stokes Equa-
+tions. Lecture Notes for the Von Karman Institute for Fluid Dynamics
+Lecture Series: Numerical Techniques for Viscous Flow Computation in
+Turbomachinery Bladings, Jan. 20-24, 1986, Brussels, Belgium.
+[3] Yoon. S.; Kwak, D.; and Chang, L.: LU-SGS Implicit Algorithm for
+Three-Dimensional Incompressible Navier-Stokes Equations with Source
+Term. AIAA Paper 89-1964-CP, 1989.
+[4] Jameson, A.; Schmidt, W.; and Turkel, E.: Numerical Solution of the
+Euler Equations by Finite Volume Methods using Runge-Kutta Time-
+Stepping Schemes. AIAA Paper 81-1259, June 1981.
+[5] Steger, J. L.; and Warming, R. F.: Flux Vector Splitting of the In-
+viscid Gas Dynamics Equations with Applications to Finite Diﬀerence
+Methods. Journal of Computational Physics, vol. 40, 1981, p. 263.
+[6] van Leer, B.: Flux Vector Splitting for the Euler Equations. Eighth In-
+ternational Conference on Numerical Methods in Fluid Dynamics, Lec-
+ture Notes in Physics, vol. 170, Edited by E. Krause, 1982, pp. 507-512.
+[7] Roe, P. L.: Approximate Riemann Solvers, Parameter Vectors, and Dif-
+ference Schemes. Journal of Computational Physics, vol. 43, 1981, pp.
+357-372.
+[8] Harten, A.: High Resolution Schemes for Hyperbolic Conservation Laws.
+Journal of Computational Physiscs, vol. 49, 1983, pp. 357-393.
+[9] Gordon, W. J.: Blending Function Methods for Bivariate and Multivari-
+ate Interpolation. SIAM J. Num. Analysis, vol. 8, 1971, pp. 158.
+[10] Warming, R. F.; and Beam, R. M.: On the Construction and Applica-
+tion of Implicit Factored Schemes for Conservation Laws. Symposium
+on Computational Fluid Dynamics, SIAM-AMS Proceedings, vol. 11,
+1978.
+78
+
+
+[11] Lapidus, L.; and Seinfeld, J. H.: Numerical Solution of Ordinary Diﬀer-
+ential Equations. Academic Press, New York, 1971.
+[12] Lomax, H.: Stable Implicit and Explicit Numerical Methods for In-
+tegrating Quasi-Linear Diﬀerential Equations with Parasitic-Stiﬀand
+Parasitic-Saddle Eigenvalues. NASA TN D-4703, 1968.
+[13] Pulliam, T. H.; and Chaussee, D. S.: A Diagonal Form of an Implicit Ap-
+proximate Factorization Algorithm. Journal of Computational Physics,
+vol. 39, 1981, p. 347.
+[14] Chan, T .F. and Jackson, K. R.: Nonlinearly Preconditioned Krylov
+Subspace Methods for Discrete Newton Algorithms. SIAM J. Sci. Stat.
+Compt., vol. 5, 1984, pp. 533-542.
+[15] Axelsson, O.: A Generalized SSOR Method. BIT, vol.13, 1972, pp. 443-
+467.
+[16] Olsson, P.; and Johnson, S. L.: Boundary Modiﬁcations of the Dissipa-
+tion Operators for the Three-Dimensional Euler Equations. Journal of
+Scientiﬁc Computing, vol. 4, 1989, pp. 159-195.
+[17] Coakley, T. J.: Numerical Methods for Gas Dynamics Combining Char-
+acteristics and Conservation Concepts. AIAA Paper 81-1257, 1981.
+79
