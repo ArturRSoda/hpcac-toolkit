@@ -1,0 +1,776 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{todonotes}
+\usepackage{url}
+\usepackage{xparse}
+\usepackage{xspace}
+\usepackage[acronym]{glossaries}
+
+\makeatletter
+\NewDocumentCommand{\xnewacronym}{O{} O{} m m}{%
+  % #1: command name, e.g., HPC to generate \HPC
+  % #2: key-value options passed to \newacronym
+  % #3: acronym as it appears in the text
+  % #4: expansion
+  \newacronym[#2]{#3}{#3}{#4}%
+  \ifstrempty{#1}{%
+    \@namedef{#3}{\gls{#3}\xspace}%
+    \@namedef{#3s}{\glspl{#3}\xspace}%
+  }{%
+    \@namedef{#1}{\gls{#3}\xspace}%
+    \@namedef{#1s}{\glspl{#3}\xspace}%
+  }%
+}
+\NewDocumentCommand{\tnewacronym}{O{} m m}{%
+  \newacronym[#1]{#2}{#2}{#3}%
+  \@namedef{#2}{\glstext{#2}\xspace}%
+  \@namedef{#2s}{\glstext{#2}s\xspace}%
+}
+\makeatother
+
+\input{acronyms.tex}
+
+\begin{document}
+
+\title{Transparent Resilience for Legacy HPC Applications on Cloud Spot Instances with MANA%
+% BLIND REVIEW
+%\thanks{This work was partially supported by the Brazilian National Council for
+%Scientific and Technological Development (CNPq) and by Amazon Web Services (AWS)
+%through cloud research credits.}
+}
+
+\author{
+    \IEEEauthorblockN{Anonymous}
+    \IEEEauthorblockA{Anonymous}
+    % \IEEEauthorblockN{Artur Soda$^{1}$, Vanderlei Munhoz$^{1,2}$, Márcio Castro$^{1}$}
+    % \IEEEauthorblockA{%
+    %     $^{1}$Federal University of Santa Catarina (UFSC), Florianópolis, Brazil\\
+    %     \{artur.soda, marcio.castro\}@ufsc.br}
+    % \IEEEauthorblockA{%
+    %     $^{2}$University of Bordeaux, CNRS, Bordeaux INP, Inria, LaBRI, Talence, France\\
+    %     vanderlei.munhoz-pereira-filho@inria.fr}
+}
+
+\maketitle
+
+\begin{abstract}
+Spot instances reduce cloud computing costs by up to 90\% but are subject to abrupt interruptions that can cause tightly coupled \MPI jobs to fail irrecoverably.
+Modifying legacy scientific codes to explicitly handle failures is rarely feasible, leaving
+most applications with no resilience against spot revocations.
+This paper integrates \MANA, a transparent network-agnostic \MPI checkpointing framework,
+with the HPC@Cloud orchestrator to automate the full recovery cycle without source code
+changes.
+When a spot termination notice arrives, the system checkpoints all ranks and resumes via
+one of two strategies: \textsc{Replace} provisions a replacement node to restore full
+cluster capacity whereas \textsc{Degraded} resumes immediately on the surviving workers at
+reduced parallelism.
+Results obtained with three \NPB applications and four synthetic workloads show that
+recovery performance is governed by two interacting factors: cluster size and failure
+timing.
+\textsc{Degraded} becomes increasingly favorable as the cluster grows; \textsc{Replace}
+remains worthwhile in small clusters with early failures.
+Economically, the spot discount offsets MANA overhead for medium- and long-running jobs,
+establishing practical viability thresholds for transparent checkpointing on spot
+infrastructure.
+\end{abstract}
+
+\begin{IEEEkeywords}
+cloud computing, spot instances, HPC, MPI, checkpoint-restart
+\end{IEEEkeywords}
+
+\glsresetall
+
+% =============================================================================
+\section{Introduction}
+\label{sec:introduction}
+% =============================================================================
+
+The adoption of \HPC workloads in public clouds has grown steadily over the past
+decade, driven by on-demand access to large-scale computing without the capital costs
+of physical infrastructure~\cite{netto2018hpccloud,mell2011nist}. Spot instances,
+which offer idle cloud capacity at discounts of up to 90\% over on-demand
+pricing~\cite{aws2018spot}, are particularly attractive for long-running \HPC jobs.
+The trade-off is reliability: a spot instance can be reclaimed at any time with only a
+two-minute warning~\cite{aws2026spot_termination}, meaning that an unprotected \MPI
+application may lose hours of accumulated computation upon interruption.
+
+Traditional \CR is the standard approach for tolerating such
+failures: application state is periodically saved to persistent storage so that an
+interrupted job can resume from the last checkpoint rather than restarting from
+scratch~\cite{hargrove2006blcr,moody2010scr}. Adding \CR support to existing \MPI
+applications, however, typically requires source-code modifications, which limits
+adoption for the large body of legacy scientific codes not originally designed with
+fault tolerance in mind. Transparent \CR, in which the application is unmodified,
+is therefore the preferred path for enabling resilience without burdening developers.
+
+The \MANA~\cite{garg2019mana}, built on the \DMTCP framework~\cite{ansel2009dmtcp},
+provides exactly this property. It transparently saves and restores the state of \MPI
+applications regardless of the \MPI implementation or underlying network. Network
+agnosticism is especially relevant in cloud settings, where instance replacement severs
+all network connections between processes, making checkpoint solutions that depend on
+restoring the original connection state unable to restart on the new node.
+
+Although transparent checkpointing systems such as \MANA can preserve the execution
+state of \MPI processes, they do not provide an end-to-end solution for cloud spot
+environments. Recovering from a spot interruption requires more than saving state: the
+system must detect the termination notice, trigger checkpointing,
+reprovision computing resources, reconstruct the execution environment, and restart
+the application, all without user intervention. Existing cloud orchestration frameworks
+typically do not integrate these capabilities with transparent \CR, leaving recovery as
+a largely manual process that is impractical for production workloads on volatile
+infrastructure.
+
+This paper presents a resilient execution architecture that integrates \MANA with the
+HPC@Cloud orchestrator~\cite{munhoz2024hpccloud-BLIND} to transparently handle spot
+interruptions for legacy \MPI applications on \AWS. The architecture automatically
+detects spot termination notices, triggers reactive checkpointing, provisions
+replacement resources when necessary, and resumes execution, all without any
+modification to the application. To address the provisioning latency inherent to spot
+replacement, two recovery strategies are designed and compared: (i) \textsc{Replace}, which
+provisions a new spot node to restore the original cluster capacity before resuming; and (ii)
+\textsc{Degraded}, which resumes immediately on the surviving nodes, accepting reduced
+parallelism in exchange for a rapid restart. 
+%BLIND REVIEW
+%Both strategies build on prior work by the authors characterizing \AWS instance types for \HPC~\cite{soda2025wcc}.
+
+Overall, the main contributions of this paper are:
+\begin{itemize}
+
+    \item A resilient execution architecture for legacy \MPI applications on spot
+    instances that integrates \MANA transparent checkpointing with the HPC@Cloud
+    orchestrator, automating the full recovery cycle with no application modification
+    required;
+
+    \item Design and evaluation of two recovery strategies for interrupted \MPI spot
+    jobs (\textsc{Replace} and \textsc{Degraded}), with characterization of the
+    temporal and economic conditions that determine when each strategy is preferable;
+
+    \item A systematic experimental evaluation comprising 282 executions, including 180 executions of \NPB applications (CG-C, EP-D, and LU-C) and 102 executions of four synthetic applications, 
+    identifying the job duration regimes in which spot instances with transparent \CR offer economic
+    advantages over on-demand execution without fault tolerance, and characterizing
+    checkpoint write latency as a function of per-process memory footprint.
+
+\end{itemize}
+
+The rest of this paper is organized as follows.
+Section~\ref{sec:background} provides the necessary background on transparent
+checkpointing and cloud \HPC orchestration.
+Section~\ref{sec:related} surveys related work on fault tolerance for cloud \HPC.
+Section~\ref{sec:approach} describes the proposed architecture and recovery strategies.
+Section~\ref{sec:evaluation} presents the experimental results.
+Section~\ref{sec:conclusion} concludes the paper.
+
+
+% =============================================================================
+\section{Background}
+\label{sec:background}
+% =============================================================================
+
+This section presents the background necessary to understand the proposed approach for
+transparently recovering tightly coupled \MPI applications from cloud spot-instance
+interruptions. It first discusses the characteristics of spot instances and the role
+of checkpointing in limiting computation loss, followed by an overview of \DMTCP and
+\MANA as transparent checkpoint-and-restart frameworks for distributed applications.
+It then introduces HPC@Cloud and Slurm, which provide the cluster lifecycle management
+and workload-scheduling mechanisms upon which the recovery architecture developed in
+this work is built.
+
+\subsection{Cloud Spot Instances and Fault Tolerance}
+\label{sec:spot-ft}
+
+Cloud Computing providers deliver computing resources through \VMs, allowing users to provision and release computational capacity on demand without owning physical infrastructure. Each VM provides an isolated execution environment with a specified combination of CPU cores, memory, storage, and networking resources, referred to as an \emph{instance type}. Public cloud providers typically offer multiple purchasing models for these instances, balancing cost and availability. The most common options are \emph{on-demand instances}, which remain available for the duration of the user's allocation at a fixed price, and \emph{preemptible instances}, which provide unused capacity at a substantially lower price in exchange for weaker availability guarantees. On \AWS, this latter model is offered through \emph{spot instances}, whose economic benefits must therefore be considered together with the risk of interruption.
+
+\AWS spot instances offer idle cloud capacity at discounts reaching 70--90\% over
+on-demand pricing~\cite{aws2018spot}.
+When the provider needs capacity back, it issues a two-minute termination notice through
+the instance metadata API~\cite{aws2026spot_termination}.
+For tightly-coupled \MPI applications, an interruption without a prior checkpoint means
+losing all accumulated computation; the standard approach is periodic checkpointing to
+bound that risk.
+The two-minute termination notice also provides a trigger for reactive checkpointing:
+state is saved on demand, in response to an imminent interruption, rather than at fixed
+intervals, avoiding the overhead of unnecessary checkpoints while still guaranteeing a
+save before loss.
+Another challenge is that a replacement instance boots with a fresh OS state, severing
+all prior network connections; checkpoint solutions that attempt to restore the original
+connection state cannot restart on the new node.
+
+\DMTCP~\cite{ansel2009dmtcp} is a user-space transparent checkpointing framework for
+distributed Linux processes.
+It intercepts a small set of \texttt{libc} calls via \texttt{LD\_PRELOAD}, tracking
+sockets and file descriptors without source modification, and uses a coordinated
+protocol to drain in-flight point-to-point messages before writing each rank's memory
+image to disk.
+\DMTCP restores the full \MPI library state from the checkpoint, however, binding the
+restart to the original network configuration and process topology.
+
+\MANA~\cite{garg2019mana,xu2023mana} extends \DMTCP with a split-process architecture
+that separates the application code (upper half) from the \MPI library (lower half)
+within a single OS process.
+During checkpointing, only the upper half is saved; the lower half is discarded and
+rebuilt fresh at restart, initializing a new \MPI session with fresh connections on the
+replacement node.
+Because the \MPI layer is rebuilt rather than restored, restart is not constrained to
+the original process topology and can accommodate a different number of workers.
+Virtual-to-physical MPI object translation tables in the upper half ensure the
+application references the same \MPI objects before and after restart without knowledge
+of the library replacement.
+Checkpoint consistency requires that no rank is inside a collective call when the image
+is written; \MANA enforces this by having each rank complete any in-flight collective
+before acknowledging a checkpoint request from the coordinator~\cite{garg2019mana,xu2024mana}.
+\MANA entered production at the NERSC Perlmutter supercomputer in 2023~\cite{xu2023mana},
+demonstrating viability on a large-scale, commercially supported \MPI stack.
+
+\subsection{HPC@Cloud and Job Scheduling}
+
+%BLIND REVIEW
+%HPC@Cloud\footnote{\url{https://github.com/lapesd/hpcac-toolkit}} is a command-line toolkit,
+%written in Rust, to provision and manage HPC clusters in public cloud
+%infrastructure~\cite{munhoz2024hpccloud}.
+HPC@Cloud\footnote{\textit{Omitted for double-blind review.}} is a command-line toolkit,
+written in Rust, to provision and manage HPC clusters in public cloud
+infrastructure~\cite{munhoz2024hpccloud-BLIND}.
+%
+The tool exposes
+three main resource concepts: \emph{provider configurations}, which store cloud
+credentials and region preferences; \emph{instance types}, which are fetched from
+the cloud provider's catalog and cached locally in a SQLite database along with
+hardware attributes such as core count, architecture, GPU availability, and spot
+eligibility; and \emph{clusters}, which group a set of heterogeneous compute
+nodes defined through a declarative YAML specification.
+
+A cluster definition lists nodes with their instance types, machine images, and
+allocation modes (on-demand or spot). On spawn, HPC@Cloud provisions the cloud
+networking stack, shared storage, and the VM instances. It then dispatches the
+initialization commands defined in the YAML specification.
+
+Nodes may be provisioned as spot instances to reduce cost, but the toolkit originally
+provided no mechanism for handling spot interruptions transparently.
+Its design already centralizes cluster lifecycle management, making it a natural place to
+integrate automated recovery. The architecture described in this paper extends HPC@Cloud with that capability.
+
+Slurm~\cite{jette2003slurm} is the workload manager configured within HPC@Cloud clusters
+for job scheduling. The recovery orchestrator described in this paper interfaces with Slurm to detect
+interruptions and coordinate restarts.
+
+
+% =============================================================================
+\section{Related Work}
+\label{sec:related}
+% =============================================================================
+
+Fault tolerance for \MPI applications has been pursued at two levels, distinguished by
+whether the recovery mechanism requires source modification.
+At the application level, \ULFM~\cite{bland2013ulfm} extends the \MPI standard with
+primitives that let the application detect failed processes and rebuild communicators.
+\SCR~\cite{moody2010scr} takes a checkpoint approach, letting the programmer designate
+which data to save while a library manages hierarchical storage.
+Both give explicit control over recovery at the cost of source changes that legacy
+scientific codes cannot easily accommodate.
+
+System-level \CR removes the code-modification requirement.
+Wang et al.~\cite{wang2007partial} layer BLCR over LAM/\MPI to create a transparent
+job-pause service; the restart, however, depends on the original network session
+remaining intact, a condition that a spot replacement cannot satisfy.
+\BLCR~\cite{hargrove2006blcr} captures the complete process image through a kernel
+module whereas \DMTCP~\cite{ansel2009dmtcp} achieves the same transparency in user space and
+extends it to distributed processes without kernel support.
+Both operate at the OS level and cannot restart on a replacement node that boots with a
+fresh network state.
+Posner~\cite{posner2020syslevel} confirms the tradeoff empirically: system-level
+approaches incur higher per-checkpoint overhead than application-level ones but require
+no programmer effort.
+\MANA~\cite{garg2019mana,xu2023mana} extends \DMTCP for \MPI, resolving the network
+limitation through its split-process design.
+
+On the cost side, the strategies diverge further.
+Gong et al.~\cite{gong2015cost} jointly optimize checkpoint frequency and instance
+selection on \ECC, but delegate recovery to \BLCR, inheriting its dependency on network
+session preservation.
+Marathe et al.~\cite{marathe2014hpdc} achieve resilience through redundant execution
+across availability zones rather than checkpointing, avoiding the recovery problem
+entirely at the cost of doubled compute expenditure.
+FarSpot~\cite{zhou2022farspot} takes a proactive approach, predicting spot price trends
+to migrate tasks before revocation; it sidesteps recovery by assuming migration
+precedes interruption.
+Gong et al. and FarSpot address cost but not transparent recovery after interruption;
+Marathe addresses resilience but at a fundamentally higher resource cost.
+
+To our knowledge, existing approaches do not combine transparent, network-agnostic \MPI
+checkpointing with an automated cloud recovery orchestrator, which is the gap this paper
+addresses.
+
+
+% =============================================================================
+\section{Proposed Approach}
+\label{sec:approach}
+% =============================================================================
+
+This section describes our proposed solution. Section~\ref{sec:arch} describes the overall architecture and the roles of its main components. Section~\ref{sec:init} explains cluster initialization and configuration. Section~\ref{sec:detection} details interruption detection and reactive checkpoint creation. Finally, Section~\ref{sec:strategies} introduces the two recovery strategies and discusses their performance tradeoffs.
+
+\subsection{Architecture Overview}
+\label{sec:arch}
+
+
+Our architecture enables fault-tolerant execution of \MPI applications on cloud-based HPC clusters composed primarily of preemptible spot instances. It combines infrastructure orchestration, interruption monitoring, transparent checkpointing, and persistent shared storage to preserve application progress and resume execution after a worker-node preemption. As illustrated in Fig.~\ref{fig:arch}, the architecture integrates HPC@Cloud, Slurm, \MANA, and Amazon \EFS into a coordinated recovery pipeline.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{imgs/arch-overview-UCCversion}
+    \caption{Fault-tolerant execution architecture.
+             HPC@Cloud orchestrates the cluster from outside;
+             EFS persists shared state across node replacements.}
+    \label{fig:arch}
+\end{figure}
+
+A typical execution proceeds as follows.
+HPC@Cloud provisions the cluster and launches the \MPI application under \MANA.
+The watcher monitors all worker nodes for spot termination notices.
+Upon receiving a notice, it clears stale checkpoint data, requests a checkpoint from
+the \MANA coordinator, and waits for a complete image to appear on \EFS.
+Once confirmed, the interrupted node is drained from Slurm, the chosen recovery
+strategy executes (\textsc{Replace} provisions a new spot node;
+\textsc{Degraded} marks the node inactive immediately), the \MANA coordinator is
+restarted, and the job resumes from the saved checkpoint.
+
+The cluster follows a head-worker topology: one head node and $N$ worker nodes,
+all provisioned by HPC@Cloud from a declarative configuration.
+Workers run as EC2 spot instances to exploit discounted pricing; the head runs as an
+on-demand instance so that it remains available when workers are preempted, which is
+precisely when its orchestration role is most critical.
+
+All shared state, including checkpoints, Slurm configuration, and \MANA binaries, is
+stored on Amazon \EFS, a shared network file system mounted on every node in the cluster.
+\EFS is the keystone of the recovery mechanism: spot instance replacement delivers a
+fresh local storage volume, so any checkpoint written to local disk would be lost after
+preemption.
+By keeping checkpoints on \EFS, the architecture decouples execution state from the
+physical nodes that produced it, making recovery possible regardless of which instance
+is interrupted.
+
+\MANA provides the transparent checkpointing layer: it saves and restores the full \MPI
+execution state without any modification to the application.
+Our architecture is responsible for the remaining recovery workflow: detecting the
+interruption, triggering checkpointing at the right moment, managing infrastructure
+after the loss, and restarting execution from the saved state.
+%This separation is intentional: \MANA is an existing tool whereas the orchestration pipeline
+%around it is our contribution.
+
+\subsection{System Initialization}
+\label{sec:init}
+
+Cluster provisioning uses a pre-configured AMI that already contains Slurm, \MANA, and
+the \MPI runtime, so initialization activates services rather than installing software.
+Each worker is assigned a static private IP address at provisioning time, rather than
+relying on dynamic address assignment: reusing the same address on a replacement node
+means that the existing Slurm configuration and \MANA restart require no reconfiguration
+after recovery.
+
+The head initializes first, generating the Slurm configuration and cluster
+authentication key and publishing both to \EFS.
+Workers wait for a sentinel file on \EFS, then apply the configuration and register
+with the Slurm controller.
+The \MANA coordinator is not started during initialization; it is launched on demand
+before each job submission and restarted at the beginning of every recovery cycle.
+
+\subsection{Failure Detection and Checkpointing}
+\label{sec:detection}
+
+HPC@Cloud operates from the user's local machine and communicates with the cluster via
+\AWS Systems Manager (SSM), without a resident agent inside the cluster.
+During a fault-tolerant job it runs two concurrent tasks: \texttt{run\_task}, which
+drives the job by dispatching commands to the cluster, and the \emph{watcher}, a
+monitoring component that continuously polls the EC2 spot instance action API for
+termination notices on each worker.
+
+On detecting a notice, the watcher immediately begins the reactive checkpoint pipeline.
+Checkpointing is triggered by interruption events; the current architecture does
+not perform periodic checkpointing, which is orthogonal to the orchestration pipeline
+and is left as future work.
+First, it clears the checkpoint directory on \EFS to prevent stale images from a
+previous execution from being mistaken for a fresh checkpoint.
+It then instructs the \MANA coordinator to checkpoint all \MPI ranks.
+Because the checkpoint command is non-blocking, the watcher monitors \EFS until a
+complete, consistent checkpoint image is present for every rank.
+For all NPB configurations tested, checkpoint writes completed well within the
+two-minute termination window; how write time scales with per-process memory footprint
+is characterized in Section~\ref{sec:ckpt-latency}.
+A configurable 300-second timeout bounds the wait for checkpoint completion; it is a
+generic safeguard for larger workloads, not a protocol-specific constant.
+
+Once the checkpoint is confirmed, the interrupted node is drained from Slurm and
+the running job is cancelled, since an allocation cannot continue with a missing worker.
+The job driver detects the cancellation, consults the local event log to confirm that
+a recovery is in progress, and waits for the watcher to complete the cycle before
+the job is resubmitted.
+
+The proposed architecture operates under three explicit assumptions: \AWS delivers the two-minute spot
+termination notice before the instance is reclaimed (abrupt hardware failures that
+bypass the notice are not handled; those would require periodic checkpointing, left as
+future work); a single worker is interrupted at a time, which isolates the strategy
+comparison and matches the predominant spot interruption pattern (parallel recovery is
+left to future work); and the head node and \EFS remain available throughout execution.
+
+\subsection{Recovery Strategies}
+\label{sec:strategies}
+
+To structure the time cost of recovery, job execution is decomposed into six phases
+(Table~\ref{tab:phases}). We propose two recovery strategies to deal with interrupted
+\MPI spot jobs. The two strategies share phases P0 through P2a and diverge at P2b,
+immediately after the interrupted node is removed from Slurm:
+
+\begin{table}[t]
+    \caption{Execution and recovery phase decomposition.}
+    \label{tab:phases}
+    \centering
+    \begin{tabular}{cl}
+        \toprule
+        \textbf{Phase} & \textbf{Description} \\
+        \midrule
+        P0  & Normal execution before interruption \\
+        P1  & Checkpoint write triggered by termination notice \\
+        P2a & Node removal and job cancellation in Slurm \\
+        P2b & Infrastructure recovery (strategy-dependent) \\
+        P2c & MANA coordinator restart and job resubmission \\
+        P3  & Resumed execution from checkpoint \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{\textsc{Replace}}: During phase P2b, a replacement spot node is provisioned at the same static IP address as the interrupted one. This requires waiting for the old instance to fully terminate and release its network interface before the new node can claim the address. The replacement is bootstrapped from the same AMI and configuration stored on \EFS, then reintegrated into Slurm. Phase P3 resumes with the original $N$-node cluster, preserving full parallelism. The cost of \textsc{Replace} is the provisioning latency of P2b, which can reach several minutes depending on EC2 availability. This strategy is preferable when the remaining execution time is long enough that completing at full speed justifies waiting for a new node.
+
+    \item \textbf{\textsc{Degraded}}: Phase P2b is reduced to a single Slurm operation: the lost node is marked inactive and no new instance is requested. The job restarts immediately on the surviving $N-1$ nodes, distributing all $N$ \MPI ranks across the reduced cluster. Phase P3 begins far sooner than under \textsc{Replace}, but each surviving node runs more than one rank, introducing CPU contention that slows down the remaining computation. \textsc{Degraded} is preferable when the job is close to completion, where a rapid
+restart outweighs the penalty of reduced parallelism.
+\end{itemize}
+
+In both strategies, P2c is identical: a new \MANA coordinator is started on the head,
+and \MANA transparently restores each rank from the checkpoint images on \EFS, resuming
+execution from the exact saved point without any change to the application.
+Fig.~\ref{fig:strategies} illustrates the two recovery paths.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\columnwidth]{imgs/strategy-flow-UCCversion}
+    \caption{Recovery paths for \textsc{Replace} and \textsc{Degraded}.
+             Strategies diverge at P2b: \textsc{Replace} provisions a substitute
+             node; \textsc{Degraded} resumes immediately on the surviving workers.}
+    \label{fig:strategies}
+\end{figure}
+
+The choice between strategies is governed by cluster size and failure timing.
+In multi-failure scenarios, \textsc{Replace} also has a structural advantage: it
+restores cluster capacity after each event, whereas \textsc{Degraded} would accumulate
+a growing capacity deficit with each successive failure.
+The experimental evaluation characterizes these tradeoffs across benchmarks, cluster
+sizes, and failure timings.
+
+
+% =============================================================================
+\section{Experimental Evaluation}
+\label{sec:evaluation}
+% =============================================================================
+
+This section evaluates the proposed approach from both performance and economic perspectives. We first describe the cloud platform, software stack, benchmarks, and experimental methodology. We then quantify the runtime overhead introduced by \MANA and examine whether checkpoints can be completed within the spot-instance termination window. Next, we compare the \textsc{Replace} and \textsc{Degraded} recovery strategies across different cluster sizes and interruption timings. Finally, we analyze the resulting execution costs and identify the scenarios in which fault-tolerant execution on spot instances remains economically advantageous relative to an on-demand baseline.
+
+\subsection{Platform}
+
+All experiments were conducted on \AWS. Table~\ref{tab:hardware} summarizes the instance types used in our experiments together with their spot and on-demand prices. The characteristics and roles of each instance type are described below.
+
+\begin{itemize}
+    \item The \textbf{t3.large} is a burstable general-purpose instance designed for workloads with moderate CPU utilization and occasional demand spikes. It is equipped with 2 vCPUs and 8\,GB of memory. In our experiments, this instance type was used for the head node, which runs as on-demand to ensure that it remains available throughout the execution of the experiments. Because the head node is responsible only for orchestration and does not execute application tasks, its computational requirements can be modest.
+
+    \item The \textbf{m5.xlarge} is a general-purpose instance that provides a balanced combination of compute, memory, and networking resources. Each instance is equipped with 4 vCPUs and 16\,GB of memory. In our experiments, these instances were used as worker nodes and ran as on-demand or spot instances.
+\end{itemize}
+
+All shared state, including checkpoint images and the Slurm configuration, resides on Amazon \EFS and persists across instance replacements.
+
+\begin{table}[t]
+    \caption{Cluster configuration and spot pricing
+             (\AWS us-west-2, May~2026).}
+    \label{tab:hardware}
+    \centering
+    \small
+    \begin{tabular}{llrr}
+        \toprule
+        \textbf{Node}         & \textbf{Type}      & \textbf{Spot}          & \textbf{On-demand}  \\
+        \midrule
+        Head (1)     & t3.large  & -             & \$0.0832/h \\
+        Workers ($N$) & m5.xlarge & \$0.0585/h    & \$0.1920/h \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Software}
+
+Our software stack is comprised of Amazon Linux 2023, MPICH 3.3.2, \MANA v1.2.0, Slurm 24.05.4, \NPB 3.4.4~\cite{bailey1991nas} and synthetic benchmarks.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imgs/fig_overhead}
+    \caption{Elapsed time under noFT (native MPI) and MANA-noFT (MANA active, no
+             interruption) per benchmark and cluster size.
+             Percentage overhead annotated above each MANA bar.}
+    \label{fig:overhead}
+\end{figure*}
+
+The \NPB\footnote{\url{https://www.nas.nasa.gov/software/npb.html}} is a suite of parallel benchmark programs designed by the NASA Advanced Supercomputing (NAS) Division~\cite{bailey1991nas}. By measuring various aspects of performance, such as computational speed and efficiency, \NPB provides a standardized way for researchers and developers to assess the capabilities of parallel computing systems, including clusters, supercomputers, and distributed memory architectures. It focuses on various aspects of parallel computing, including computation, communication, and memory access patterns.
+
+\NPB applications are derived from Computational Fluid Dynamics (CFD) applications, representing real-world aerospace and engineering applications. Reference implementations of the benchmarks are provided by NASA using different parallel programming libraries such as OpenMP and \MPI. In this paper, we used the most recent reference MPI implementation (version 3.4.2). 
+
+Input problem sizes in \NPB are predefined and indicated as different classes. The standard sizes consist of six classes (S, W, A, B, C, and D): (i) S and W are designed for quick test purposes; (ii) A, B, and C are the standard inputs, with each class experiencing approximately a four-fold increase in size compared to the previous one; and (iii) D, E and F are the large inputs, with each class experiencing approximately a sixteen-fold increase in size compared to the previous one.
+
+We selected three kernels that exercise distinct communication profiles:
+
+% \textbf{CG-C} (Conjugate Gradient, irregular all-to-all, $\sim$12--34\,s depending on
+% cluster size),
+% \textbf{EP-D} (Embarrassingly Parallel, near-zero communication, $\sim$100--335\,s), and
+% \textbf{LU-C} (Lower-Upper Gauss-Seidel, structured nearest-neighbor,
+% $\sim$48--150\,s).
+
+\begin{itemize}
+  \item \textbf{Embarrassingly Parallel (EP)}: It is an embarrassingly parallel benchmark that generates pairs of Gaussian random deviates according to a specific scheme. This kernel features negligible communication overhead. We used the D class for all experiments (EP-D);
+
+  \item \textbf{Conjugate Gradient (CG)}: It employs a Conjugate Gradient method to compute an approximation to the smallest eigenvalue of a large, sparse, unstructured matrix. This kernel tests unstructured grid computations and communications by using a matrix with randomly generated locations of entries. It features irregular memory access and communication patterns. We used the C class for all experiments (CG-C);
+  
+  \item \textbf{Lower-Upper Symmetric Gauss-Seidel (LU)}: It implements a Computational Fluid Dynamics (CFD) application that numerically solves a set of nonlinear Partial Differential Equations (PDEs) using an approximate Lower-Upper (LU) factorization scheme. The equations being solved are a simplified model of unsteady, compressible fluid flow in three spatial dimensions, which makes the kernel representative of real-world CFD applications widely used in engineering and scientific domains. We used the C class for all experiments (LU-C).
+\end{itemize}
+
+% \todo[inline]{We have also employed synthetic workloads to ... Explain why we need synthetic benchmarks}
+
+% \todo[inline]{We must explain in more details each synthetic benchmark... Each synthetic program independently varied one factor while holding the remaining
+% execution structure fixed.
+% Two programs investigated MPI call frequency as an overhead factor, one using
+% collective operations and the other using point-to-point exchanges.
+% A third introduced controlled load imbalance while maintaining a regular communication
+% pattern.
+% A fourth varied per-process memory footprint from 50\,MB to 3.2\,GB to characterize
+% checkpoint write latency on EFS; those results are reported in
+% Section~\ref{sec:ckpt-latency}.}
+
+The three kernels above mix computation, communication, and memory effects in ways that
+make it difficult to attribute \MANA overhead variations to a single mechanism.
+So, we designed four synthetic programs to complement the \NPB suite, each varying one factor while holding
+the remaining execution structure fixed: two vary MPI call frequency as a potential per-call
+interposition cost, one using \texttt{MPI\_Allreduce} collectives and the other paired point-to-point
+exchanges; a third introduces a controlled sender delay to test whether \MANA's active-wait replacement
+of \texttt{MPI\_Wait} amplifies overhead under inter-process imbalance; and a fourth varies per-process
+memory allocation from 50\,MB to 3.2\,GB to characterize checkpoint write latency on \EFS.
+The first three were used for the overhead analysis in Section~\ref{sec:overhead}. The fourth one provides the
+write-latency characterization discussed in Section~\ref{sec:ckpt-latency}.
+
+Because \AWS spot interruptions are inherently unpredictable and may not occur during an application
+run, we injected interruptions at controlled points to ensure reproducible and fair comparisons
+between the recovery strategies. Specifically, interruptions were triggered at 10\%, 25\%, and 50\%
+of the application execution time measured under \MANA without fault tolerance (\texttt{MANA-noFT}),
+except for CG-C, which completes too quickly for a meaningful timing sweep
+as shown in Section~\ref{sec:overhead} (in this case, interruptions were triggered at a
+fixed 3\,s into execution across all cluster sizes). 
+
+Each \NPB configuration was executed three times, 
+yielding 180 runs, while the four synthetic programs contributed an additional 102 runs, for a
+total of 282 executions.
+%
+All reported results are arithmetic means over three runs. Each
+fault-tolerant execution includes a single simulated spot interruption; multiple-interruption
+scenarios are not evaluated experimentally but are discussed in the recovery strategy analysis.
+
+\subsection{MANA Overhead}
+\label{sec:overhead}
+
+The runtime overhead introduced by \MANA is application-dependent. For EP-D and LU-C, the relative overhead decreases as the cluster size increases (Fig. \ref{fig:overhead}), indicating that \MANA scales with the native \MPI execution rather than imposing a progressively larger penalty as the number of ranks grows. For LU-C, the overhead is 63\% with 2 and 4 workers and decreases to 53\% with 8 workers. For EP-D, it ranges from 45\% to 47\% with 2 and 4 workers and falls to 27\% with 8 workers. Despite these overheads, the approximately 70\% discount offered by spot instances can still yield a net cost advantage, as demonstrated in the economic analysis (see Section~\ref{subsec:economic}).
+
+CG-C is the main exception to this trend. Its short execution time (approximately 12\,s with 8 workers) makes the relative overhead particularly sensitive to fixed costs. However, the 2-worker anomaly, with an overhead of 222\%, cannot be explained by execution time alone. Complementary experiments with the synthetic programs indicate that neither \MPI call frequency nor sender-side delays between processes on different nodes account for this behavior, as the absolute overhead remains between 3.5\,s and 5\,s across these variations. Our leading hypothesis is that the coarse matrix partition used with 2 processes introduces persistent load imbalance, whose effects may be amplified by \MANA’s active-polling mechanism over thousands of iterations. With finer partitions at 4 and 8 workers, this imbalance is reduced, although the measured overhead remains 55\% and 71\%, respectively. Confirming this explanation would require internal instrumentation of \MANA and the application and is therefore left for future work. The following sections examine the checkpoint-storage constraint and determine which configurations remain economically viable under the observed overheads.
+
+\subsection{Checkpoint Write Latency}
+\label{sec:ckpt-latency}
+
+Alongside runtime overhead, the two-minute termination window of spot instances (discussed in Section~\ref{sec:spot-ft}) imposes a second performance constraint: it limits how much state each rank can write before the
+instance is forcibly terminated.
+Fig. \ref{fig:ckpt-latency} shows phase P1 duration as per-process memory footprint
+grows from 50\,MB to 3.2\,GB, measured with a dedicated synthetic program.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{imgs/fig_ckpt_latency}
+    \caption{Phase P1 (checkpoint write) duration vs.\ per-process memory footprint.
+             Dashed line marks the two-minute termination window.}
+    \label{fig:ckpt-latency}
+\end{figure}
+
+Write time scales linearly with footprint and is highly stable across runs (standard
+deviations below 0.4\,s at every point).
+At 3.2\,GB per process, the aggregate write demand of four concurrent ranks approaches
+the 105\,MB/s Amazon EFS burst ceiling, and phase P1 reaches 139.2\,s, exceeding the
+termination window.
+All \NPB configurations in this study have per-process footprints well below this
+boundary, and their checkpoint writes complete within the window.
+Beyond approximately 3--4\,GB per process, the aggregate write demand saturates the
+EFS burst throughput ceiling and the reactive approach alone is insufficient;
+higher-throughput storage or periodic checkpointing would be required, and
+characterizing recovery under those conditions is left for future work.
+
+\subsection{Recovery Strategy Comparison}
+
+Two factors govern which recovery strategy is preferable: cluster size and failure
+timing. Both operate through phase P2b, the only phase that differs between strategies:
+\textsc{Replace} waits approximately 120\,s for EC2 provisioning while \textsc{Degraded}
+closes it in 11\,s, and the choice reduces to whether that saving outweighs phase P3
+penalty of running with one fewer worker.
+Table~\ref{tab:cg-breakdown} isolates the cluster-size effect through CG-C, where
+interruptions always occur at the same relative point.
+At 2\,workers, the sole surviving node runs two MPI ranks, and the 109\,s phase P2b saving
+is almost entirely consumed by the extended phase P3 (113\,s under \textsc{Degraded} versus
+40\,s under \textsc{Replace}).
+As $N$ grows, losing one node becomes a smaller fraction of total capacity; phase P3 under
+\textsc{Degraded} converges toward the \textsc{Replace} value (35\,s vs.\ 26\,s at
+$N{=}4$; 25\,s vs.\ 25\,s at $N{=}8$), and phase P2b saving becomes increasingly
+dominant.
+The increase in phase P1 at $N{=}8$ (from ${\sim}27$\,s to 37\,s) is specific to CG-C, since each rank maintains per-partner communication buffers, so more workers enlarge the checkpoint image per process, whereas EP-D (collectives only) and LU-C (fixed-cardinality neighbors) keep it constant.
+
+\begin{table}[t]
+    \caption{CG-C phase decomposition: mean elapsed time (seconds) over three runs.
+             Phase P2b is the sole differentiator between strategies.}
+    \label{tab:cg-breakdown}
+    \centering
+    \small
+    \begin{tabular}{clrrrrrr}
+        \toprule
+        \textbf{$N$} & \textbf{Strategy} & \textbf{P0} & \textbf{P1} & \textbf{P2a+2c} & \textbf{P2b} & \textbf{P3} & \textbf{Total} \\
+        \midrule
+        2 & \textsc{Replace}  & 3 & 27 & 11 & 121 &  40 & 206 \\
+        2 & \textsc{Degraded} & 3 & 27 & 11 &  11 & 113 & 169 \\
+        \midrule
+        4 & \textsc{Replace}  & 3 & 27 & 11 & 123 & 26 & 196 \\
+        4 & \textsc{Degraded} & 3 & 27 & 11 &  11 & 35 &  93 \\
+        \midrule
+        8 & \textsc{Replace}  & 3 & 37 & 11 & 120 & 25 & 203 \\
+        8 & \textsc{Degraded} & 3 & 37 & 11 &  11 & 25 &  97 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Failure timing introduces the second dimension. Fig.~\ref{fig:crossover} shows
+$\Delta T = T_{\textsc{Replace}} - T_{\textsc{Degraded}}$ in seconds across all
+18~EP-D and LU-C configurations (2~benchmarks $\times$ 3~cluster sizes $\times$
+3~failure timings); green cells mean \textsc{Degraded} is faster.
+The single red cell (EP-D, 2\,workers, 10\% timing) marks where \textsc{Replace} wins:
+with only one surviving worker and most of the job still ahead, phase P3 penalty exceeds
+the 109\,s phase P2b saving by 19\,s.
+
+Reading the columns left to right shows both factors acting together.
+At $N{=}2$, only late-failure cells are green: early failures leave enough remaining
+work to make reduced capacity costly.
+At $N{=}8$, all cells are deeply green because losing one node out of eight imposes a
+negligible  penalty in phase P3 at any timing.
+The smaller the cluster and the earlier the interruption, the more the remaining work at
+reduced capacity erodes \textsc{Degraded}'s advantage.
+These single-fault experiments do not capture multi-fault behavior.
+Under repeated interruptions, each \textsc{Degraded} recovery reduces capacity by one
+more worker, compounding both the penalty in phase P3 and the risk of successive capacity loss;
+\textsc{Replace}, by contrast, restores the full $N$-node cluster after each event,
+keeping the penalty bounded regardless of how many interruptions occur.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{imgs/fig_crossover}
+    \caption{Time difference $\Delta T = T_{\textsc{Replace}} - T_{\textsc{Degraded}}$
+             in seconds, for EP-D and LU-C across cluster sizes and failure timings.
+             Green: \textsc{Degraded} faster; red (outlined): \textsc{Replace} faster.}
+    \label{fig:crossover}
+\end{figure}
+
+\subsection{Economic Analysis}
+\label{subsec:economic}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{imgs/fig_cost}
+    \caption{Cost per run (USD) across benchmarks and cluster sizes.
+             CG-C shows a single fault-tolerance bar (3\,s trigger); EP-D and LU-C
+             show three bars per worker count for fault timings of
+             10\%, 25\%, and 50\% of \texttt{MANA-noFT} execution time.}
+    \label{fig:cost}
+\end{figure*}
+
+Fig.~\ref{fig:cost} shows the cost per run for each configuration. Since cloud billing
+is proportional to instance-hours consumed, the pattern mirrors the time-domain analysis.
+Job duration sets the baseline for viability.
+EP-D's long execution ($\sim$99--334\,s) is the only regime where both strategies
+consistently reduce cost relative to the noFT on-demand baseline, because the spot
+discount has enough time to offset the overhead of phase P2b.
+For LU-C, which runs roughly three times shorter, only \textsc{Degraded} achieves cost savings: its
+11\,s in phase P2b is easily absorbed, while \textsc{Replace}'s 120\,s provisioning cost cannot
+be recovered.
+For CG-C, neither strategy achieve cost savings: its recovery overhead exceeds its execution time in
+every configuration, and both strategies are visibly more expensive in the figure.
+Table~\ref{tab:cost} quantifies these differences as percentage cost savings against the
+on-demand baseline.
+
+\begin{table}[t]
+    \caption{Cost savings vs.\ noFT on on-demand (mean over failure timings).
+             Positive = cheaper with FT; negative = more expensive.}
+    \label{tab:cost}
+    \centering
+    \small
+    \begin{tabular}{l r r r}
+        \toprule
+        & & \multicolumn{2}{c}{\textbf{Savings (\%)}} \\
+        \cmidrule(lr){3-4}
+        \textbf{Benchmark} & \textbf{$N$} & \textbf{\textsc{Replace}} & \textbf{\textsc{Degraded}} \\
+        \midrule
+        CG-C & 2 & $-$161 & $-$112 \\
+        CG-C & 4 & $-$260 & $-$71  \\
+        CG-C & 8 & $-$465 & $-$170 \\
+        \addlinespace
+        EP-D & 2 & $+$30  & $+$31  \\
+        EP-D & 4 & $+$22  & $+$34  \\
+        EP-D & 8 & $+$6   & $+$38  \\
+        \addlinespace
+        LU-C & 2 & $-$1   & $+$12  \\
+        LU-C & 4 & $-$21  & $+$13  \\
+        LU-C & 8 & $-$71  & $+$2   \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Within EP-D, cluster size governs how far the two strategies diverge. At 2\,workers,
+both absorb phase P2b cost similarly (30\% for \textsc{Replace}, 31\% for
+\textsc{Degraded}), the economic analog of the single red cell in
+Fig.~\ref{fig:crossover}. As $N$ grows, \textsc{Replace}'s phase P2b is charged across more
+workers; at 8\,workers, the gap widens to 6\% versus 38\%.
+Overall, job duration determines whether spot execution is economically viable, while
+cluster size determines how far \textsc{Replace}'s provisioning overhead erodes its
+savings relative to \textsc{Degraded}.
+
+
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% =============================================================================
+
+This paper presented a transparent fault-tolerance architecture that enables legacy \MPI applications to execute reliably on cloud spot instances without requiring any source-code modifications. By integrating the \MANA transparent checkpointing framework with the HPC@Cloud orchestrator, the proposed solution automates the entire recovery workflow, including interruption detection, reactive checkpoint creation, infrastructure reconfiguration, and application restart. Unlike previous approaches that either require application-level modifications or depend on restoring the original network state, our architecture provides an end-to-end recovery mechanism suitable for volatile cloud environments where interrupted instances are replaced by newly provisioned \VMs.
+
+To address the provisioning latency associated with spot instance replacement, we proposed and evaluated two complementary recovery strategies. The \textsc{Replace} strategy restores the original cluster size before resuming execution, preserving the application's original level of parallelism, whereas the \textsc{Degraded} strategy immediately resumes execution on the surviving workers, accepting a temporary reduction in available computational resources. Together, these strategies provide a practical design space that allows users to balance recovery latency against sustained computational performance according to the characteristics of their workloads.
+
+The experimental evaluation, comprising 282 executions of three \NPB kernels and four synthetic workloads, demonstrated that recovery performance is primarily determined by two interacting factors: cluster size and failure timing. As cluster size increases, the performance penalty associated with losing a single worker becomes proportionally smaller, making the rapid restart offered by \textsc{Degraded} increasingly advantageous. Conversely, in small clusters experiencing early interruptions, the remaining execution time is often sufficient to amortize the provisioning delay of \textsc{Replace}, making the restoration of the original cluster capacity beneficial. These results provide practical guidance for selecting an appropriate recovery strategy based on both workload characteristics and expected interruption scenarios.
+
+Beyond execution time, our results also characterize the practical operating limits of transparent checkpointing on cloud spot infrastructure. The economic analysis demonstrates that the substantial price discounts offered by spot instances are sufficient to compensate for the runtime overhead introduced by \MANA in medium- and long-running applications, while very short-running jobs remain better suited to conventional on-demand execution because recovery overhead dominates total execution time. Furthermore, the checkpoint latency study shows that checkpoint creation scales approximately linearly with the per-process memory footprint and remains compatible with the two-minute \AWS termination notice for the workloads evaluated in this study. The observed storage scalability limits identify practical memory thresholds beyond which higher-throughput storage systems or complementary periodic checkpointing mechanisms become necessary.
+
+Overall, the proposed architecture demonstrates that transparent checkpoint-restart can make spot instances a practical execution platform for tightly coupled legacy \MPI applications. By eliminating the need to modify existing scientific codes while preserving their ability to recover from cloud infrastructure interruptions, the approach lowers one of the principal barriers preventing the adoption of low-cost cloud resources for \HPC workloads. The resulting system enables researchers to leverage the economic benefits of spot instances while maintaining an execution model that remains largely indistinguishable from traditional \HPC environments.
+
+Several directions remain for future work. First, the current evaluation considers only single interruption events; studying multiple simultaneous or successive spot revocations would provide a more comprehensive understanding of long-running production workloads. Second, incorporating periodic checkpointing alongside the current reactive mechanism would enable recovery from unexpected failures that occur without advance termination notices. Third, evaluating the architecture on larger clusters, additional \MPI applications, and different cloud providers would further establish the generality of the proposed approach. Finally, future work may investigate adaptive recovery policies capable of dynamically selecting between \textsc{Replace} and \textsc{Degraded} based on online predictions of remaining execution time, cluster utilization, spot market conditions, and expected provisioning latency, thereby further improving both performance and cost efficiency.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
