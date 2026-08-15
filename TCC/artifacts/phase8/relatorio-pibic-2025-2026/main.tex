@@ -1,0 +1,974 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[portuguese]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[charter]{mathdesign}
+\usepackage{multirow}
+\usepackage{indentfirst}
+\usepackage{xspace}
+\usepackage[cm]{fullpage}
+\usepackage{color, colortbl}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{tabu}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[inline]{enumitem}
+
+\graphicspath{ {./imgs/} }
+
+\usepackage[noredefwarn, acronyms, symbols]{glossaries}
+\usepackage{xcolor}
+\usepackage[pdftex]{hyperref}
+\usepackage[natbib=true,bibstyle=numeric,citestyle=numeric,maxbibnames=10,doi=false]{biblatex}
+
+\input{acronyms}
+\addbibresource{references.bib}
+
+\AtEveryBibitem{
+    \clearfield{date}
+    \clearfield{eprint}
+    \clearfield{isbn}
+    \clearfield{issn}
+    \clearfield{doi}
+    \clearfield{month}
+}
+
+\fancypagestyle{plain}{%
+    \renewcommand{\headrulewidth}{0pt}%
+    \fancyhf{}%
+    \fancyhead[C]{
+        \begin{tabular*}{1.012\textwidth}{l@{\extracolsep{\fill} }cr}
+            \multirow{2}{*}{\hspace{-0.3cm}\includegraphics[height=2cm, width=!]{ufsc.jpg}} & \hspace{0.8cm}Universidade Federal de Santa Catarina (UFSC) & \multirow{2}{*}{\includegraphics[height=2cm, width=!]{ine.pdf}} \\
+            & \hspace{0.8cm}Departamento de Informática e Estatística (INE) & \\
+        \end{tabular*}
+    }%
+}
+
+\title{
+    \hspace{-0.6cm}\textbf{Relatório Final - PIBIC 2025/2026}\\[0.2cm]
+    \hspace{-0.6cm}\textbf{Projeto:} Sustainable High Performance Computing on AWS
+}
+\author{
+    \hspace{-0.6cm}\textbf{Bolsista:} Artur Luiz Rizzato Toru Soda\\
+    \hspace{-0.6cm}\textbf{Orientador:} Prof. Dr. Márcio Castro\\
+    \hspace{-0.6cm}\small{\emph{Laboratório de Pesquisa em Sistemas Distribuídos (LaPeSD), INE/UFSC}}
+}
+\date{\hspace{-0.6cm}\small{Florianópolis, \today}}
+
+\begin{document}
+
+    \maketitle
+
+    \begin{abstract}
+        Instâncias \textit{spot} da \gls{aws} oferecem descontos de até 90\%
+        em relação ao preço convencional, mas podem ser revogadas a qualquer momento com
+        apenas dois minutos de aviso, descartando todo o progresso acumulado por
+        aplicações \gls{mpi} de longa duração. Modificar aplicações científicas legadas para
+        lidar explicitamente com falhas raramente é viável, deixando a maioria dos
+        códigos sem qualquer resiliência frente a revogações. Diante disso, este trabalho
+        integra o MANA, um sistema de \textit{checkpoint/restart} transparente e
+        independente de rede para aplicações \gls{mpi}, ao orquestrador HPC@Cloud,
+        automatizando o ciclo completo de recuperação sem exigir alterações no
+        código da aplicação. Ao detectar um aviso de revogação, o sistema salva o estado
+        de todos os processos e retoma a execução por uma de duas estratégias: a
+        \textsc{Replace}, que provisiona um novo nó para restaurar a capacidade original
+        do \textit{cluster}, e a \textsc{Degraded}, que reinicia imediatamente nos nós
+        sobreviventes com paralelismo reduzido. A avaliação foi conduzida com 282
+        execuções sobre os \gls{npb} CG-C, EP-D e LU-C em
+        \textit{clusters} de 2, 4 e 8 \textit{workers}. Os resultados mostram que o
+        desempenho da recuperação é governado por dois fatores combinados: tamanho do
+        \textit{cluster} e momento da falha. A \textsc{Degraded} torna-se
+        progressivamente vantajosa conforme o \textit{cluster} cresce; a
+        \textsc{Replace} permanece preferível em \textit{clusters} pequenos com falhas
+        no início da execução. Economicamente, o desconto das instâncias \textit{spot} compensa o
+        \textit{overhead} do MANA em \textit{jobs} de duração moderada a longa,
+        estabelecendo limiares práticos de viabilidade para o uso de
+        \textit{checkpoint/restart} transparente em infraestrutura \textit{spot}.
+
+        \vspace{\baselineskip}
+        \noindent\textbf{Palavras-chave:} Computação em Nuvem. Computação de Alto
+        Desempenho. Instâncias \textit{Spot}. Tolerância a Falhas.
+        \textit{Checkpoint/Restart}. MANA. HPC@Cloud.
+    \end{abstract}
+
+    \tableofcontents
+    \glsresetall
+
+    \section{Introdução}
+
+        A adoção de cargas de trabalho de \gls{hpc} em
+        nuvens públicas tem crescido ao longo da última década, impulsionada pelo
+        acesso sob demanda a recursos computacionais de larga escala sem os custos de
+        aquisição e manutenção de infraestrutura física~\cite{netto2018hpccloud,mell2011nist}.
+        Nesse contexto, as instâncias \textit{spot} destacam-se por oferecer capacidade
+        ociosa do provedor com descontos de até 90\% sobre o preço
+        convencional~\cite{aws2018spot}, tornando-se uma opção atrativa para
+        \textit{jobs} \gls{hpc} de longa duração. A contrapartida é a confiabilidade: uma
+        instância \textit{spot} pode ser revogada a qualquer momento com apenas dois
+        minutos de aviso~\cite{aws2026spot_termination}, e uma aplicação paralela sem
+        proteção pode perder horas de computação acumulada em razão de uma única
+        interrupção. Isso é particularmente crítico para aplicações baseadas em \gls{mpi},
+        o padrão dominante de programação paralela para sistemas de memória distribuída,
+        em que múltiplos processos executam em paralelo e trocam dados exclusivamente
+        por troca de mensagens. Nesses programas, a falha de um único processo encerra
+        toda a aplicação, pois o \gls{mpi} não oferece mecanismos nativos de recuperação
+        a falhas.
+
+        A solução clássica para esse risco é o \textit{checkpoint/restart}: salvar
+        periodicamente o estado da aplicação em armazenamento persistente, de modo que
+        um \textit{job} interrompido possa ser retomado do último ponto salvo. Integrar
+        esse mecanismo a aplicações \gls{mpi} existentes exige, porém, modificações no
+        código-fonte, o que inviabiliza a adoção em aplicações científicas legadas.
+        O \textit{checkpoint/restart} transparente, em que a aplicação não precisa ser
+        alterada, é portanto a abordagem mais adequada para habilitar resiliência sem
+        impor ônus aos desenvolvedores.
+
+        Este trabalho propõe e avalia uma arquitetura resiliente que integra o MANA,
+        um sistema de \textit{checkpoint/restart} transparente e independente de rede
+        para aplicações \gls{mpi}, ao orquestrador HPC@Cloud~\cite{munhoz2024hpccloud},
+        automatizando a detecção de falhas e a recuperação de \textit{jobs} em
+        instâncias \textit{spot} da \gls{aws}, sem exigir qualquer modificação nas aplicações.
+
+        \subsection{Motivação}
+
+            O uso de instâncias \textit{spot} para \gls{hpc} é economicamente atrativo, mas
+            a possibilidade de revogação a qualquer momento representa um risco direto
+            para \textit{jobs} de longa duração. Quando uma instância é revogada, o
+            \textit{job} \gls{mpi} falha por completo e toda a computação realizada até aquele
+            ponto é perdida. Sem um mecanismo de tolerância a falhas, esse risco torna
+            as instâncias \textit{spot} inviáveis na prática para cargas
+            computacionalmente intensivas.
+
+            Soluções convencionais de \textit{checkpoint/restart} geralmente dependem de
+            restaurar o estado original das conexões de rede, o que é incompatível com o
+            ambiente dinâmico das instâncias \textit{spot}: quando uma instância é
+            substituída, um novo sistema operacional é inicializado com uma configuração
+            de rede distinta, impossibilitando o reinício por abordagens que assumem a
+            persistência das conexões originais~\cite{hargrove2006blcr,ansel2009dmtcp}.
+            O MANA~\cite{garg2019mana}, desenvolvido sobre o \textit{framework} DMTCP,
+            supera essa limitação por meio de uma arquitetura de processo dividido: a
+            camada superior, contendo o estado da aplicação \gls{mpi}, é salva no
+            \textit{checkpoint}; a camada inferior, responsável pela comunicação \gls{mpi} e
+            pelas conexões de rede, é reconstruída do zero a cada reinício. Isso permite
+            retomar a execução em um nó com configuração de rede distinta, viabilizando
+            duas estratégias de recuperação: a \textsc{Replace}, que provisiona um novo
+            nó para restaurar a capacidade original do \textit{cluster}, e a
+            \textsc{Degraded}, que reinicia imediatamente nos nós sobreviventes com
+            paralelismo reduzido.
+
+            Embora o MANA resolva o problema do \textit{checkpoint/restart} transparente,
+            ele não fornece uma solução completa para ambientes \textit{spot}. Recuperar-se
+            de uma interrupção exige mais do que salvar estado: é necessário detectar o
+            aviso de revogação, acionar o \textit{checkpoint}, reprovisionar recursos,
+            reconstruir o ambiente de execução e reiniciar a aplicação, tudo sem
+            intervenção manual. O orquestrador HPC@Cloud provê a infraestrutura de
+            gerenciamento de \textit{clusters} na \gls{aws}, mas não possuía suporte nativo a
+            esse ciclo de recuperação. A integração do MANA ao HPC@Cloud preenche essa
+            lacuna, viabilizando um fluxo completo e automatizado de tolerância a falhas.
+
+        \subsection{Objetivos}
+
+            \subsubsection{Objetivo Geral}
+
+                Propor, implementar e avaliar uma arquitetura de execução resiliente para
+                aplicações \gls{hpc} legadas em instâncias \textit{spot} da \gls{aws}, integrando o
+                MANA ao HPC@Cloud e quantificando o impacto em desempenho e custo em
+                comparação com a execução sem tolerância a falhas.
+
+            \subsubsection{Objetivos Específicos}
+
+                \begin{itemize}
+                    \item Implementar a integração entre o MANA e o HPC@Cloud,
+                          automatizando a detecção de avisos de revogação, o acionamento
+                          reativo do \textit{checkpoint} e o reinício da aplicação, sem
+                          qualquer modificação no código da aplicação;
+                    \item Projetar e avaliar duas estratégias de recuperação para
+                          \textit{jobs} \gls{mpi} interrompidos em instâncias \textit{spot},
+                          caracterizando as condições temporais e econômicas que
+                          determinam quando cada estratégia é preferível;
+                    \item Quantificar o \textit{overhead} do MANA sobre os \gls{npb}
+                          CG-C, EP-D e LU-C em \textit{clusters} de 2,
+                          4 e 8 \textit{workers}, e caracterizar a latência de escrita do
+                          \textit{checkpoint} em função do \textit{footprint} de memória
+                          por processo;
+                    \item Identificar os regimes de duração de \textit{job} em que a
+                          execução em instâncias \textit{spot} com \textit{checkpoint/restart}
+                          transparente oferece vantagem econômica em relação à execução
+                          em instâncias \textit{on-demand} sem tolerância a falhas.
+                \end{itemize}
+
+    \section{Fundamentação Teórica}
+
+        \subsection{HPC na Nuvem e Instâncias Spot}
+
+            Provedores de computação em nuvem disponibilizam recursos computacionais
+            por meio de máquinas virtuais, permitindo provisionar e liberar capacidade
+            sob demanda sem a necessidade de infraestrutura física
+            própria~\cite{mell2011nist}. Cada instância fornece um ambiente de execução
+            isolado com uma combinação definida de núcleos, memória, armazenamento e
+            rede. Para cargas de \gls{hpc}, o modelo IaaS (\textit{Infrastructure as a
+            Service}) é o mais relevante: o usuário instala e configura o ambiente de
+            execução sobre instâncias virtuais brutas, pagando apenas pelo tempo
+            utilizado~\cite{netto2018hpccloud}. Os provedores oferecem tipicamente dois
+            modelos de precificação: instâncias \textit{on-demand}, com disponibilidade
+            garantida e tarifa fixa; e instâncias preemptíveis, que disponibilizam
+            capacidade ociosa a preços substancialmente menores em troca de garantias
+            de disponibilidade mais fracas. Na \gls{aws}, esse segundo modelo corresponde às
+            instâncias \textit{spot}.
+
+            As instâncias \textit{spot} da \gls{aws} oferecem descontos de 70 a 90\% em
+            relação ao preço \textit{on-demand}~\cite{aws2018spot}. Quando o provedor
+            precisa recuperar a capacidade, ele emite um aviso de encerramento com
+            dois minutos de antecedência~\cite{aws2026spot_termination}. Essa janela
+            de dois minutos tem duas implicações importantes para o projeto da solução
+            de tolerância a falhas. Primeiro, ela torna viável o \textit{checkpoint}
+            reativo: em vez de salvar o estado periodicamente, o sistema pode aguardar
+            o aviso e salvar o estado apenas quando uma interrupção é iminente,
+            evitando o custo de \textit{checkpoints} desnecessários. Segundo, ela
+            impõe um limite superior ao volume de dados que pode ser escrito antes que
+            a instância seja encerrada, aspecto avaliado experimentalmente neste
+            trabalho.
+
+            Aplicações \gls{mpi} fortemente acopladas, isto é, aquelas em que os processos
+            se comunicam intensamente e dependem uns dos outros a cada iteração, são
+            especialmente vulneráveis a interrupções: uma falha em qualquer nó encerra
+            toda a execução. Sem \textit{checkpoint} prévio, isso significa perder todo
+            o progresso acumulado, tornando instâncias \textit{spot} impraticáveis sem
+            um mecanismo de tolerância a falhas. Um desafio adicional é que a instância
+            substituta inicializa com um estado de sistema operacional limpo, encerrando
+            todas as conexões de rede anteriores. Soluções de \textit{checkpoint/restart}
+            que dependem de restaurar o estado original das conexões não conseguem
+            reiniciar sobre o novo nó, o que motiva o uso de um sistema de
+            \textit{checkpoint} independente de rede, como o MANA, descrito na
+            seção seguinte.
+
+        \subsection{Checkpoint/Restart Transparente: DMTCP e MANA}
+        \label{sec:dmtcp-mana}
+
+            O \textit{checkpoint/restart} transparente é uma abordagem em que o
+            mecanismo de salvamento e restauração do estado da aplicação é implementado
+            fora do código da aplicação, sem exigir qualquer modificação por parte do
+            desenvolvedor. O DMTCP (\textit{Distributed MultiThreaded CheckPointing})~\cite{ansel2009dmtcp}
+            é um framework de \textit{checkpoint} transparente para processos Linux
+            distribuídos que opera inteiramente em espaço de usuário. Via \texttt{LD\_PRELOAD},
+            ele intercepta um conjunto reduzido de chamadas de biblioteca, rastreando
+            descritores de arquivo e conexões de rede sem modificar a aplicação.
+            Um protocolo coordenado drena as mensagens em trânsito antes de gravar
+            a imagem de memória de cada processo em disco.
+            Ao restaurar um \textit{checkpoint}, porém, o DMTCP recria o estado completo
+            da biblioteca \gls{mpi} a partir da imagem salva, incluindo as conexões de rede
+            originais. Isso vincula o reinício à topologia e à configuração de rede do
+            \textit{cluster} original, tornando-o incompatível com ambientes onde os
+            nós substitutos possuem identidades de rede distintas, como ocorre com
+            instâncias \textit{spot}.
+
+            O MANA (\textit{MPI-Agnostic, Network-Agnostic transparent
+            checkpointing})~\cite{garg2019mana,xu2023mana} estende o DMTCP com uma
+            arquitetura de processo dividido que resolve essa limitação. Dentro de um
+            único processo do sistema operacional, o MANA separa dois contextos: a
+            \textit{metade superior}, que contém o código da aplicação e o estado
+            \gls{mpi} visível a ela; e a \textit{metade inferior}, que contém a implementação
+            \gls{mpi} e as conexões de rede subjacentes. Durante o \textit{checkpoint},
+            apenas a metade superior é salva; a metade inferior é descartada e
+            reconstruída do zero no reinício, estabelecendo uma nova sessão \gls{mpi} com
+            novas conexões no nó substituto. Como a camada \gls{mpi} é reconstruída em vez
+            de restaurada, o reinício não está vinculado à topologia original e pode
+            acomodar um número diferente de \textit{workers}. Tabelas de tradução
+            entre identificadores \gls{mpi} virtuais e físicos na metade superior garantem que
+            a aplicação referencie os mesmos objetos \gls{mpi} antes e após o reinício, sem
+            ter conhecimento da substituição da biblioteca.
+
+            Um aspecto crítico da arquitetura é a garantia de consistência do
+            \textit{checkpoint}. Operações coletivas, como barreiras e reduções, exigem
+            que todos os processos participem simultaneamente; salvar o estado de um
+            processo que está no meio de uma dessas operações produziria uma imagem
+            inconsistente, impossível de restaurar corretamente. O MANA resolve isso
+            por meio de um processo coordenador dedicado: quando um \textit{checkpoint}
+            é requisitado, cada \textit{rank} conclui qualquer operação coletiva em
+            andamento e só então confirma ao coordenador que está pronto para ser
+            salvo~\cite{garg2019mana,xu2024mana}. O \textit{checkpoint} é escrito
+            apenas quando todos os \textit{ranks} confirmam, garantindo um estado
+            globalmente consistente. A viabilidade do MANA em ambientes de produção
+            foi demonstrada no supercomputador Perlmutter do NERSC em
+            2023~\cite{xu2023mana}, sobre uma pilha \gls{mpi} comercialmente suportada
+            em larga escala.
+
+        \subsection{HPC@Cloud e Slurm}
+
+            O HPC@Cloud~\cite{munhoz2024hpccloud} é um orquestrador desenvolvido pelo
+            LaPeSD/UFSC para provisionar e gerenciar \textit{clusters} \gls{hpc} em
+            infraestrutura de nuvem pública. O HPC@Cloud permite descrever um
+            \textit{cluster} de forma declarativa em um arquivo YAML, especificando os
+            tipos de instância, imagens de máquina e modos de alocação (sob demanda ou
+            \textit{spot}) de cada nó. Ao criar o \textit{cluster}, o HPC@Cloud
+            provisiona automaticamente a infraestrutura de rede, o armazenamento
+            compartilhado e as instâncias. Essa centralização do ciclo de vida do
+            \textit{cluster} torna o HPC@Cloud um ponto natural para integrar
+            mecanismos de recuperação automática.
+
+            Antes deste trabalho, o HPC@Cloud não oferecia suporte nativo ao tratamento
+            de interrupções de instâncias \textit{spot}: uma revogação encerrava o
+            \textit{job} sem qualquer ação de recuperação. A arquitetura proposta
+            estende o HPC@Cloud com essa capacidade, adicionando um componente de
+            monitoramento que detecta avisos de revogação e orquestra o ciclo completo
+            de recuperação, conforme descrito na Seção~\ref{sec:proposta}.
+
+            O Slurm (\textit{Simple Linux Utility for Resource Management})~\cite{jette2003slurm}
+            é um gerenciador de filas amplamente utilizado em \textit{clusters} \gls{hpc},
+            responsável por receber submissões de \textit{jobs}, alocar os nós
+            disponíveis e lançar os processos \gls{mpi} nos \textit{workers}. Neste trabalho,
+            o Slurm foi integrado ao \textit{cluster} como parte da solução de
+            tolerância a falhas, tendo papel central na recuperação: ao detectar uma
+            interrupção, o orquestrador utiliza comandos do Slurm para remover o nó
+            perdido da alocação, cancelar o \textit{job} em execução e resubmetê-lo
+            após a conclusão do ciclo de recuperação.
+
+        \subsection{NAS Parallel Benchmarks}
+        \label{sec:npb}
+
+            Os \gls{npb}~\cite{bailey1991nas} são uma suíte de
+            programas paralelos desenvolvida pela divisão NAS da NASA para avaliar o
+            desempenho de sistemas de computação paralela. As aplicações do \gls{npb} são
+            derivadas de problemas reais de dinâmica de fluidos computacional e cobrem
+            diferentes aspectos do desempenho paralelo, incluindo padrões variados de
+            computação, comunicação e acesso à memória. Para este trabalho, foram
+            selecionados três \textit{kernels} que exercitam perfis de comunicação \gls{mpi}
+            distintos, permitindo avaliar o comportamento do MANA em cenários
+            complementares. A Tabela~\ref{tab:npb} resume as características de cada
+            um.
+
+            \begin{table}[htb]
+                \caption{Kernels NPB utilizados na avaliação experimental.}
+                \label{tab:npb}
+                \centering
+                \small
+                \begin{tabular}{llp{6.5cm}}
+                    \toprule
+                    \textbf{Benchmark} & \textbf{Classe} & \textbf{Padrão de comunicação} \\
+                    \midrule
+                    EP (Embaraçosamente Paralelo) & D & Comunicação mínima; quase nenhuma troca de mensagens entre processos \\
+                    CG (Gradiente Conjugado)      & C & Comunicação irregular e intensa; acesso a matrizes esparsas não estruturadas \\
+                    LU (Gauss-Seidel LU)          & C & Comunicação estruturada entre vizinhos próximos; representa aplicações CFD reais \\
+                    \bottomrule
+                \end{tabular}
+            \end{table}
+
+    \section{Proposta}
+    \label{sec:proposta}
+
+        Esta seção descreve a arquitetura proposta para execução resiliente de
+        aplicações \gls{hpc} em instâncias \textit{spot}. A
+        Subseção~\ref{sec:arch} apresenta a visão geral dos componentes e do fluxo
+        de recuperação; a Subseção~\ref{sec:init} descreve a inicialização do
+        \textit{cluster}; a Subseção~\ref{sec:detection} detalha o mecanismo de
+        detecção de falhas e disparo do \textit{checkpoint}; e a
+        Subseção~\ref{sec:strategies} apresenta as duas estratégias de recuperação.
+
+        \subsection{Visão Geral da Arquitetura}
+        \label{sec:arch}
+
+            A arquitetura proposta habilita a execução tolerante a falhas de aplicações
+            \gls{mpi} em \textit{clusters} \gls{hpc} compostos majoritariamente por
+            instâncias \textit{spot}. Para isso, integra quatro componentes em um
+            \textit{pipeline} coordenado de recuperação: o HPC@Cloud, responsável pelo
+            provisionamento e gerenciamento do \textit{cluster}; o MANA, que fornece a
+            camada de \textit{checkpoint/restart} transparente; o Slurm, que gerencia o
+            escalonamento e a execução dos \textit{jobs}; e o Amazon \gls{efs}, que
+            provê armazenamento compartilhado e persistente entre todos os nós.
+            A Figura~\ref{fig:arch} ilustra a arquitetura e as interações entre esses
+            componentes.
+
+            \begin{figure}[htb]
+                \centering
+                \includegraphics[width=0.72\linewidth]{arch-overview-UCCversion}
+                \caption{Arquitetura de execução tolerante a falhas. O HPC@Cloud
+                         orquestra o \textit{cluster} a partir da máquina local do
+                         usuário; o \gls{efs} persiste o estado compartilhado entre
+                         substituições de nós.}
+                \label{fig:arch}
+            \end{figure}
+
+            O HPC@Cloud provisiona o \textit{cluster} e lança a aplicação \gls{mpi}
+            sob o MANA; em paralelo, um componente de monitoramento denominado
+            \textit{watcher} observa continuamente todos os \textit{workers} em busca
+            de avisos de revogação. Ao detectar um aviso, o \textit{watcher} dá início
+            à recuperação reativa: descarta imagens de \textit{checkpoint} anteriores
+            no \gls{efs}, solicita ao coordenador do MANA que salve o estado de todos
+            os \textit{ranks} e aguarda a gravação de uma imagem consistente. Com o
+            \textit{checkpoint} confirmado, o nó perdido é removido do Slurm, o
+            \textit{job} é cancelado, a estratégia de recuperação é executada e o
+            \textit{job} resubmetido para continuar do ponto salvo.
+
+            O \textit{cluster} segue uma topologia de \textit{head} e \textit{workers}: um
+            nó \textit{head} e $N$ nós \textit{workers}. Os \textit{workers} são
+            provisionados como instâncias \textit{spot} para aproveitar o desconto de
+            preço; o nó \textit{head} é provisionado como instância \textit{on-demand},
+            garantindo que ele permaneça disponível quando um \textit{worker} for
+            revogado, precisamente o momento em que seu papel de orquestração é mais
+            crítico.
+
+            Todo o estado compartilhado, incluindo as imagens de \textit{checkpoint},
+            a configuração do Slurm e os binários do MANA, é armazenado no \gls{efs},
+            montado em todos os nós do \textit{cluster}. O \gls{efs} é o elemento
+            central do mecanismo de recuperação: instâncias \textit{spot} substitutas
+            recebem um volume de armazenamento local limpo, de modo que qualquer
+            \textit{checkpoint} gravado em disco local seria perdido após a revogação.
+            Ao manter os \textit{checkpoints} no \gls{efs}, a arquitetura desacopla o
+            estado da execução dos nós físicos que o produziram, tornando a recuperação
+            possível independentemente de qual instância for interrompida.
+
+            O MANA fornece a camada de \textit{checkpoint} transparente, salvando e
+            restaurando o estado completo da execução \gls{mpi} sem qualquer modificação
+            na aplicação, conforme descrito na Subseção~\ref{sec:dmtcp-mana}. A
+            arquitetura proposta é responsável pelo restante do fluxo: detectar a
+            interrupção, acionar o \textit{checkpoint} no momento certo, gerenciar a
+            infraestrutura após a perda do nó e reiniciar a execução a partir do estado
+            salvo.
+
+        \subsection{Inicialização do Cluster}
+        \label{sec:init}
+
+            Cada nó do \textit{cluster} é provisionado a partir de uma AMI
+            (\textit{Amazon Machine Image}), uma imagem de disco pré-configurada que
+            define o sistema operacional e o software disponível desde a primeira
+            inicialização da instância. A AMI utilizada já contém o Slurm, o MANA e o
+            \textit{runtime} \gls{mpi} instalados, de modo que a inicialização resume-se
+            a ativar esses serviços, sem reinstalar software a cada provisionamento.
+
+            O nó \textit{head} sobe primeiro: gera a configuração do Slurm e a chave
+            de autenticação do \textit{cluster} e publica ambas no \gls{efs}. Os
+            \textit{workers} monitoram o \gls{efs} à espera de um arquivo sentinela
+            que indica que a configuração está disponível; ao encontrá-lo, cada
+            \textit{worker} aplica a configuração e se registra no controlador do
+            Slurm.
+
+            O coordenador do MANA não sobe com o \textit{cluster}. Ele é iniciado
+            antes de cada submissão de \textit{job} e reiniciado no início de cada
+            recuperação, mantendo seu ciclo de vida atrelado ao do \textit{job}.
+
+        \subsection{Detecção de Falhas e Checkpoint}
+        \label{sec:detection}
+
+            O HPC@Cloud opera a partir da máquina local do usuário e se comunica
+            com o \textit{cluster} via \gls{ssm}, sem exigir nenhum agente residente
+            dentro do \textit{cluster}. Durante a execução de um \textit{job} tolerante
+            a falhas, ele mantém duas tarefas concorrentes: a \texttt{run\_task}, que
+            conduz o \textit{job} despachando comandos ao \textit{cluster}; e o
+            \textit{watcher}, que consulta continuamente, em cada \textit{worker}, a
+            API de notificação de revogação da \gls{aws} em busca de avisos de
+            encerramento.
+
+            O fluxo de recuperação desencadeado pelo aviso é dividido em seis fases,
+            estruturadas na Tabela~\ref{tab:phases}. Esta seção cobre P1 e P2a, que
+            ocorrem antes de qualquer decisão de estratégia; as fases P2b e P2c, onde
+            as estratégias divergem, são tratadas na Seção~\ref{sec:strategies}.
+
+            \begin{table}[htb]
+                \caption{Decomposição das fases de execução e recuperação.}
+                \label{tab:phases}
+                \centering
+                \begin{tabular}{cl}
+                    \toprule
+                    \textbf{Fase} & \textbf{Descrição} \\
+                    \midrule
+                    P0  & Execução normal antes da interrupção \\
+                    P1  & Gravação do \textit{checkpoint} disparada pelo aviso de encerramento \\
+                    P2a & Remoção do nó e cancelamento do \textit{job} no Slurm \\
+                    P2b & Recuperação de infraestrutura (dependente da estratégia) \\
+                    P2c & Reinício do coordenador do MANA e resubmissão do \textit{job} \\
+                    P3  & Execução retomada a partir do \textit{checkpoint} \\
+                    \bottomrule
+                \end{tabular}
+            \end{table}
+
+            Ao detectar um aviso, o \textit{watcher} inicia P1, o \textit{pipeline} de
+            \textit{checkpoint} reativo. O \textit{checkpoint} é sempre disparado por
+            eventos de interrupção, não de forma periódica, evitando o custo de
+            \textit{checkpoints} desnecessários. O \textit{watcher} começa limpando o
+            diretório de \textit{checkpoint} no \gls{efs}, para que imagens de execuções
+            anteriores não sejam confundidas com uma imagem recém-gravada. Em seguida,
+            instrui o coordenador do MANA a salvar o estado de todos os \textit{ranks}.
+            Como o comando de \textit{checkpoint} é assíncrono, o \textit{watcher}
+            monitora o \gls{efs} até confirmar que uma imagem consistente foi gravada
+            para cada \textit{rank}. Para todas as configurações do \gls{npb} avaliadas,
+            as gravações concluíram bem dentro da janela de dois minutos; um
+            \textit{timeout} configurável de 300 segundos limita o tempo máximo de
+            espera como salvaguarda para cargas maiores.
+
+            Com P1 concluído, tem início P2a: o nó interrompido é removido do Slurm
+            e o \textit{job} é cancelado, pois uma alocação não pode continuar com um
+            nó faltando. A \texttt{run\_task} detecta o cancelamento, verifica no
+            registro local de eventos que uma recuperação está em andamento e aguarda
+            o \textit{watcher} concluir o ciclo antes de resubmeter o \textit{job}.
+
+            A arquitetura pressupõe três condições de funcionamento: a \gls{aws}
+            entrega o aviso de dois minutos antes de revogar a instância (falhas abruptas
+            de hardware, sem aviso prévio, não são tratadas e exigiriam
+            \textit{checkpoint} periódico, deixado como trabalho futuro); apenas um
+            \textit{worker} é interrompido por vez; e o nó \textit{head} e o \gls{efs}
+            permanecem disponíveis durante toda a execução.
+
+        \subsection{Estratégias de Recuperação}
+        \label{sec:strategies}
+
+            Concluída P2a, o \textit{job} está suspenso e o nó interrompido já foi
+            removido do Slurm. É em P2b, a fase de recuperação de infraestrutura, que
+            as duas estratégias divergem:
+
+            \begin{itemize}
+                \item \textbf{\textsc{Replace}}: Em P2b, um nó \textit{spot}
+                      substituto é provisionado a partir da mesma AMI e dos arquivos
+                      de configuração armazenados no \gls{efs}, sendo então
+                      reintegrado ao Slurm. A fase P3 retoma a execução com o
+                      \textit{cluster} original de $N$ nós, preservando o paralelismo
+                      completo. O custo da \textsc{Replace} está na latência de
+                      provisionamento de P2b, que pode chegar a vários minutos
+                      dependendo da disponibilidade de instâncias. Essa estratégia é
+                      preferível quando o tempo restante de execução é longo o
+                      suficiente para que concluir em velocidade máxima justifique
+                      aguardar o novo nó.
+
+                \item \textbf{\textsc{Degraded}}: Em P2b, o nó perdido é marcado
+                      como inativo no Slurm, sem provisionar nenhuma instância nova.
+                      O \textit{job} reinicia imediatamente nos $N-1$ nós
+                      sobreviventes, com todos os $N$ \textit{ranks} \gls{mpi}
+                      distribuídos pelo \textit{cluster} reduzido. P3 começa muito
+                      antes do que na \textsc{Replace}, mas cada nó sobrevivente
+                      executa mais de um \textit{rank}, introduzindo contenção de CPU
+                      que desacelera a computação restante. A \textsc{Degraded} é
+                      preferível quando o \textit{job} está próximo do fim, onde um
+                      reinício rápido compensa a perda de paralelismo.
+            \end{itemize}
+
+            Em ambas as estratégias, P2c é idêntico: um novo coordenador do MANA
+            sobe no nó \textit{head} e o MANA restaura cada \textit{rank} a partir
+            das imagens de \textit{checkpoint} no \gls{efs}, retomando a execução
+            do exato ponto salvo sem nenhuma alteração na aplicação. A
+            Figura~\ref{fig:strategies} resume os dois caminhos completos, evidenciando
+            como a divergência em P2b e a convergência em P2c estruturam o fluxo de
+            recuperação.
+
+            \begin{figure}[htb]
+                \centering
+                \includegraphics[width=0.50\linewidth]{strategy-flow-UCCversion}
+                \caption{Caminhos de recuperação para \textsc{Replace} e
+                         \textsc{Degraded}. As estratégias divergem em P2b: a
+                         \textsc{Replace} provisiona um nó substituto; a
+                         \textsc{Degraded} retoma imediatamente nos
+                         \textit{workers} sobreviventes.}
+                \label{fig:strategies}
+            \end{figure}
+
+            A escolha entre as estratégias é determinada pelo tamanho do
+            \textit{cluster} e pelo momento da falha. Em cenários com múltiplas
+            falhas sequenciais, a \textsc{Replace} tem ainda uma vantagem estrutural:
+            ela restaura a capacidade do \textit{cluster} após cada evento, ao passo
+            que a \textsc{Degraded} acumularia um déficit crescente de nós a cada
+            falha. A avaliação experimental na Seção~\ref{sec:avaliacao} caracteriza
+            esses \textit{tradeoffs} em detalhe.
+
+    \section{Avaliação Experimental}
+    \label{sec:avaliacao}
+
+        Esta seção avalia a abordagem proposta sob perspectivas de desempenho e custo.
+        A Subseção~\ref{sec:config} descreve a plataforma, o \textit{software} e a
+        metodologia dos experimentos. As Subseções~\ref{sec:overhead}
+        e~\ref{sec:ckpt-lat} analisam, respectivamente, o \textit{overhead} introduzido
+        pelo MANA e a latência de gravação do \textit{checkpoint}. A
+        Subseção~\ref{sec:strategies-comp} compara as estratégias de recuperação em
+        diferentes tamanhos de \textit{cluster} e momentos de falha. A
+        Subseção~\ref{sec:cost} examina o custo econômico da execução tolerante a
+        falhas em instâncias \textit{spot}.
+
+        \subsection{Configuração Experimental}
+        \label{sec:config}
+
+            Todos os experimentos foram conduzidos na \gls{aws}. O \textit{cluster} é
+            formado por um nó \textit{head} t3.large, operado como instância
+            \textit{on-demand}, e por $N$ \textit{workers} m5.xlarge, operados como
+            instâncias \textit{spot}. A Tabela~\ref{tab:hardware} apresenta as
+            especificações e os preços de referência na região \texttt{us-west-2}
+            em maio de 2026.
+
+            \begin{table}[htb]
+                \caption{Configuração do \textit{cluster} e preços na \gls{aws}
+                         (\texttt{us-west-2}, maio de 2026).}
+                \label{tab:hardware}
+                \centering
+                \small
+                \begin{tabular}{llrr}
+                    \toprule
+                    \textbf{Nó}            & \textbf{Tipo}  & \textbf{Spot}  & \textbf{On-demand} \\
+                    \midrule
+                    \textit{Head} (1)      & t3.large       & $-$            & \$0.0832/h \\
+                    \textit{Workers} ($N$) & m5.xlarge      & \$0.0585/h     & \$0.1920/h \\
+                    \bottomrule
+                \end{tabular}
+            \end{table}
+
+            O t3.large é uma instância burstable de propósito
+            geral~\cite{soda2025erad,soda2025wcc} com 2~vCPUs e 8~GB de memória.
+            Por cuidar apenas de orquestração, sem executar tarefas da aplicação,
+            suas exigências computacionais são modestas; por isso, o nó
+            \textit{head} roda como \textit{on-demand} para garantir
+            disponibilidade durante toda a avaliação. Os \textit{workers} são m5.xlarge, com 4~vCPUs
+            e 16~GB de memória cada, e operam como instâncias \textit{spot}. Todo o
+            estado compartilhado, incluindo imagens de \textit{checkpoint} e a
+            configuração do Slurm, reside no \gls{efs} e persiste entre substituições
+            de instâncias.
+
+            A pilha de \textit{software} consiste em Amazon Linux 2023, MPICH 3.3.2,
+            MANA v1.2.0, Slurm 24.05.4 e \gls{npb} 3.4.4. Os três \textit{kernels}
+            avaliados, EP-D, CG-C e LU-C, são descritos na Seção~\ref{sec:npb}.
+
+            Como interrupções \textit{spot} reais são imprevisíveis e podem não
+            ocorrer durante uma execução, as interrupções foram injetadas em momentos
+            controlados para garantir comparações reproduzíveis entre as estratégias.
+            Para EP-D e LU-C, a interrupção é disparada aos 10\%, 25\% e 50\% do tempo
+            de execução medido com MANA sem tolerância a falhas (MANA-noFT). Para o
+            CG-C, cujo tempo de execução é curto demais para uma varredura
+            proporcional, a interrupção ocorre sempre aos 3~segundos de execução. Cada
+            configuração foi executada três vezes, totalizando 180 execuções dos
+            \textit{kernels} do \gls{npb}. Quatro \textit{benchmarks} sintéticos
+            complementam a análise de \textit{overhead}, com mais 102 execuções,
+            chegando a 282 no total. Todos os resultados reportados são médias
+            aritméticas sobre três execuções.
+
+        \subsection{Overhead do MANA}
+        \label{sec:overhead}
+
+            O \textit{overhead} de tempo de execução introduzido pelo MANA varia conforme
+            o \textit{benchmark} e o tamanho do \textit{cluster}. A
+            Figura~\ref{fig:overhead} compara o tempo decorrido entre a execução nativa
+            sem tolerância a falhas (noFT) e a execução sob MANA sem interrupções
+            (MANA-noFT), para cada \textit{benchmark} e tamanho de \textit{cluster}.
+
+            \begin{figure}[htb]
+                \centering
+                \includegraphics[width=0.88\linewidth]{fig_overhead}
+                \caption{Tempo decorrido com execução nativa (noFT) e com MANA sem
+                         interrupções (MANA-noFT), por \textit{benchmark} e tamanho
+                         de \textit{cluster}. O percentual de \textit{overhead}
+                         é anotado acima de cada barra MANA-noFT.}
+                \label{fig:overhead}
+            \end{figure}
+
+            Para EP-D e LU-C, o \textit{overhead} relativo diminui conforme o número
+            de \textit{workers} aumenta, indicando que o MANA acompanha a escala da
+            execução nativa sem impor uma penalidade crescente com o número de
+            \textit{ranks}. No LU-C, o \textit{overhead} cai de 63\% com 2 e 4
+            \textit{workers} para 53\% com 8. No EP-D, fica entre 45\% e 47\% com 2
+            e 4 \textit{workers} e recua para 27\% com 8. Mesmo com esses valores, o
+            desconto de aproximadamente 70\% das instâncias \textit{spot} pode resultar
+            em vantagem econômica líquida, como discutido na Seção~\ref{sec:cost}.
+
+            O CG-C é a principal exceção. Com 2 \textit{workers}, o \textit{overhead}
+            atinge 222\%, muito além do observado nos demais \textit{benchmarks}. O
+            curto tempo de execução, em torno de 12 segundos com 8 \textit{workers},
+            torna o \textit{overhead} relativo especialmente sensível a custos fixos,
+            mas esse fator sozinho não explica o resultado. Experimentos complementares
+            com \textit{benchmarks} sintéticos descartaram frequência de chamadas
+            \gls{mpi} e assimetria de processamento entre nós distintos como causas:
+            o \textit{overhead} absoluto permanece entre 3,5 e 5 segundos nessas
+            variações. A hipótese mais provável é que a partição grosseira da matriz
+            com apenas 2 processos cria um desbalanceamento de carga persistente, cujos
+            efeitos podem ser amplificados pelo mecanismo de espera ativa do MANA ao
+            longo de milhares de iterações. Com partições mais finas, em 4 e 8
+            \textit{workers}, o desbalanceamento diminui e o \textit{overhead} recua
+            para 55\% e 71\%, respectivamente. Confirmar essa hipótese exigiria
+            instrumentação interna do MANA e da aplicação, o que é deixado como
+            trabalho futuro.
+
+        \subsection{Latência de Escrita do Checkpoint}
+        \label{sec:ckpt-lat}
+
+            A janela de dois minutos do aviso de encerramento impõe uma segunda
+            restrição além do tempo de detecção: ela limita quanto estado cada
+            \textit{rank} consegue gravar no \gls{efs} antes de a instância ser
+            revogada. A Figura~\ref{fig:ckpt-lat} mostra a duração da fase P1 em
+            função do consumo de memória por processo, medida com um \textit{benchmark}
+            sintético dedicado que varia a alocação de 50~MB a 3,2~GB.
+
+            \begin{figure}[htb]
+                \centering
+                \includegraphics[width=0.78\linewidth]{fig_ckpt_latency}
+                \caption{Duração da fase P1 (gravação do \textit{checkpoint}) em
+                         função do consumo de memória por processo. A linha
+                         tracejada marca a janela de dois minutos do aviso
+                         \textit{spot}.}
+                \label{fig:ckpt-lat}
+            \end{figure}
+
+            O tempo de gravação escala linearmente com o tamanho do estado e é
+            estável entre execuções, com desvios padrão abaixo de 0,4~segundos em
+            todos os pontos. Com 3,2~GB por processo, a demanda agregada de quatro
+            \textit{ranks} simultâneos se aproxima do teto de \textit{burst} de
+            105~MB/s do \gls{efs}, e a fase P1 atinge 139,2 segundos, ultrapassando
+            a janela de dois minutos.
+
+            Todas as configurações do \gls{npb} avaliadas têm consumo de memória por
+            processo bem abaixo desse limite, e suas gravações de \textit{checkpoint}
+            concluem dentro da janela. Para aplicações com consumo de memória acima de
+            3~a~4~GB por processo, a demanda agregada satura o teto de \textit{burst}
+            do \gls{efs} e a abordagem reativa não é suficiente; nesses casos seriam
+            necessários armazenamento de maior vazão ou \textit{checkpoint} periódico,
+            o que é deixado como trabalho futuro.
+
+        \subsection{Comparação de Estratégias de Recuperação}
+        \label{sec:strategies-comp}
+
+            Dois fatores determinam qual estratégia é preferível em cada cenário: o
+            tamanho do \textit{cluster} e o momento da falha. Ambos atuam por meio de
+            P2b, a única fase que difere entre as estratégias. Na \textsc{Replace}, P2b
+            compreende o provisionamento de uma nova instância \textit{spot} e sua
+            integração ao Slurm, o que leva em torno de 120 segundos. Na
+            \textsc{Degraded}, P2b apenas marca o nó perdido como inativo no Slurm sem
+            provisionar nenhuma instância, completando em apenas 11 segundos. A escolha
+            se reduz a saber se essa economia em P2b compensa o P3 mais lento, que passa
+            a contar com um nó a menos. Para isolar o efeito do tamanho do
+            \textit{cluster} sem que o momento da falha interfira na comparação, o CG-C
+            é ideal: como seu tempo de execução é curto demais para uma varredura
+            proporcional, a interrupção é fixada sempre aos 3 segundos para todos os
+            valores de $N$; com o timing constante, qualquer diferença no total decorre
+            exclusivamente do tamanho do \textit{cluster}. A Tabela~\ref{tab:cg-breakdown}
+            apresenta a decomposição por fases para os três tamanhos de \textit{cluster}.
+
+            \begin{table}[htb]
+                \caption{Decomposição de fases do CG-C: tempo médio decorrido (segundos)
+                         sobre três execuções. P2b é a única fase que difere entre
+                         as estratégias.}
+                \label{tab:cg-breakdown}
+                \centering
+                \small
+                \begin{tabular}{clrrrrrr}
+                    \toprule
+                    \textbf{$N$} & \textbf{Estratégia} & \textbf{P0} & \textbf{P1} &
+                    \textbf{P2a+P2c} & \textbf{P2b} & \textbf{P3} & \textbf{Total} \\
+                    \midrule
+                    2 & \textsc{Replace}  & 3 & 27 & 11 & 121 &  40 & 206 \\
+                    2 & \textsc{Degraded} & 3 & 27 & 11 &  11 & 113 & 169 \\
+                    \midrule
+                    4 & \textsc{Replace}  & 3 & 27 & 11 & 123 &  26 & 196 \\
+                    4 & \textsc{Degraded} & 3 & 27 & 11 &  11 &  35 &  93 \\
+                    \midrule
+                    8 & \textsc{Replace}  & 3 & 37 & 11 & 120 &  25 & 203 \\
+                    8 & \textsc{Degraded} & 3 & 37 & 11 &  11 &  25 &  97 \\
+                    \bottomrule
+                \end{tabular}
+            \end{table}
+
+            Com 2 \textit{workers}, a \textsc{Degraded} chega a P3 com 110 segundos de
+            vantagem sobre a \textsc{Replace} (P2b de 11~s contra 121~s na tabela), mas
+            ao custo de concentrar todo o trabalho restante em um único nó executando
+            dois \textit{ranks} MPI ao mesmo tempo. Essa perda de metade da capacidade
+            faz P3 subir de 40~s para 113~s, absorvendo quase toda a vantagem de P2b. Conforme $N$ aumenta, perder um nó representa fração menor da
+            capacidade total, e P3 sob \textsc{Degraded} converge para o valor da
+            \textsc{Replace}: 35~s contra 26~s em $N{=}4$; 25~s contra 25~s em
+            $N{=}8$. Nesse ponto, a economia em P2b domina e a \textsc{Degraded} passa
+            a ser claramente mais rápida no total. O crescimento de P1 com 8
+            \textit{workers} é específico do CG-C: cada \textit{rank} mantém buffers
+            por parceiro de comunicação, de modo que mais \textit{workers} ampliam a
+            imagem de \textit{checkpoint} por processo; EP-D e LU-C, com padrões de
+            comunicação de cardinalidade fixa, mantêm P1 constante.
+
+            O momento da falha acrescenta a segunda dimensão. A
+            Figura~\ref{fig:crossover} mostra $\Delta T = T_{\textsc{Replace}} -
+            T_{\textsc{Degraded}}$ em segundos para todos os 18 cenários de EP-D e
+            LU-C (2 \textit{benchmarks} $\times$ 3 tamanhos de \textit{cluster}
+            $\times$ 3 momentos de falha), onde $T$ é o tempo total de execução,
+            soma de todas as fases. Células verdes indicam que a \textsc{Degraded} é
+            mais rápida.
+
+            \begin{figure}[htb]
+                \centering
+                \includegraphics[width=0.62\linewidth]{fig_crossover}
+                \caption{Diferença de tempo $\Delta T = T_{\textsc{Replace}} -
+                         T_{\textsc{Degraded}}$ (segundos) para EP-D e LU-C, por
+                         tamanho de \textit{cluster} e momento de falha. Verde:
+                         \textsc{Degraded} mais rápida; vermelho: \textsc{Replace}
+                         mais rápida.}
+                \label{fig:crossover}
+            \end{figure}
+
+            A única célula vermelha corresponde ao EP-D com 2 \textit{workers} e
+            interrupção aos 10\%: com apenas um nó sobrevivente e a maior parte do
+            trabalho ainda pela frente, a penalidade em P3 supera a economia de P2b em
+            19 segundos. A leitura das colunas da esquerda para a direita mostra os
+            dois fatores atuando juntos: em $N{=}2$, somente falhas tardias produzem
+            células verdes; em $N{=}8$, todas são intensamente verdes, pois perder um
+            nó entre oito impõe penalidade negligível em P3 em qualquer momento da
+            falha. Embora cenários de múltiplas falhas sequenciais não tenham sido
+            avaliados experimentalmente neste trabalho, a análise estrutural das
+            estratégias aponta uma assimetria relevante: a \textsc{Replace} restaura a
+            capacidade completa do \textit{cluster} após cada evento, mantendo a
+            penalidade de P3 dentro de limites previsíveis independentemente de quantas
+            falhas ocorram. A \textsc{Degraded}, por acumular um nó a menos a cada
+            falha, eleva progressivamente a penalidade em P3 e aumenta o risco de
+            encerrar o \textit{job} com recursos insuficientes.
+
+        \subsection{Análise Econômica}
+        \label{sec:cost}
+
+            Como a cobrança em nuvem é proporcional ao tempo de instância consumido,
+            o padrão de custos espelha a análise de tempo: a duração do \textit{job}
+            é o fator que determina se o desconto das instâncias \textit{spot} consegue
+            compensar o \textit{overhead} de recuperação. A Figura~\ref{fig:cost}
+            apresenta o custo por execução para cada configuração, comparado à linha de
+            base noFT em instâncias \textit{on-demand}.
+
+            \begin{figure}[htb]
+                \centering
+                \includegraphics[width=\linewidth]{fig_cost}
+                \caption{Custo por execução (USD) por \textit{benchmark} e tamanho de
+                         \textit{cluster}. CG-C exibe uma única barra por
+                         configuração (interrupção sempre aos 3\,s); EP-D e LU-C
+                         exibem três barras por tamanho, correspondendo a interrupções
+                         aos 10\%, 25\% e 50\% do tempo MANA-noFT.}
+                \label{fig:cost}
+            \end{figure}
+
+            O EP-D, com tempo de execução entre 99 e 334 segundos, é o único
+            \textit{benchmark} em que ambas as estratégias reduzem o custo de forma
+            consistente: nesse regime, o desconto \textit{spot} tem tempo suficiente
+            para compensar o \textit{overhead} de P2b em qualquer momento de falha.
+            No LU-C, cerca de três vezes mais curto, apenas a \textsc{Degraded} alcança
+            economia: seus 11 segundos de P2b são absorvidos com folga, enquanto os
+            120 segundos de P2b da \textsc{Replace} não se recuperam dentro do tempo
+            disponível. No CG-C, nenhuma das estratégias é viável: o custo de
+            recuperação supera o tempo de execução em todas as configurações, tornando
+            ambas mais caras que a linha de base. A Tabela~\ref{tab:cost} quantifica
+            essas diferenças como percentual de economia em relação à execução noFT
+            em instâncias \textit{on-demand}.
+
+            \begin{table}[htb]
+                \caption{Economia de custo em relação à execução noFT em instâncias
+                         \textit{on-demand} (média sobre os momentos de falha).
+                         Positivo: mais barato com FT; negativo: mais caro.}
+                \label{tab:cost}
+                \centering
+                \small
+                \begin{tabular}{lrrr}
+                    \toprule
+                    & & \multicolumn{2}{c}{\textbf{Economia (\%)}} \\
+                    \cmidrule(lr){3-4}
+                    \textbf{Benchmark} & \textbf{$N$} & \textbf{\textsc{Replace}} & \textbf{\textsc{Degraded}} \\
+                    \midrule
+                    CG-C & 2 & $-$161 & $-$112 \\
+                    CG-C & 4 & $-$260 & $-$71  \\
+                    CG-C & 8 & $-$465 & $-$170 \\
+                    \addlinespace
+                    EP-D & 2 & $+$30  & $+$31  \\
+                    EP-D & 4 & $+$22  & $+$34  \\
+                    EP-D & 8 & $+$6   & $+$38  \\
+                    \addlinespace
+                    LU-C & 2 & $-$1   & $+$12  \\
+                    LU-C & 4 & $-$21  & $+$13  \\
+                    LU-C & 8 & $-$71  & $+$2   \\
+                    \bottomrule
+                \end{tabular}
+            \end{table}
+
+            No EP-D, o tamanho do \textit{cluster} governa o quanto as estratégias
+            divergem entre si. Com 2 \textit{workers}, ambas absorvem o custo de P2b
+            de forma similar (30\% de economia para \textsc{Replace} e 31\% para
+            \textsc{Degraded}), o reflexo econômico da célula vermelha isolada na
+            Seção~\ref{sec:strategies-comp}. Conforme $N$ cresce, o custo de P2b da
+            \textsc{Replace} é repartido entre mais \textit{workers}; com 8, a diferença
+            chega a 6\% contra 38\%. No geral, a duração do \textit{job} determina se
+            a execução em instâncias \textit{spot} é economicamente viável, enquanto o
+            tamanho do \textit{cluster} determina o quanto o \textit{overhead} de
+            provisionamento da \textsc{Replace} corrói sua economia em relação à
+            \textsc{Degraded}.
+
+    \section{Conclusão}
+    \label{sec:conclusao}
+
+        Este trabalho apresentou uma arquitetura de tolerância a falhas para
+        execução de aplicações \gls{mpi} legadas em instâncias \textit{spot} da
+        \gls{aws} sem exigir modificações no código da aplicação. A solução
+        integra o MANA ao orquestrador HPC@Cloud, automatizando o ciclo completo
+        de recuperação: detecção da interrupção, gravação reativa do
+        \textit{checkpoint}, reconfiguração da infraestrutura e reinício do
+        \textit{job}. Duas estratégias complementares foram propostas e avaliadas:
+        a \textsc{Replace}, que provisiona um nó substituto antes de retomar a
+        execução e preserva o paralelismo original do \textit{cluster}; e a
+        \textsc{Degraded}, que reinicia imediatamente nos nós sobreviventes,
+        aceitando uma redução temporária de capacidade em troca de menor latência
+        de recuperação.
+
+        A avaliação experimental, com 282 execuções de três \textit{kernels} do
+        \gls{npb} e quatro \textit{benchmarks} sintéticos, mostrou que o
+        desempenho da recuperação é determinado principalmente por dois fatores: o
+        tamanho do \textit{cluster} e o momento da falha. Conforme o número de
+        \textit{workers} cresce, a penalidade de perder um nó diminui
+        proporcionalmente, tornando a \textsc{Degraded} cada vez mais vantajosa.
+        Em \textit{clusters} menores com falhas no início da execução, o tempo restante de
+        execução frequentemente é suficiente para amortizar o custo de
+        provisionamento da \textsc{Replace}. Sob a perspectiva econômica, o
+        desconto das instâncias \textit{spot} compensa o \textit{overhead} do MANA
+        em aplicações de duração média e longa; \textit{jobs} muito curtos
+        permanecem mais adequados a instâncias \textit{on-demand}. A latência de
+        gravação do \textit{checkpoint} escala linearmente com o consumo de memória
+        por processo e ficou dentro da janela de dois minutos para todos os
+        \textit{workloads} avaliados.
+
+        A abordagem demonstra que \textit{checkpoint} transparente pode tornar
+        instâncias \textit{spot} uma plataforma viável para aplicações \gls{mpi}
+        legadas fortemente acopladas, reduzindo uma das principais barreiras para
+        adoção de recursos de nuvem de baixo custo em \gls{hpc}. Como trabalho
+        futuro, destacam-se: a incorporação de \textit{checkpoint} periódico para
+        cobrir falhas abruptas sem aviso prévio; a avaliação com múltiplas
+        interrupções simultâneas ou sequenciais; e políticas adaptativas capazes de
+        selecionar automaticamente entre \textsc{Replace} e \textsc{Degraded} com
+        base no tempo de execução restante e nas condições do mercado
+        \textit{spot}.
+
+    \section{Avaliação PIBIC: Benefícios e Formação Científica}
+
+        A participação no PIBIC neste ciclo proporcionou aprofundamento em um
+        conjunto amplo de tecnologias relevantes para \gls{hpc} em nuvem. Do
+        ponto de vista técnico, foram desenvolvidas habilidades em programação com
+        Rust para a implementação do componente de monitoramento de interrupções;
+        configuração e operação de \textit{clusters} na \gls{aws} envolvendo os
+        serviços \gls{ec2}, \gls{efs} e \gls{ssm}; integração do escalonador Slurm
+        ao fluxo de recuperação; e uso do framework MANA/DMTCP para
+        \textit{checkpoint} transparente. Além das competências técnicas, o ciclo
+        contribuiu para o desenvolvimento de habilidades em planejamento e execução
+        de avaliações experimentais controladas e em escrita científica em inglês.
+
+        O trabalho deste ciclo apoia-se em pesquisas anteriores do grupo sobre
+        instâncias burstable da \gls{aws}. O artigo \textit{``Avaliação
+        Preliminar do Desempenho e Custo Financeiro de Aplicações de {HPC} em
+        Clusters de Instâncias Burstable da {AWS}''}~\cite{soda2025erad},
+        publicado no ERAD-RS 2025, realizou uma avaliação inicial do desempenho e
+        custo dessas instâncias. Esse trabalho foi estendido no artigo
+        \textit{``Performance and Cost Analysis of {AWS} Burstable Instances for
+        {HPC} with {NAS} Parallel Benchmarks''}~\cite{soda2025wcc}, apresentado
+        no WCC/SBAC-PAD 2025. Embora o presente trabalho não analise instâncias
+        burstable diretamente, os resultados desses dois estudos embasaram a
+        escolha de uma instância t3.large, do tipo burstable, como nó cabeça na
+        arquitetura de tolerância a falhas proposta neste relatório. Avançando
+        para o cenário de instâncias \textit{spot}, o presente ciclo resultou na
+        submissão do artigo \textit{``Transparent Resilience for Legacy HPC
+        Applications on Cloud Spot Instances with MANA''} ao IEEE/ACM UCC 2026,
+        com avaliação em andamento. Esse artigo descreve a arquitetura apresentada
+        neste relatório, os experimentos realizados com os \textit{kernels} do
+        \gls{npb} e a análise comparativa das estratégias \textsc{Replace} e
+        \textsc{Degraded}.
+
+        Em termos de contribuição ao projeto HPC@Cloud, o ciclo resultou na
+        integração completa de um módulo de tolerância a falhas ao orquestrador,
+        incluindo o componente de monitoramento de avisos de encerramento, o
+        \textit{pipeline} de \textit{checkpoint} reativo e o suporte às duas
+        estratégias de recuperação. Essa extensão permite que o HPC@Cloud suporte
+        execuções em instâncias \textit{spot} com recuperação automática, sem
+        necessidade de modificação nas aplicações, e representa uma contribuição
+        concreta ao projeto de pesquisa \textit{Sustainable High Performance
+        Computing on AWS}.
+
+    \renewcommand*{\bibfont}{\scriptsize}
+    \printbibliography
+
+\end{document}

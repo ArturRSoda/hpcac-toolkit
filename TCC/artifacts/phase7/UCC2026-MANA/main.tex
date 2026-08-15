@@ -628,9 +628,11 @@ closes it in 11\,s, and the choice reduces to whether that saving outweighs phas
 penalty of running with one fewer worker.
 Table~\ref{tab:cg-breakdown} isolates the cluster-size effect through CG-C, where
 interruptions always occur at the same relative point.
-At 2\,workers, the sole surviving node runs two MPI ranks, and the 109\,s phase P2b saving
-is almost entirely consumed by the extended phase P3 (113\,s under \textsc{Degraded} versus
-40\,s under \textsc{Replace}).
+At 2\,workers, \textsc{Degraded} reaches phase P3 with a 109\,s advantage over
+\textsc{Replace} (\textsc{Replace} P2b of $\sim$120\,s versus \textsc{Degraded} P2b
+of 11\,s), but at the cost of concentrating all remaining work on the sole surviving
+node running two MPI ranks simultaneously. This halved capacity inflates phase P3
+from 40\,s (under \textsc{Replace}) to 113\,s, absorbing almost the entire P2b gain.
 As $N$ grows, losing one node becomes a smaller fraction of total capacity; phase P3 under
 \textsc{Degraded} converges toward the \textsc{Replace} value (35\,s vs.\ 26\,s at
 $N{=}4$; 25\,s vs.\ 25\,s at $N{=}8$), and phase P2b saving becomes increasingly
