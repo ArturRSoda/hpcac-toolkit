@@ -13,12 +13,14 @@ Instituição: LaPeSD, INE/UFSC
 | Etapa | Atividade | Status |
 |---|---|---|
 | 0 | Aguardar edital do 36º SIC e confirmar datas | ☐ |
-| 1 | Escrever o resumo (máx. 3.000 caracteres) | ☐ |
-| 2 | Planejar roteiro do vídeo | ☐ |
-| 3 | Gravar e editar o vídeo (MP4, 2–5 min) | ☐ |
-| 4 | Submeter vídeo no Repositório Institucional | ☐ |
-| 5 | Fazer inscrição no formulário do SIC | ☐ |
-| 6 | [Condicional] Preparar apresentação oral (PDF/PPTX) | ☐ |
+| 1 | Escrever o resumo (máx. 3.000 caracteres) | ✅ |
+| 2 | Criar esqueleto dos slides (template lapesd-slides) | ✅ |
+| 3 | Desenvolver conteúdo dos slides | ✅ |
+| 4 | Escrever roteiro de apresentação | ✅ |
+| 5 | Gravar e editar o vídeo (MP4, 2–5 min) | ☐ |
+| 6 | Submeter vídeo no Repositório Institucional | ☐ |
+| 7 | Fazer inscrição no formulário do SIC | ☐ |
+| 8 | [Condicional] Preparar apresentação oral (PDF/PPTX) | ☐ |
 
 ---
 
