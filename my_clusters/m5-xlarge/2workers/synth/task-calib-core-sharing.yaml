@@ -1,0 +1,143 @@
+tasks:
+  - task_tag: "calib_core_sharing_othercorebusy_2w_m5xl"
+    setup_commands:
+      - |
+        cat > /tmp/compute_bound.c <<'CSRC'
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <time.h>
+
+        /* Compute-bound kernel: simple floating-point recurrence, stays in
+         * registers, touches essentially no memory. Proxy for EP-D's
+         * register-heavy profile. */
+
+        int main(int argc, char **argv) {
+            long iters = (argc > 1) ? atol(argv[1]) : 20000000000L;
+            double x = 1.0000001;
+            double acc = 1.0;
+            struct timespec t0, t1;
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            for (long i = 0; i < iters; i++) {
+                acc = acc * x + 1e-10;
+                if (acc > 1e8) acc = 1.0;  /* keep bounded, rarely taken */
+            }
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            double elapsed = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+            printf("compute_bound: acc=%f elapsed=%.3fs\n", acc, elapsed);
+            return 0;
+        }
+        CSRC
+      - |
+        cat > /tmp/memory_bound.c <<'CSRC'
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <string.h>
+        #include <time.h>
+
+        /* Memory-bound kernel: same loop as synth_duration.c, minus MPI.
+         * One add per access into a 50MB buffer, larger than per-core cache. */
+
+        #define MEM_MB 50
+
+        int main(int argc, char **argv) {
+            long iters = (argc > 1) ? atol(argv[1]) : 3200000000L;
+            long n = (MEM_MB * 1024L * 1024L) / sizeof(double);
+            double *buf = (double *)malloc(n * sizeof(double));
+            memset(buf, 0x42, n * sizeof(double));
+
+            struct timespec t0, t1;
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            for (long i = 0; i < iters; i++) {
+                buf[i % n] += 1.0;
+            }
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            double elapsed = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+            printf("memory_bound: elapsed=%.3fs\n", elapsed);
+            free(buf);
+            return 0;
+        }
+        CSRC
+      - gcc -O2 -o /shared/compute_bound /tmp/compute_bound.c
+      - gcc -O2 -o /shared/memory_bound /tmp/memory_bound.c
+      - |
+        cat > /shared/run_calibration.sh <<'SH'
+        #!/bin/bash
+        set -e
+
+        echo "=== Detecting hyperthread siblings for CPU 0 ==="
+        SIBLINGS=$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)
+        echo "CPU 0 siblings: $SIBLINGS"
+        CPU_A=$(echo "$SIBLINGS" | cut -d, -f1)
+        CPU_B=$(echo "$SIBLINGS" | cut -d, -f2)
+
+        if [ "$CPU_A" == "$CPU_B" ]; then
+          echo "WARNING: CPU 0 has no hyperthread sibling (got only $CPU_A)."
+          echo "This instance may not have SMT enabled -- the test depends on it."
+          exit 1
+        fi
+        echo "Using CPU $CPU_A and CPU $CPU_B (the two hardware threads of one physical core)"
+
+        # Find the OTHER physical core's two hardware threads, so we can keep
+        # it busy throughout the whole test (controls for turbo boost: a
+        # fully-idle sibling core can let the measured core clock higher than
+        # it would in a real scenario where the whole chip is busy).
+        CPU_OTHER=""
+        for c in $(ls -1 /sys/devices/system/cpu/ | grep -oP '(?<=^cpu)[0-9]+$'); do
+          if [ "$c" != "$CPU_A" ] && [ "$c" != "$CPU_B" ]; then
+            CPU_OTHER=$c
+            break
+          fi
+        done
+        OTHER_SIBLINGS=$(cat "/sys/devices/system/cpu/cpu${CPU_OTHER}/topology/thread_siblings_list")
+        CPU_C=$(echo "$OTHER_SIBLINGS" | cut -d, -f1)
+        CPU_D=$(echo "$OTHER_SIBLINGS" | cut -d, -f2)
+        echo "Keeping the other physical core busy on CPU $CPU_C and CPU $CPU_D"
+        echo
+
+        echo "=== Starting decoy load on the other core (both its threads) ==="
+        taskset -c "$CPU_C" /shared/compute_bound 999999999999 &
+        DECOY1=$!
+        taskset -c "$CPU_D" /shared/compute_bound 999999999999 &
+        DECOY2=$!
+        sleep 2  # let the decoy load and any turbo-boost state settle
+        echo "Decoy PIDs: $DECOY1 $DECOY2"
+        echo
+
+        cleanup() {
+          echo "Stopping decoy load..."
+          kill "$DECOY1" "$DECOY2" 2>/dev/null || true
+        }
+        trap cleanup EXIT
+
+        # Runs N copies of BIN, all confined to this one physical core's two
+        # hardware threads (CPU_A, CPU_B). For N<=2 each process is pinned to
+        # its own exact thread (matches a clean "1 or 2 per core" test). For
+        # N>2, all processes share the affinity mask {CPU_A,CPU_B} and the OS
+        # scheduler time-slices them, this is the "beyond hyperthread
+        # capacity" regime that matters for accumulated faults.
+        run_density() {
+          BIN=$1; ITERS=$2; N=$3
+          echo "--- $BIN: DENSITY=$N (N processes confined to one physical core) ---"
+          PIDS=()
+          for i in $(seq 1 "$N"); do
+            if [ "$N" -le 2 ]; then
+              if [ "$i" -eq 1 ]; then CPU="$CPU_A"; else CPU="$CPU_B"; fi
+            else
+              CPU="$CPU_A,$CPU_B"
+            fi
+            taskset -c "$CPU" "/shared/$BIN" "$ITERS" &
+            PIDS+=("$!")
+          done
+          for pid in "${PIDS[@]}"; do wait "$pid"; done
+        }
+
+        echo "=== COMPUTE-BOUND KERNEL ==="
+        for N in 1 2 3 4; do run_density compute_bound 20000000000 "$N"; done
+        echo
+
+        echo "=== MEMORY-BOUND KERNEL ==="
+        for N in 1 2 3 4; do run_density memory_bound 3200000000 "$N"; done
+        SH
+      - chmod +x /shared/run_calibration.sh
+    run_commands:
+      - salloc -w ip-10-0-0-11 -N1 -n1 -t 00:15:00 srun --nodelist=ip-10-0-0-11 -N1 -n1 bash /shared/run_calibration.sh 2>&1 | tee output.txt

@@ -14,9 +14,10 @@ use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct AutoTestFailureConfig {
@@ -49,6 +50,12 @@ struct FaultToleranceConfig {
     terminate_cluster_on_zero_workers: bool,
     #[serde(default = "default_recovery_timeout_secs")]
     recovery_timeout_secs: u64,
+    /// User-provided estimate of total job duration, in seconds. Used only by
+    /// the ADAPTIVE strategy to decide between REPLACE_RESUME and
+    /// DEGRADED_RESUME at fault time. Omit to disable ADAPTIVE's time-based
+    /// decision (falls back to DEGRADED_RESUME on fault).
+    #[serde(default)]
+    estimated_duration_secs: Option<u64>,
     /// If set, automatically fires a simulated spot-interruption on the
     /// target worker after `trigger_after_secs` from when the run commands
     /// start. Omit this field entirely to disable auto failure injection.
@@ -498,13 +505,16 @@ pub async fn run_task(
 
     if let Some(ft) = &tasks_yaml.fault_tolerance {
         match ft.strategy.as_str() {
-            "NONE" | "REPLACE_RESUME" | "DEGRADED_RESUME" => {}
+            "NONE" | "REPLACE_RESUME" | "DEGRADED_RESUME" | "ADAPTIVE" => {}
             other => {
                 bail!(
-                    "Invalid fault_tolerance.strategy '{}'. Expected NONE, REPLACE_RESUME, or DEGRADED_RESUME.",
+                    "Invalid fault_tolerance.strategy '{}'. Expected NONE, REPLACE_RESUME, DEGRADED_RESUME, or ADAPTIVE.",
                     other
                 )
             }
+        }
+        if ft.strategy == "ADAPTIVE" && ft.estimated_duration_secs.is_none() {
+            warn!("ADAPTIVE strategy without estimated_duration_secs: falling back to DEGRADED_RESUME on fault");
         }
         if ft.strategy == "REPLACE_RESUME"
             && ft.replacement_allocation_mode != "spot"
@@ -875,6 +885,14 @@ pub async fn run_task(
             None
         };
 
+    // Shared with the watcher: set to the wall-clock time when run_commands
+    // actually starts (per task, see the task loop below). ADAPTIVE's time
+    // formula must be anchored here, not to watcher_started_at, because
+    // estimated_duration_secs (derived from ft_wall_time_s / T_MANA_noFT)
+    // measures run_commands time only, excluding setup_commands (compilation,
+    // file copies, etc.). None until the first task's run_commands begin.
+    let run_commands_started_at: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+
     let watcher_handle: Option<JoinHandle<Result<()>>> =
         if let Some(ft) = &tasks_yaml.fault_tolerance {
             if ft.strategy == "NONE" {
@@ -892,6 +910,7 @@ pub async fn run_task(
                     checkpoint_dir: ft.checkpoint_dir.clone(),
                     poll_interval_secs: ft.poll_interval_secs,
                     terminate_cluster_on_zero_workers: ft.terminate_cluster_on_zero_workers,
+                    estimated_duration_secs: ft.estimated_duration_secs,
                 };
 
                 let pool_clone = pool.clone();
@@ -901,6 +920,7 @@ pub async fn run_task(
                 let worker_ids_clone = worker_instance_ids.clone();
                 let head_id_clone = task_runner_instance_ec2_id.clone();
                 let watcher_progress_clone = watcher_progress_bar.clone();
+                let run_commands_started_at_clone = run_commands_started_at.clone();
 
                 Some(tokio::spawn(async move {
                     watcher::run_watcher(
@@ -914,6 +934,7 @@ pub async fn run_task(
                         watcher_interface,
                         watcher_ft,
                         watcher_progress_clone,
+                        run_commands_started_at_clone,
                     )
                     .await
                 }))
@@ -1064,6 +1085,7 @@ pub async fn run_task(
         main_progress.update_message(&running_task_message);
 
         let run_commands_start = Instant::now();
+        *run_commands_started_at.lock().unwrap() = Some(Utc::now().to_rfc3339());
 
         // Spawn the auto test-failure trigger if configured.
         // It fires `trigger_after_secs` after the run phase starts,

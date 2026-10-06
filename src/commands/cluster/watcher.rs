@@ -7,6 +7,7 @@ use anyhow::{bail, Result};
 use indicatif::ProgressBar;
 use sqlx::sqlite::SqlitePool;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
 
@@ -18,6 +19,7 @@ pub struct FaultToleranceConfig {
     pub checkpoint_dir: String,
     pub poll_interval_secs: u64,
     pub terminate_cluster_on_zero_workers: bool,
+    pub estimated_duration_secs: Option<u64>,
 }
 
 fn watcher_info(progress: &Option<ProgressBar>, message: &str) {
@@ -51,6 +53,7 @@ pub async fn run_watcher(
     cloud_interface: AwsInterface,
     ft: FaultToleranceConfig,
     progress: Option<ProgressBar>,
+    run_commands_started_at: Arc<Mutex<Option<String>>>,
 ) -> Result<()> {
     let mut in_flight: HashSet<usize> = HashSet::new();
     let mut queued: HashSet<usize> = HashSet::new();
@@ -134,6 +137,7 @@ pub async fn run_watcher(
                     &ft,
                     &progress,
                     &recovery_cycle_id,
+                    &run_commands_started_at,
                 )
                 .await
                 {
@@ -460,6 +464,7 @@ async fn handle_interruption(
     ft: &FaultToleranceConfig,
     progress: &Option<ProgressBar>,
     recovery_cycle_id: &str,
+    run_commands_started_at: &Arc<Mutex<Option<String>>>,
 ) -> Result<()> {
     let node_private_ip = node.private_ip.as_deref().unwrap_or("");
     let worker_host = format!("ip-{}", node_private_ip.replace('.', "-"));
@@ -645,7 +650,60 @@ bash /tmp/hpcac_ckpt_wait.sh"#,
         )
         .await?;
 
-    match ft.strategy.as_str() {
+    let effective_strategy = if ft.strategy == "ADAPTIVE" {
+        // Computed only for the ADAPTIVE branch -- manual REPLACE_RESUME/DEGRADED_RESUME
+        // are untouched and keep their existing behavior (including
+        // handle_policy_degraded_resume's own zero-worker handling).
+        let remaining_workers = all_nodes
+            .iter()
+            .filter(|n| n.role == "worker" && n.id != node.id)
+            .count();
+        // Resolve the wall-clock time run_commands actually started at. None
+        // means the fault happened before run_commands began (e.g. during
+        // setup_commands) -- there is no meaningful "elapsed application
+        // time" yet, so fall back to DEGRADED_RESUME rather than guess.
+        let resolved_start = run_commands_started_at.lock().unwrap().clone();
+        let run_commands_started = resolved_start.is_some();
+        let chosen = match resolved_start {
+            Some(ts) => choose_effective_strategy(remaining_workers, &ts, ft.estimated_duration_secs),
+            None => "DEGRADED_RESUME",
+        };
+        watcher_info(
+            progress,
+            &format!(
+                "[watcher][cycle={}]   -> ADAPTIVE chose: {} (remaining_workers={}, estimated={:?}s, run_commands_started={})",
+                recovery_cycle_id, chosen, remaining_workers, ft.estimated_duration_secs, run_commands_started
+            ),
+        );
+        // Persisted so the report/DB record what ADAPTIVE actually chose,
+        // without needing to infer it indirectly from phase durations.
+        if let Err(e) = InterruptionEvent::new(
+            &cluster.id,
+            &node.id,
+            node_private_ip,
+            "adaptive_decision",
+            Some(&format!(
+                "cycle_id={} | chosen={} remaining_workers={} estimated_duration_secs={:?} run_commands_started={}",
+                recovery_cycle_id, chosen, remaining_workers, ft.estimated_duration_secs, run_commands_started
+            )),
+        )
+        .insert(pool)
+        .await
+        {
+            watcher_warn(
+                progress,
+                &format!(
+                    "[watcher][cycle={}] failed to persist adaptive_decision event: {}",
+                    recovery_cycle_id, e
+                ),
+            );
+        }
+        chosen
+    } else {
+        ft.strategy.as_str()
+    };
+
+    match effective_strategy {
         "REPLACE_RESUME" => {
             handle_policy_replace_resume(
                 pool,
@@ -680,6 +738,63 @@ bash /tmp/hpcac_ckpt_wait.sh"#,
             .await
         }
         other => bail!("Unknown fault_tolerance.strategy: {}", other),
+    }
+}
+
+/// Decides between REPLACE_RESUME and DEGRADED_RESUME for the ADAPTIVE
+/// strategy, based on estimated remaining work time at the moment of fault.
+///
+/// Derivation (Phase 10, TCC): REPLACE_RESUME saves ~109s of recovery time
+/// versus DEGRADED_RESUME (P2b_replace ~120s vs P2b_degraded ~11s), but
+/// DEGRADED_RESUME finishes P3 slower because it runs with one fewer worker.
+/// The empirical penalty (P3_degraded - P3_replace) is ~0.28x the remaining
+/// work time, and this coefficient is approximately constant across cluster
+/// sizes (N=2, 4, 8) in the benchmarks tested -- so the formula below does not
+/// take N into account directly. Valid coefficient range for correct
+/// classification of the 18-point calibration dataset: (0.25, 0.30).
+///
+/// `remaining_workers == 0` is checked first and short-circuits to
+/// REPLACE_RESUME regardless of the time formula: this is a hard physical
+/// constraint (DEGRADED_RESUME cannot run without any surviving worker), not
+/// a time-based decision. This is scoped to the ADAPTIVE decision only --
+/// manual DEGRADED_RESUME keeps its own existing zero-worker handling in
+/// handle_policy_degraded_resume() (stop jobs, optionally terminate the
+/// cluster), which this function does not touch or replace.
+fn choose_effective_strategy(
+    remaining_workers: usize,
+    run_started_at: &str,
+    estimated_duration_secs: Option<u64>,
+) -> &'static str {
+    if remaining_workers == 0 {
+        return "REPLACE_RESUME";
+    }
+
+    // P2b saving: t_replace_P2b (~120s) - t_degraded_P2b (~11s), measured empirically.
+    const P2B_SAVING_SECS: f64 = 109.0;
+    // Empirical penalty coefficient (β−α): (P3_degraded − P3_replace) / remaining_secs,
+    // ~0.28-0.31 across N∈{2,4,8} and EP-D/LU-C benchmarks tested.
+    const PENALTY_COEFF: f64 = 0.28;
+
+    let Some(estimated) = estimated_duration_secs else {
+        return "DEGRADED_RESUME"; // no estimate -> safe default
+    };
+
+    let elapsed_secs = chrono::Utc::now()
+        .signed_duration_since(
+            chrono::DateTime::parse_from_rfc3339(run_started_at)
+                .unwrap_or_default()
+                .with_timezone(&chrono::Utc),
+        )
+        .num_seconds()
+        .max(0) as f64;
+
+    let remaining_secs = ((estimated as f64) - elapsed_secs).max(0.0);
+    let p3_penalty_estimate = remaining_secs * PENALTY_COEFF;
+
+    if p3_penalty_estimate > P2B_SAVING_SECS {
+        "REPLACE_RESUME"
+    } else {
+        "DEGRADED_RESUME"
     }
 }
 

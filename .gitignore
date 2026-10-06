@@ -39,6 +39,21 @@ results/
 
 __pycache__/
 
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.out
+*.toc
+*.run.xml
+*.nav
+*.snm
+*.64
+
 # MANA binaries and source (not version-controlled)
 MANAcommandfiles/
 mana/
