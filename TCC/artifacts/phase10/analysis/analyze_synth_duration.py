@@ -96,11 +96,6 @@ ax.set_ylim(Y_MIN, Y_MAX)
 ax.set_yticks([2, 4, 8])
 ax.set_xlabel("Estimated remaining work time at the moment of fault (seconds)", fontsize=10.5)
 ax.set_ylabel("Cluster size before fault (N workers)", fontsize=10.5)
-ax.set_title(
-    "synth_duration: measured REPLACE/DEGRADED winner across N=2,4,8\n"
-    "diamond = REPLACE/DEGRADED ranges overlap (genuinely ambiguous point)",
-    fontsize=11, fontweight="bold", color=TEXT_PRIMARY, pad=12, linespacing=1.6,
-)
 
 ax.grid(True, axis="x", color=GRID, linewidth=0.8, zorder=0)
 ax.set_axisbelow(True)
@@ -125,7 +120,7 @@ ax.legend(handles=shape_legend, title="Marker shape",
           loc="upper right", bbox_to_anchor=(0.99, 0.78),
           fontsize=8.5, title_fontsize=8.5, framealpha=0.95)
 
-fig.subplots_adjust(top=0.85, right=0.98, left=0.08, bottom=0.12)
+fig.subplots_adjust(top=0.95, right=0.98, left=0.08, bottom=0.12)
 fig.savefig(IMG_DIR / "fig_synth_duration_boundary.png", dpi=200)
 plt.close(fig)
 
@@ -145,18 +140,14 @@ ax.bar(x + width/2, theoretical, width,
 
 ax.set_xticks(x)
 ax.set_xticklabels([f"N={n}" for n in ns])
-ax.set_ylabel("Penalty coefficient (β - α)", fontsize=10.5)
-ax.set_title(
-    "Measured penalty coefficient vs. the naive 1/(N-1) model,\nby cluster size",
-    fontsize=11, fontweight="bold", color=TEXT_PRIMARY, pad=12, linespacing=1.4,
-)
+ax.set_ylabel("Penalty coefficient (coef)", fontsize=10.5)
 ax.grid(True, axis="y", color=GRID, linewidth=0.8, zorder=0)
 ax.set_axisbelow(True)
 for spine in ["top", "right"]:
     ax.spines[spine].set_visible(False)
 ax.legend(fontsize=9, framealpha=0.95)
 
-fig.subplots_adjust(top=0.82, right=0.97, left=0.12, bottom=0.12)
+fig.subplots_adjust(top=0.95, right=0.97, left=0.12, bottom=0.12)
 fig.savefig(IMG_DIR / "fig_coefficient_n_independence.png", dpi=200)
 plt.close(fig)
 

@@ -1,0 +1,117 @@
+% Assume-se que \pretextual já foi feito
+
+\imprimircapa%
+\imprimirfolhaderosto*
+% \protect\incluirfichacatalografica{ficha.pdf}  % descomentar quando tiver a ficha
+{}% placeholder: evita que \imprimirfolhadecertificacao seja engolido pelo \@ifstar
+\imprimirfolhadecertificacao
+
+
+% \begin{dedicatoria}
+% \end{dedicatoria}
+
+
+\begin{agradecimentos}
+Ao Prof.\ Márcio Bastos Castro, pela orientação cuidadosa, pela liberdade de
+exploração e pelo ambiente de pesquisa que tornou este trabalho possível.
+
+Ao LaPeSD, em especial a Vanderlei Munhoz, cujo desenvolvimento do orquestrador
+HPC@Cloud serviu de base para a integração proposta neste trabalho, e cujas
+contribuições técnicas ao longo do projeto foram determinantes.
+
+Este trabalho foi parcialmente financiado pelo Conselho Nacional de
+Desenvolvimento Científico e Tecnológico (CNPq) e pela Amazon Web Services
+(AWS) por meio da Chamada CNPq/AWS Nº~64/2022 (Cloud Credits for Research).
+
+À minha família, pelo apoio incondicional ao longo de toda a graduação.
+\end{agradecimentos}
+
+
+% \begin{epigrafe}
+% \end{epigrafe}
+
+
+\begin{resumo}[Resumo]
+Instâncias \textit{spot} da Amazon Web Services oferecem descontos de até 90\%
+em relação ao preço convencional, mas podem ser revogadas pelo provedor a
+qualquer momento, com aviso de apenas dois minutos, descartando todo o progresso
+computacional acumulado em aplicações MPI de longa duração. Este trabalho propõe
+e avalia uma arquitetura de execução resiliente para aplicações MPI legadas em
+instâncias \textit{spot}, sem exigir modificação de código, por meio da
+integração do MANA, sistema de \textit{checkpoint/restart} transparente para MPI,
+ao orquestrador HPC@Cloud. A topologia adotada é híbrida: nó coordenador em
+instância \textit{burstable on-demand} e nós de computação em instâncias
+\textit{spot}.
+Duas estratégias de recuperação são implementadas: a
+\textsc{Replace}, que reprovísiona o nó interrompido e retoma a execução com a
+capacidade original do \textit{cluster}, e a \textsc{Degraded}, que marca o nó
+como inativo e reinicia imediatamente com $N{-}1$ \textit{workers}. Uma terceira
+opção, a \textsc{Adaptive}, escolhe automaticamente entre as duas no momento da
+falha a partir de uma heurística calibrada empiricamente, validada tanto nos
+dados de treino quanto em uma carga de trabalho sintética fora da amostra,
+mantendo a mesma decisão independentemente do tamanho do \textit{cluster}. A
+avaliação
+experimental, conduzida com 282 execuções sobre os \textit{benchmarks} NPB
+CG-C, EP-D e LU-C em \textit{clusters} de 2, 4 e 8 \textit{workers}, revelou
+dois regimes de viabilidade: para \textit{jobs} curtos como o CG-C (12 a 35~s),
+o \textit{overhead} de recuperação domina e a abordagem não se justifica; para
+\textit{jobs} de duração moderada a longa como o EP-D e o LU-C, a
+\textsc{Degraded} alcançou menor tempo de execução em 17 das 18 configurações
+avaliadas, com economia de custo de 2 a 38\% em relação à execução equivalente
+em instâncias \textit{on-demand} sem tolerância a falhas.
+
+\vspace{\baselineskip}
+\textbf{Palavras-chave:} Computação em Nuvem. Computação de Alto Desempenho.
+Instâncias \textit{Spot}. Tolerância a Falhas. \textit{Checkpoint/Restart}.
+MANA. HPC@Cloud.
+\end{resumo}
+
+
+\begin{abstract}
+AWS spot instances offer discounts of up to 90\% compared to on-demand pricing,
+but may be revoked by the provider at any time with only two minutes of notice,
+discarding all accumulated computational progress in long-running MPI
+applications. This work proposes and evaluates a resilient execution
+architecture for legacy MPI applications on AWS spot instances, without
+requiring code modification, by integrating MANA, a transparent
+\textit{checkpoint/restart} system for MPI, with the HPC@Cloud orchestrator.
+The adopted topology is hybrid: a coordinator node on a \textit{burstable
+on-demand} instance and compute nodes on \textit{spot} instances.
+Two recovery
+strategies are implemented: \textsc{Replace}, which reprovisions the interrupted
+node and resumes execution with the original cluster capacity, and
+\textsc{Degraded}, which marks the node as inactive and immediately restarts
+with $N{-}1$ workers. A third option, \textsc{Adaptive}, automatically chooses
+between the two at the moment of failure based on an empirically calibrated
+heuristic, validated both on the training data and on a synthetic workload
+outside that sample, keeping the same decision regardless of cluster size. The
+experimental evaluation, conducted with 282 executions
+on the NPB benchmarks CG-C, EP-D, and LU-C on clusters of 2, 4, and 8 workers,
+revealed two viability regimes: for short jobs such as CG-C (12 to 35~s),
+recovery overhead dominates and the approach is not worthwhile; for medium to
+long-running jobs such as EP-D and LU-C, \textsc{Degraded} achieved shorter
+execution times in 17 out of 18 evaluated configurations, with cost savings of
+2 to 38\% compared to the equivalent on-demand execution without fault
+tolerance.
+
+\vspace{\baselineskip}
+\textbf{Keywords:} Cloud Computing. High Performance Computing. Spot Instances.
+Fault Tolerance. Checkpoint/Restart. MANA. HPC@Cloud.
+\end{abstract}
+
+
+\listoffigures*
+\listoftables*
+\listofalgorithms*
+
+%%% Força todas as siglas definidas em acronyms.tex a aparecer na lista,
+%%% mesmo sem uso de \gls{} no texto.
+\glsaddall
+\listadesiglas*[7em]
+
+\tableofcontents*%
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "main"
+%%% End:
